@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import shlex
 import time
 from datetime import datetime, timezone
 
@@ -25,19 +26,25 @@ from harbor.models.agent.context import AgentContext
 # EDITABLE HARNESS — prompt, tools, agent construction
 # ============================================================================
 
-SYSTEM_PROMPT = "You are an agent that executes tasks"
+SYSTEM_PROMPT = """You are an autonomous coding and terminal agent.
+
+When working on model-ingest tasks, optimize for staged correctness before
+performance. Read the task instructions, establish the first failing gate, make
+one focused intervention, run the cheapest validation that can confirm it, and
+record useful findings in the task's work directory when one is provided. Never
+claim success from intent; verify the produced artifacts and scores.
+"""
 MODEL = "gpt-5"
-MAX_TURNS = 30
+MAX_TURNS = 80
 
 
 def create_tools(environment: BaseEnvironment) -> list[FunctionTool]:
     """Create tools for the agent. Add new tools here."""
 
-    @function_tool
-    async def run_shell(command: str) -> str:
-        """Run a shell command in the task environment. Returns stdout and stderr."""
+    async def _exec(command: str, timeout_sec: int = 120) -> str:
         try:
-            result = await environment.exec(command=command, timeout_sec=120)
+            timeout = max(1, min(int(timeout_sec), 3600))
+            result = await environment.exec(command=command, timeout_sec=timeout)
             out = ""
             if result.stdout:
                 out += result.stdout
@@ -47,7 +54,116 @@ def create_tools(environment: BaseEnvironment) -> list[FunctionTool]:
         except Exception as exc:
             return f"ERROR: {exc}"
 
-    return [run_shell]
+    @function_tool
+    async def run_shell(command: str, timeout_sec: int = 120) -> str:
+        """Run a shell command in the task environment. Returns stdout and stderr."""
+        return await _exec(command, timeout_sec)
+
+    @function_tool
+    async def list_files(path: str = ".", max_depth: int = 3, limit: int = 200) -> str:
+        """List files below a path with bounded depth and output length."""
+        depth = max(1, min(int(max_depth), 8))
+        max_items = max(1, min(int(limit), 1000))
+        command = (
+            f"find {shlex.quote(path)} -maxdepth {depth} -type f "
+            f"| sort | head -n {max_items}"
+        )
+        return await _exec(command, timeout_sec=60)
+
+    @function_tool
+    async def read_text_file(path: str, start_line: int = 1, max_lines: int = 200) -> str:
+        """Read a bounded line range from a text file in the task environment."""
+        start = max(1, int(start_line))
+        lines = max(1, min(int(max_lines), 1000))
+        command = (
+            f"python3 - {shlex.quote(path)} {start} {lines} <<'PY'\n"
+            "from pathlib import Path\n"
+            "import sys\n"
+            "path = Path(sys.argv[1])\n"
+            "start = int(sys.argv[2])\n"
+            "limit = int(sys.argv[3])\n"
+            "try:\n"
+            "    with path.open('r', encoding='utf-8', errors='replace') as f:\n"
+            "        for i, line in enumerate(f, start=1):\n"
+            "            if i < start:\n"
+            "                continue\n"
+            "            if i >= start + limit:\n"
+            "                break\n"
+            "            print(f'{i}: {line}', end='')\n"
+            "except Exception as exc:\n"
+            "    print(f'ERROR: {exc}')\n"
+            "PY"
+        )
+        return await _exec(command, timeout_sec=60)
+
+    @function_tool
+    async def summarize_json(path: str) -> str:
+        """Summarize a JSON artifact without dumping the whole file."""
+        command = (
+            f"python3 - {shlex.quote(path)} <<'PY'\n"
+            "from pathlib import Path\n"
+            "import json\n"
+            "import sys\n"
+            "\n"
+            "def summarize(value, depth=0):\n"
+            "    if depth >= 3:\n"
+            "        return type(value).__name__\n"
+            "    if isinstance(value, dict):\n"
+            "        out = {}\n"
+            "        for key, item in list(value.items())[:20]:\n"
+            "            if isinstance(item, (dict, list)):\n"
+            "                out[key] = summarize(item, depth + 1)\n"
+            "            else:\n"
+            "                out[key] = item\n"
+            "        if len(value) > 20:\n"
+            "            out['...'] = f'{len(value) - 20} more keys'\n"
+            "        return out\n"
+            "    if isinstance(value, list):\n"
+            "        return {'length': len(value), 'sample': [summarize(v, depth + 1) for v in value[:5]]}\n"
+            "    return value\n"
+            "\n"
+            "try:\n"
+            "    data = json.loads(Path(sys.argv[1]).read_text())\n"
+            "    print(json.dumps(summarize(data), indent=2))\n"
+            "except Exception as exc:\n"
+            "    print(f'ERROR: {exc}')\n"
+            "PY"
+        )
+        return await _exec(command, timeout_sec=60)
+
+    @function_tool
+    async def score_tron_ingest(
+        gates_json: str = "",
+        architecture_json: str = "",
+        eqsat_structure_json: str = "",
+        typedfx_logits_json: str = "",
+        bulk_logits_json: str = "",
+        tokens_json: str = "",
+        performance_json: str = "",
+        output_json: str = "/logs/verifier/reward.json",
+        output_txt: str = "/logs/reward.txt",
+    ) -> str:
+        """Compute alpha/tau/delta reward from Tron ingest artifacts."""
+        args = []
+        if gates_json:
+            args += ["--gates", gates_json]
+        if architecture_json:
+            args += ["--architecture", architecture_json]
+        if eqsat_structure_json:
+            args += ["--eqsat-structure", eqsat_structure_json]
+        if typedfx_logits_json:
+            args += ["--typedfx-logits", typedfx_logits_json]
+        if bulk_logits_json:
+            args += ["--bulk-logits", bulk_logits_json]
+        if tokens_json:
+            args += ["--tokens", tokens_json]
+        if performance_json:
+            args += ["--performance", performance_json]
+        args += ["--output-json", output_json, "--output-txt", output_txt, "--print-json"]
+        command = "python3 -m tron_ingest_autoagent.score " + " ".join(shlex.quote(arg) for arg in args)
+        return await _exec(command, timeout_sec=120)
+
+    return [run_shell, list_files, read_text_file, summarize_json, score_tron_ingest]
 
 
 def create_agent(environment: BaseEnvironment) -> Agent:

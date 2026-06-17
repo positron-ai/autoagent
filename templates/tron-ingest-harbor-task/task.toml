@@ -1,0 +1,2 @@
+name = "tron-ingest-template"
+timeout_sec = 7200

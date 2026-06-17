@@ -1,0 +1,27 @@
+{
+  "hf_model": "hf-internal-testing/tiny-random-LlamaForCausalLM",
+  "work_dir": "/tmp/tron-ingest-template",
+  "device": "cpu",
+  "dtype": "float32",
+  "run_typedfx": true,
+  "run_bulk": true,
+  "required_gates": [
+    "fx_export",
+    "typedfx_parse",
+    "typedfx_logits",
+    "eqsat_structure",
+    "bulk_logits"
+  ],
+  "explicit_gates": {},
+  "expected_eqsat_patterns": [
+    "tron_sdpa",
+    "tron_rope",
+    "rms_norm",
+    "swishmul"
+  ],
+  "command_gates": [],
+  "token_comparison": null,
+  "performance_comparison": null,
+  "token_results_json": "",
+  "performance_results_json": ""
+}

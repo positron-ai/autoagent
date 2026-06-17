@@ -12,6 +12,7 @@ RUN uv pip install --system .
 
 # Agent code
 COPY agent.py ./
+COPY tron_ingest_autoagent ./tron_ingest_autoagent
 
 RUN ln -sf $(which python3) /usr/local/bin/python
 RUN mkdir -p /logs /app/output
