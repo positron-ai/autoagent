@@ -4,8 +4,8 @@ This is the repeatable process for using AutoAgent-style refinement to ingest a
 new HuggingFace model into Tron, given a `PROVIDER/MODEL` slug.
 
 The important rule: do not do implementation or iteration work in
-`/home/jwiegley/tron/main`. Treat it as the clean base checkout only. Every
-target gets its own branch and worktree under `/home/jwiegley/tron/`.
+`$HOME/tron/main`. Treat it as the clean base checkout only. Every target gets
+its own branch and worktree under `$HOME/tron/`.
 
 ## Packaged Command
 
@@ -18,7 +18,7 @@ ingest PROVIDER/MODEL
 Example:
 
 ```bash
-cd /home/jwiegley/tron/ingest-llama-68m
+cd "$HOME/tron/ingest-llama-68m"
 ingest JackFram/llama-68m
 ```
 
@@ -26,20 +26,20 @@ If the `ingest` command is not already on `PATH`, run it through the AutoAgent
 checkout wrapper:
 
 ```bash
-/home/jwiegley/autoagent/scripts/ingest PROVIDER/MODEL
+$HOME/autoagent/scripts/ingest PROVIDER/MODEL
 ```
 
 Or enter the AutoAgent Nix shell, which provides `ingest`:
 
 ```bash
-nix develop /home/jwiegley/autoagent
-cd /home/jwiegley/tron/ingest-my-model
+nix develop "$HOME/autoagent"
+cd "$HOME/tron/ingest-my-model"
 ingest PROVIDER/MODEL
 ```
 
 The command:
 
-- refuses to run in `/home/jwiegley/tron/main`;
+- refuses to run in `$HOME/tron/main`;
 - uses the current directory as the Tron worktree by default;
 - downloads the HuggingFace snapshot to `/tmp/tron-<safe-model-name>-hf`;
 - converts `pytorch_model.bin` to safetensors when needed;
@@ -57,7 +57,7 @@ The command:
 The older worktree-creating wrapper remains available:
 
 ```bash
-/home/jwiegley/autoagent/scripts/run-tron-ingest-refinement.sh PROVIDER/MODEL
+$HOME/autoagent/scripts/run-tron-ingest-refinement.sh PROVIDER/MODEL
 ```
 
 It is now just a compatibility wrapper around:
@@ -98,13 +98,13 @@ ingest PROVIDER/MODEL \
   --skip-generate
 ```
 
-Create the worktree from `/home/jwiegley/tron/main`:
+Create the worktree from `$HOME/tron/main`:
 
 ```bash
 ingest PROVIDER/MODEL \
   --create-worktree \
   --branch jw/ingest-my-model \
-  --worktree /home/jwiegley/tron/ingest-my-model
+  --worktree "$HOME/tron/ingest-my-model"
 ```
 
 ## Stop Criteria
@@ -222,7 +222,7 @@ export MODEL_SAFE=$(printf '%s' "$MODEL_SLUG" |
   tr -cd 'a-z0-9-')
 export MODEL_CPP=ingested_${MODEL_SAFE//-/_}
 export BRANCH=jw/ingest-$MODEL_SAFE
-export WT=/home/jwiegley/tron/ingest-$MODEL_SAFE
+export WT="$HOME/tron/ingest-$MODEL_SAFE"
 export RUN=/tmp/tron-autoagent-runs/$MODEL_SAFE-$(date -u +%Y%m%dT%H%M%SZ)
 export HF_DIR=/tmp/tron-$MODEL_SAFE-hf
 export WEIGHTS=/tmp/tron-$MODEL_SAFE-safetensors
@@ -231,7 +231,7 @@ export WEIGHTS=/tmp/tron-$MODEL_SAFE-safetensors
 Create the worktree from the clean base checkout:
 
 ```bash
-cd /home/jwiegley/tron/main
+cd "$HOME/tron/main"
 git fetch origin
 git switch main
 git pull --ff-only
@@ -336,16 +336,16 @@ JSON
 Run the direct verifier:
 
 ```bash
-cd /home/jwiegley/autoagent
+cd "$HOME/autoagent"
 XDG_CACHE_HOME=/tmp/tron-nix-cache nix develop --no-write-lock-file "path:$WT" -c sh -lc "
   TRON_REPO='$WT' \
-  TASK_FILES_DIR=/home/jwiegley/autoagent/templates/tron-ingest-harbor-task/files \
+  TASK_FILES_DIR=\"\$HOME/autoagent/templates/tron-ingest-harbor-task/files\" \
   MODEL_SPEC='$RUN/model_spec.json' \
   VERIFIER_LOG_DIR='$RUN/logs' \
   REWARD_JSON='$RUN/reward.json' \
   REWARD_TXT='$RUN/reward.txt' \
-  PYTHONPATH=/home/jwiegley/autoagent:\$PYTHONPATH \
-  python /home/jwiegley/autoagent/templates/tron-ingest-harbor-task/files/evaluate_tron_ingest.py
+  PYTHONPATH=\"\$HOME/autoagent:\$PYTHONPATH\" \
+  python \"\$HOME/autoagent/templates/tron-ingest-harbor-task/files/evaluate_tron_ingest.py\"
 "
 ```
 
@@ -418,7 +418,7 @@ hand-authored runtime path does not show the same behavior.
 If Docker is available, build the base image and run Harbor from AutoAgent:
 
 ```bash
-cd /home/jwiegley/autoagent
+cd "$HOME/autoagent"
 XDG_CACHE_HOME=/tmp/autoagent-nix-cache \
   nix develop --no-write-lock-file "path:$PWD" -c autoagent-build-base
 
@@ -432,7 +432,7 @@ exist. In that case, use the direct verifier path above.
 
 ## PR Workflow
 
-Commit and push from the target worktree, never from `/home/jwiegley/tron/main`:
+Commit and push from the target worktree, never from `$HOME/tron/main`:
 
 ```bash
 cd "$WT"
