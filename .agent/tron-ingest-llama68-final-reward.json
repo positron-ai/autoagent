@@ -1,0 +1,61 @@
+{
+  "score": 1.0,
+  "raw_score": 1.0,
+  "alpha": 1.0,
+  "tau": 1.0,
+  "delta": 1.0,
+  "stage_cap": 1.0,
+  "first_failed_gate": "complete",
+  "gates": {
+    "architecture": {
+      "passed": true,
+      "score": 1.0
+    },
+    "bulk_logits": {
+      "passed": true,
+      "score": 1.0
+    },
+    "cpp_compile": {
+      "passed": true,
+      "score": 1.0
+    },
+    "cpu_logits": {
+      "passed": true,
+      "score": 1.0
+    },
+    "eqsat_structure": {
+      "passed": true,
+      "score": 1.0
+    },
+    "fpga_logits": {
+      "passed": true,
+      "score": 1.0
+    },
+    "fx_export": {
+      "passed": true,
+      "score": 1.0
+    },
+    "typedfx_logits": {
+      "passed": true,
+      "score": 1.0
+    },
+    "typedfx_parse": {
+      "passed": true,
+      "score": 1.0
+    }
+  },
+  "alpha_components": {
+    "architecture": 1.0,
+    "typedfx_logits": 1.0,
+    "eqsat_structure": 1.0,
+    "bulk_logits": 1.0,
+    "cpp_compile": 1.0,
+    "cpu_logits": 1.0,
+    "fpga_logits": 1.0
+  },
+  "weights": {
+    "alpha": 0.70,
+    "tau": 0.20,
+    "delta": 0.10
+  }
+}

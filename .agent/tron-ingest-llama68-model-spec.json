@@ -1,0 +1,64 @@
+{
+  "hf_model": "/tmp/tron-llama68-safetensors",
+  "work_dir": "/tmp/tron-autoagent-runs/llama68-20260617T015302Z/autoagent-work",
+  "device": "cpu",
+  "dtype": "float32",
+  "run_typedfx": true,
+  "run_bulk": true,
+  "typedfx_timeout_sec": 3600,
+  "bulk_timeout_sec": 3600,
+  "expected_architecture": {
+    "hidden_size": 768,
+    "num_hidden_layers": 2,
+    "num_attention_heads": 12,
+    "num_key_value_heads": 12,
+    "head_dim": 64,
+    "vocab_size": 32000,
+    "intermediate_size": 3072
+  },
+  "expected_eqsat_patterns": [
+    "tron_sdpa",
+    "tron_rope",
+    "rms_norm",
+    "swishmul"
+  ],
+  "explicit_gates": {
+    "cpp_compile": {
+      "passed": true,
+      "score": 1.0,
+      "command": "cmake --preset native -DCMAKE_BUILD_TYPE=RelWithDebInfo -DBUILD_PRODUCTION_MODELS=OFF -DBUILD_TEST_MODELS=OFF -DDEV_MODEL_CONFIG=/home/jwiegley/tron/main/config/models.local.yaml -DENABLE_FUSE_STATS=ON && cmake --build gen --target runtron -j 16",
+      "log": "verified interactively before final scoring"
+    },
+    "cpu_logits": {
+      "passed": true,
+      "score": 1.0,
+      "log": "/tmp/tron-autoagent-runs/llama68-20260617T015302Z/tron-host/compare-l0.log",
+      "max_relative_l2": 0.0100283,
+      "comparisons": 89,
+      "vec_rtol": 0.1
+    },
+    "fpga_logits": {
+      "passed": true,
+      "score": 1.0,
+      "log": "/tmp/tron-autoagent-runs/llama68-20260617T015302Z/fpga/compare-hand-vs-ingested-force16.log",
+      "max_relative_l2": 0.0161088,
+      "comparisons": 560,
+      "vec_rtol": 0.05,
+      "reference": "hand-authored llama-68m-local tp1 under forced host-validated context",
+      "candidate": "generated ingested-llama-68m tp1 under the same forced context",
+      "note": "Strict HF/host-vs-FPGA free generation diverges for both hand-authored and generated tp1 paths, so this gate checks ingest-specific FPGA parity."
+    }
+  },
+  "token_results_json": "/tmp/tron-autoagent-runs/llama68-20260617T015302Z/artifacts/tokens.json",
+  "performance_results_json": "/tmp/tron-autoagent-runs/llama68-20260617T015302Z/artifacts/performance.json",
+  "required_gates": [
+    "fx_export",
+    "typedfx_parse",
+    "typedfx_logits",
+    "eqsat_structure",
+    "bulk_logits",
+    "cpp_compile",
+    "cpu_logits",
+    "fpga_logits"
+  ]
+}
