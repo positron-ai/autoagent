@@ -12,7 +12,9 @@ from typing import Any
 
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
-EVALUATOR = REPO_ROOT / "templates/tron-ingest-harbor-task/files/evaluate_tron_ingest.py"
+EVALUATOR = (
+    REPO_ROOT / "templates/tron-ingest-harbor-task/files/evaluate_tron_ingest.py"
+)
 
 
 class TronIngestEvaluatorTest(unittest.TestCase):
@@ -21,6 +23,7 @@ class TronIngestEvaluatorTest(unittest.TestCase):
         spec: dict[str, Any],
         *,
         task_file_texts: dict[str, str] | None = None,
+        env_overrides: dict[str, str] | None = None,
     ) -> dict[str, Any]:
         root = Path(tempfile.mkdtemp())
         self.addCleanup(shutil.rmtree, root)
@@ -62,6 +65,8 @@ class TronIngestEvaluatorTest(unittest.TestCase):
                 "PYTHONPATH": ":".join(pythonpath),
             }
         )
+        if env_overrides:
+            env.update(env_overrides)
         subprocess.run([sys.executable, str(EVALUATOR)], env=env, check=True)
 
         return {
@@ -103,6 +108,7 @@ class TronIngestEvaluatorTest(unittest.TestCase):
                 "performance_comparison": {
                     "measured": "measured.log",
                     "speed_of_light": "speed_of_light.json",
+                    "workload": "independent_decode",
                 },
             },
             task_file_texts={
@@ -110,7 +116,13 @@ class TronIngestEvaluatorTest(unittest.TestCase):
                 "candidate_tokens.json": json.dumps([1, 2, 3, 9]),
                 "measured.log": "Throughput 80.0 tok/s.\n",
                 "speed_of_light.json": json.dumps(
-                    {"speed_of_light_tokens_per_second": 100.0}
+                    {
+                        "targets": {
+                            "independent_decode": {
+                                "speed_of_light_tokens_per_second": 100.0,
+                            }
+                        }
+                    }
                 ),
             },
         )
@@ -138,6 +150,52 @@ class TronIngestEvaluatorTest(unittest.TestCase):
             str(result["task_files"] / "reference_tokens.json"),
         )
         self.assertEqual(performance["measured_tokens_per_second"], 80.0)
+        self.assertEqual(performance["workload"], "independent_decode")
+
+    def test_evaluator_rejects_reuse_workload_for_performance_delta(self) -> None:
+        result = self.run_evaluator(
+            {
+                "required_gates": ["cpp_compile"],
+                "explicit_gates": {
+                    "architecture": True,
+                    "eqsat_structure": True,
+                    "typedfx_logits": True,
+                    "bulk_logits": True,
+                    "cpp_compile": True,
+                    "cpu_logits": True,
+                    "fpga_logits": True,
+                },
+                "performance_comparison": {
+                    "measured": "measured.json",
+                    "speed_of_light": "speed_of_light.json",
+                    "workload": "independent_decode",
+                },
+            },
+            task_file_texts={
+                "measured.json": json.dumps(
+                    {
+                        "workload": "prefix_cache_reuse",
+                        "measured_tokens_per_second": 900.0,
+                    }
+                ),
+                "speed_of_light.json": json.dumps(
+                    {
+                        "targets": {
+                            "independent_decode": {
+                                "speed_of_light_tokens_per_second": 300.0,
+                            }
+                        }
+                    }
+                ),
+            },
+        )
+
+        performance = json.loads((result["work_dir"] / "performance.json").read_text())
+
+        self.assertEqual(result["reward"]["delta"], 0.0)
+        self.assertEqual(performance["measured_workload"], "prefix_cache_reuse")
+        self.assertEqual(performance["required_workload"], "independent_decode")
+        self.assertIn("does not match", performance["error"])
 
     def test_command_gate_fail_regex_fails_zero_exit_command(self) -> None:
         result = self.run_evaluator(
@@ -171,6 +229,36 @@ class TronIngestEvaluatorTest(unittest.TestCase):
         self.assertEqual(gate["returncode"], 0)
         self.assertFalse(gate["passed"])
         self.assertEqual(gate["checks"]["fail_regexes"][0]["match"], "Busted!")
+
+    def test_command_gate_gets_tron_libstdcxx_path(self) -> None:
+        result = self.run_evaluator(
+            {
+                "required_gates": ["cpp_compile"],
+                "explicit_gates": {
+                    "architecture": True,
+                    "eqsat_structure": True,
+                    "typedfx_logits": True,
+                    "bulk_logits": True,
+                    "cpu_logits": True,
+                    "fpga_logits": True,
+                },
+                "command_gates": [
+                    {
+                        "name": "cpp_compile",
+                        "cwd": "tron_repo",
+                        "command": 'case "$LD_LIBRARY_PATH" in /tmp/libstdcxx:/tmp/existing*) exit 0;; *) printf \'%s\\n\' "$LD_LIBRARY_PATH"; exit 1;; esac',
+                        "timeout_sec": 10,
+                    }
+                ],
+            },
+            env_overrides={
+                "TRON_INGEST_LIBSTDCXX_PATH": "/tmp/libstdcxx",
+                "LD_LIBRARY_PATH": "/tmp/existing",
+            },
+        )
+
+        gate = result["gates"]["cpp_compile"]
+        self.assertTrue(gate["passed"])
 
     def test_command_gate_requires_pass_regexes(self) -> None:
         result = self.run_evaluator(

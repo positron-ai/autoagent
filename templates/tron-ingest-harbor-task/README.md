@@ -46,7 +46,8 @@ stable.
 - `token_comparison`: optional reference/candidate token files to produce
   `tau`.
 - `performance_comparison`: optional measured/speed-of-light files to produce
-  `delta`.
+  `delta`. Set `workload` to `independent_decode` or `long_prefill`; diagnostic
+  categories such as `prefix_cache_reuse` do not score `delta`.
 
 Example command gates:
 
@@ -84,6 +85,7 @@ Example token/performance comparisons:
   "performance_comparison": {
     "measured": "runtron.log",
     "speed_of_light": "speed_of_light.json",
+    "workload": "independent_decode",
     "output": "performance.json"
   }
 }
@@ -92,3 +94,17 @@ Example token/performance comparisons:
 Token files can be JSON arrays, text token-id files, strings, or JSON objects
 with `tokens`, `token_ids`, `output_tokens`, `text`, or `cases`. Performance
 files can be structured JSON or logs containing `tok/s` / `tokens/s` lines.
+Structured speed files can contain named targets:
+
+```json
+{
+  "targets": {
+    "independent_decode": {
+      "speed_of_light_tokens_per_second": 300.0
+    },
+    "long_prefill": {
+      "speed_of_light_tokens_per_second": 1000.0
+    }
+  }
+}
+```

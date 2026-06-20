@@ -71,6 +71,45 @@ class TronIngestArchitectureTest(unittest.TestCase):
             self.assertLess(result["score"], 1.0)
             self.assertFalse(result["checks"]["expected_hidden_size"]["passed"])
 
+    def test_qwen3next_linear_attention_allows_expanded_head_dim(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            (root / "fx_export").mkdir()
+            (root / "fx_export/metadata.json").write_text(
+                json.dumps(
+                    {
+                        "config": {
+                            "num_key_value_heads": 2,
+                            "num_hidden_layers": 40,
+                            "vocab_size": 248320,
+                            "hidden_size": 2560,
+                            "intermediate_size": 5632,
+                            "rope_theta": 10000000,
+                            "num_attention_heads": 16,
+                            "head_dim": 256,
+                            "max_position_embeddings": 262144,
+                        },
+                        "parameters": [
+                            {
+                                "target": "model.layers.0.linear_attn.in_proj_qkvz.weight"
+                            },
+                            {"target": "model.layers.0.linear_attn.out_proj.weight"},
+                            {"target": "model.layers.0.mlp.experts.gate_up_proj"},
+                            {"target": "model.layers.0.mlp.experts.down_proj"},
+                            {"target": "model.layers.0.input_layernorm.weight"},
+                        ],
+                    }
+                )
+            )
+            (root / "generated.py").write_text("x = rms_norm(x, weight, 1e-6)\n")
+
+            result = analyze_architecture(root)
+
+            self.assertTrue(result["passed"])
+            self.assertEqual(result["score"], 1.0)
+            self.assertTrue(result["architecture"]["linear_attention"])
+            self.assertEqual(result["architecture"]["ffn_activation"], "SwiGLU/SiLU")
+
     def test_cli_writes_json(self) -> None:
         with tempfile.TemporaryDirectory() as td:
             root = Path(td)

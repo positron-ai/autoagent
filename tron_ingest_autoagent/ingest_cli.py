@@ -80,6 +80,8 @@ class IngestConfig:
     setup_only: bool = False
     evaluate_only: bool = False
     no_refiner: bool = False
+    meta_device: bool = True
+    dump_all: bool = False
     tron_cache: Path = DEFAULT_TRON_CACHE
     autoagent_cache: Path = DEFAULT_AUTOAGENT_CACHE
 
@@ -154,6 +156,60 @@ def load_state(path: Path) -> dict[str, Any]:
     if not path.exists():
         return {"history": []}
     return load_json(path)
+
+
+def _index_weight_files(index_path: Path) -> list[Path]:
+    try:
+        payload = json.loads(index_path.read_text())
+    except (OSError, json.JSONDecodeError):
+        return []
+    weight_map = payload.get("weight_map")
+    if not isinstance(weight_map, dict):
+        return []
+    return sorted(
+        {
+            index_path.parent / filename
+            for filename in weight_map.values()
+            if isinstance(filename, str)
+        }
+    )
+
+
+def _index_references_complete_shards(index_path: Path, suffix: str) -> bool:
+    files = _index_weight_files(index_path)
+    return bool(files) and all(
+        path.name.endswith(suffix) and path.is_file() for path in files
+    )
+
+
+def has_safetensors_weights(path: Path) -> bool:
+    if path.is_file():
+        return path.name.endswith(".safetensors")
+    if not path.is_dir():
+        return False
+    if (path / "model.safetensors").is_file():
+        return True
+    index_path = path / "model.safetensors.index.json"
+    return index_path.is_file() and _index_references_complete_shards(
+        index_path, ".safetensors"
+    )
+
+
+def has_pytorch_weights(path: Path) -> bool:
+    if path.is_file():
+        return path.name.endswith(".bin")
+    if not path.is_dir():
+        return False
+    if (path / "pytorch_model.bin").is_file():
+        return True
+    return any(
+        _index_references_complete_shards(index_path, ".bin")
+        for index_path in path.glob("*.bin.index.json")
+    )
+
+
+def has_supported_weights(path: Path) -> bool:
+    return has_safetensors_weights(path) or has_pytorch_weights(path)
 
 
 def write_json(path: Path, payload: Mapping[str, Any]) -> None:
@@ -320,10 +376,20 @@ def ensure_tron_worktree(cfg: IngestConfig) -> None:
         )
 
 
+def ensure_local_model_config(cfg: IngestConfig) -> None:
+    config_path = cfg.tron_worktree / "config/models.local.yaml"
+    if config_path.exists():
+        return
+    template_path = cfg.tron_worktree / "config/models.local.template.yaml"
+    if not template_path.exists():
+        raise IngestError(f"missing local model config template: {template_path}")
+    config_path.write_text(template_path.read_text())
+
+
 def download_model(cfg: IngestConfig) -> None:
     if cfg.skip_download:
         return
-    if cfg.hf_dir.exists() and any(cfg.hf_dir.iterdir()):
+    if has_supported_weights(cfg.hf_dir):
         return
     cmd = (
         "python3 - "
@@ -339,9 +405,7 @@ def download_model(cfg: IngestConfig) -> None:
 def choose_weights(cfg: IngestConfig) -> Path:
     if cfg.weights is not None:
         return cfg.weights
-    if (cfg.hf_dir / "model.safetensors").exists() or (
-        cfg.hf_dir / "model.safetensors.index.json"
-    ).exists():
+    if has_safetensors_weights(cfg.hf_dir):
         return cfg.hf_dir
     return Path(f"/tmp/tron-{cfg.safe_model}-safetensors")
 
@@ -349,16 +413,28 @@ def choose_weights(cfg: IngestConfig) -> Path:
 def convert_weights(cfg: IngestConfig) -> None:
     if cfg.skip_convert:
         return
-    if (cfg.weights / "model.safetensors").exists() or (
-        cfg.weights / "model.safetensors.index.json"
-    ).exists():
+    if cfg.weights is None:
+        raise IngestError("internal error: weights path was not selected")
+    if has_safetensors_weights(cfg.weights):
         return
+    if not has_pytorch_weights(cfg.hf_dir):
+        raise IngestError(
+            f"{cfg.hf_dir} does not contain supported model weights; expected "
+            "model.safetensors, model.safetensors.index.json with all referenced "
+            "shards, pytorch_model.bin, or *.bin.index.json with all referenced "
+            "shards"
+        )
     cmd = (
         "printf '%s\\n%s\\nN\\n' "
         f"{shlex.quote(str(cfg.hf_dir))} {shlex.quote(str(cfg.weights))} "
         "| python3 bin/convert_to_safetensor.py"
     )
     tron_nix(cfg, cmd, log_name="convert-safetensors.log", timeout=24 * 3600)
+    if not has_safetensors_weights(cfg.weights):
+        raise IngestError(
+            "conversion completed but no usable safetensors weights were found "
+            f"in {cfg.weights}"
+        )
 
 
 def generate_plugin(cfg: IngestConfig, iteration: int) -> None:
@@ -367,6 +443,8 @@ def generate_plugin(cfg: IngestConfig, iteration: int) -> None:
     executor_args = " ".join(
         f"-e {shlex.quote(executor)}" for executor in cfg.executors
     )
+    meta_device_arg = "  --meta-device \\\n" if cfg.meta_device else ""
+    dump_all_arg = "  --dump-all \\\n" if cfg.dump_all else ""
     cmd = f"""
 set -euo pipefail
 cd ingest
@@ -379,7 +457,8 @@ python3 build-model.py \\
   --default-weights {shlex.quote(str(cfg.weights))} \\
   --config ../config/models.local.yaml \\
   --max-seq-length {cfg.max_seq_length} \\
-  --dump-all \\
+{meta_device_arg}\
+{dump_all_arg}\
   {executor_args}
 """
     tron_nix(cfg, cmd, log_name=f"{iteration:02d}-generate.log", timeout=6 * 3600)
@@ -388,12 +467,12 @@ python3 build-model.py \\
 def build_runtron(cfg: IngestConfig, iteration: int) -> bool:
     if cfg.skip_build:
         return False
-    cmd = f"""
+    cmd = """
 set -euo pipefail
 cmake --preset native -DCMAKE_BUILD_TYPE=RelWithDebInfo \\
   -DBUILD_PRODUCTION_MODELS=OFF \\
   -DBUILD_TEST_MODELS=OFF \\
-  -DDEV_MODEL_CONFIG={shlex.quote(str(cfg.tron_worktree / "config/models.local.yaml"))} \\
+  -DDEV_MODEL_CONFIG= \\
   -DENABLE_FUSE_STATS=ON
 cmake --build gen --target runtron -j "${{NIX_BUILD_CORES:-16}}"
 """
@@ -581,6 +660,7 @@ def run_loop(cfg: IngestConfig) -> int:
     download_model(cfg)
     cfg.weights = choose_weights(cfg)
     convert_weights(cfg)
+    ensure_local_model_config(cfg)
 
     state = load_state(cfg.state_path)
     best_score = max(
@@ -742,6 +822,16 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--setup-only", action="store_true")
     parser.add_argument("--evaluate-only", action="store_true")
+    parser.add_argument(
+        "--no-meta-device",
+        action="store_true",
+        help="Do not pass --meta-device to ingest/build-model.py during export",
+    )
+    parser.add_argument(
+        "--dump-all",
+        action="store_true",
+        help="Pass --dump-all to ingest/build-model.py for models whose Bulk dump path supports all ops",
+    )
     parser.add_argument("--skip-download", action="store_true")
     parser.add_argument("--skip-convert", action="store_true")
     parser.add_argument("--skip-generate", action="store_true")
@@ -798,6 +888,8 @@ def config_from_args(args: argparse.Namespace) -> IngestConfig:
         setup_only=args.setup_only,
         evaluate_only=args.evaluate_only,
         no_refiner=args.no_refiner,
+        meta_device=not args.no_meta_device,
+        dump_all=args.dump_all,
         tron_cache=args.tron_cache,
         autoagent_cache=args.autoagent_cache,
     )

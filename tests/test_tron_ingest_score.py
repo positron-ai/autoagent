@@ -83,6 +83,29 @@ class TronIngestScoreTest(unittest.TestCase):
         self.assertEqual(reward["alpha"], 1.0)
         self.assertEqual(reward["score"], 1.0)
 
+    def test_prefix_cache_reuse_cannot_score_delta(self) -> None:
+        reward = compute_reward(
+            gates_payload={
+                "gates": {
+                    "architecture": True,
+                    "eqsat_structure": True,
+                    "cpp_compile": True,
+                    "cpu_logits": True,
+                    "fpga_logits": True,
+                }
+            },
+            typedfx_payload=logit_payload(functionally_equivalent=True),
+            bulk_payload=logit_payload(functionally_equivalent=True),
+            token_payload={"score": 1.0},
+            performance_payload={
+                "workload": "prefix_cache_reuse",
+                "delta": 1.0,
+            },
+        )
+
+        self.assertEqual(reward["delta"], 0.0)
+        self.assertAlmostEqual(reward["raw_score"], 0.9)
+
     def test_semantic_gate_caps_fast_but_wrong_run(self) -> None:
         reward = compute_reward(
             gates_payload={

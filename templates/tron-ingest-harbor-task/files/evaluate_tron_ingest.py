@@ -13,7 +13,11 @@ from pathlib import Path
 from typing import Any
 
 from tron_ingest_autoagent.architecture import analyze_architecture
-from tron_ingest_autoagent.performance import extract_limit, extract_measured, score_performance
+from tron_ingest_autoagent.performance import (
+    extract_limit,
+    extract_measured,
+    score_performance,
+)
 from tron_ingest_autoagent.structure import analyze_patterns
 from tron_ingest_autoagent.tokens import compare_payloads
 
@@ -30,6 +34,11 @@ def run(
     env = os.environ.copy()
     if os.environ.get("TRON_ALLOW_HF_TRANSFER") != "1":
         env["HF_HUB_ENABLE_HF_TRANSFER"] = "0"
+    if libstdcxx_path := env.get("TRON_INGEST_LIBSTDCXX_PATH"):
+        existing = env.get("LD_LIBRARY_PATH", "")
+        env["LD_LIBRARY_PATH"] = (
+            f"{libstdcxx_path}:{existing}" if existing else libstdcxx_path
+        )
     if pythonpath_roots:
         existing = env.get("PYTHONPATH", "")
         roots = [str(path) for path in pythonpath_roots]
@@ -49,7 +58,9 @@ def run(
         return proc.returncode
 
 
-def resolve_cwd(name: str, *, tron_repo: Path, ingest_dir: Path, work_dir: Path) -> Path:
+def resolve_cwd(
+    name: str, *, tron_repo: Path, ingest_dir: Path, work_dir: Path
+) -> Path:
     if name == "tron_repo":
         return tron_repo
     if name == "ingest":
@@ -66,7 +77,16 @@ def runtime_python(ingest_dir: Path) -> list[str]:
     if override := os.environ.get("TRON_INGEST_PYTHON"):
         return shlex.split(override)
     uv = os.environ.get("UV", "uv")
-    return [uv, "run", "--frozen", "--project", str(ingest_dir / "runtime"), "--extra", "test", "python"]
+    return [
+        uv,
+        "run",
+        "--frozen",
+        "--project",
+        str(ingest_dir / "runtime"),
+        "--extra",
+        "test",
+        "python",
+    ]
 
 
 def write_json(path: Path, payload: Any) -> None:
@@ -98,7 +118,9 @@ def _aggregate(values: list[float], mode: str) -> float:
     return max(values)
 
 
-def evaluate_command_gate(command_gate: dict[str, Any], *, rc: int, log: Path) -> dict[str, Any]:
+def evaluate_command_gate(
+    command_gate: dict[str, Any], *, rc: int, log: Path
+) -> dict[str, Any]:
     text = log.read_text(errors="replace") if log.exists() else ""
     passed = rc == 0
     detail: dict[str, Any] = {
@@ -204,7 +226,9 @@ def read_payload(path: Path) -> Any:
         return text
 
 
-def resolve_path(path: str, *, task_files: Path, tron_repo: Path, work_dir: Path) -> Path:
+def resolve_path(
+    path: str, *, task_files: Path, tron_repo: Path, work_dir: Path
+) -> Path:
     raw = Path(path)
     if raw.is_absolute():
         return raw
@@ -230,7 +254,11 @@ def main() -> int:
     write_json(gates_path, {"gates": gates})
 
     if not ingest_dir.exists():
-        gates["fx_export"] = {"passed": False, "score": 0.0, "error": f"missing {ingest_dir}"}
+        gates["fx_export"] = {
+            "passed": False,
+            "score": 0.0,
+            "error": f"missing {ingest_dir}",
+        }
         write_json(gates_path, {"gates": gates})
         return 0
 
@@ -368,7 +396,9 @@ def main() -> int:
             work_dir=work_dir,
         )
         token_results_path = work_dir / token_spec.get("output", "tokens.json")
-        token_result = compare_payloads(read_payload(reference), read_payload(candidate))
+        token_result = compare_payloads(
+            read_payload(reference), read_payload(candidate)
+        )
         token_result["reference"] = str(reference)
         token_result["candidate"] = str(candidate)
         write_json(token_results_path, token_result)
@@ -387,12 +417,22 @@ def main() -> int:
             tron_repo=tron_repo,
             work_dir=work_dir,
         )
-        measured, measured_detail = extract_measured(measured_path)
-        limit, limit_detail = extract_limit(speed_path)
-        performance_result = score_performance(measured, limit)
+        workload = performance_spec.get("workload") or performance_spec.get(
+            "required_workload"
+        )
+        measured, measured_detail = extract_measured(measured_path, workload=workload)
+        limit, limit_detail = extract_limit(speed_path, workload=workload)
+        performance_result = score_performance(
+            measured,
+            limit,
+            measured_workload=measured_detail.get("workload"),
+            required_workload=workload,
+        )
         performance_result["measured_detail"] = measured_detail
         performance_result["speed_of_light_detail"] = limit_detail
-        performance_results_path = work_dir / performance_spec.get("output", "performance.json")
+        performance_results_path = work_dir / performance_spec.get(
+            "output", "performance.json"
+        )
         write_json(performance_results_path, performance_result)
 
     args = [

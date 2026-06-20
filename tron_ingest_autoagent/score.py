@@ -17,6 +17,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from tron_ingest_autoagent.performance import is_scoring_workload, normalize_workload
+
 
 STAGE_CAPS: dict[str, float] = {
     "not_started": 0.0,
@@ -102,7 +104,9 @@ def extract_gates(payload: Any) -> dict[str, Gate]:
     if isinstance(payload, dict) and "gates" in payload:
         payload = payload["gates"]
     if not isinstance(payload, dict):
-        raise TypeError("gate payload must be a JSON object or an object with a 'gates' key")
+        raise TypeError(
+            "gate payload must be a JSON object or an object with a 'gates' key"
+        )
     return {name: as_gate(value) for name, value in payload.items()}
 
 
@@ -176,6 +180,20 @@ def _find_numeric(payload: Any, names: tuple[str, ...]) -> float | None:
     return None
 
 
+def _find_workload(payload: Any) -> str | None:
+    if isinstance(payload, dict):
+        for name in (
+            "workload",
+            "workload_type",
+            "benchmark_category",
+            "category",
+        ):
+            workload = normalize_workload(payload.get(name))
+            if workload is not None:
+                return workload
+    return None
+
+
 def score_token_results(payload: Any) -> float:
     if payload is None:
         return 0.0
@@ -187,8 +205,12 @@ def score_token_results(payload: Any) -> float:
     if direct is not None:
         return clamp(direct)
 
-    exact = _find_numeric(payload, ("exact_match", "exact_token_match", "exact_fraction"))
-    prefix = _find_numeric(payload, ("prefix_match", "prefix_fraction", "exact_prefix_fraction"))
+    exact = _find_numeric(
+        payload, ("exact_match", "exact_token_match", "exact_fraction")
+    )
+    prefix = _find_numeric(
+        payload, ("prefix_match", "prefix_fraction", "exact_prefix_fraction")
+    )
     edit = _find_numeric(payload, ("edit_similarity", "sequence_similarity"))
     top1 = _find_numeric(payload, ("top1_agreement",))
 
@@ -214,6 +236,8 @@ def score_performance_results(payload: Any) -> float:
     if isinstance(payload, (int, float)):
         return clamp(float(payload))
     if not isinstance(payload, dict):
+        return 0.0
+    if not is_scoring_workload(_find_workload(payload)):
         return 0.0
 
     direct = _find_numeric(payload, ("delta", "score", "performance_score"))
@@ -352,13 +376,21 @@ def parse_gate_override(text: str) -> tuple[str, Gate]:
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--gates", type=Path, help="JSON file containing explicit gates")
+    parser.add_argument(
+        "--gates", type=Path, help="JSON file containing explicit gates"
+    )
     parser.add_argument("--architecture", type=Path, help="Architecture analysis JSON")
-    parser.add_argument("--eqsat-structure", type=Path, help="EqSat structural analysis JSON")
-    parser.add_argument("--typedfx-logits", type=Path, help="TypedFx logit_results.json")
+    parser.add_argument(
+        "--eqsat-structure", type=Path, help="EqSat structural analysis JSON"
+    )
+    parser.add_argument(
+        "--typedfx-logits", type=Path, help="TypedFx logit_results.json"
+    )
     parser.add_argument("--bulk-logits", type=Path, help="Bulk bulk_logit_results.json")
     parser.add_argument("--tokens", type=Path, help="Token agreement JSON")
-    parser.add_argument("--performance", type=Path, help="Performance/speed-of-light JSON")
+    parser.add_argument(
+        "--performance", type=Path, help="Performance/speed-of-light JSON"
+    )
     parser.add_argument(
         "--gate",
         action="append",
@@ -385,7 +417,9 @@ def build_parser() -> argparse.ArgumentParser:
         default=Path("/logs/reward.txt"),
         help="Reward text path",
     )
-    parser.add_argument("--print-json", action="store_true", help="Print reward JSON to stdout")
+    parser.add_argument(
+        "--print-json", action="store_true", help="Print reward JSON to stdout"
+    )
     return parser
 
 

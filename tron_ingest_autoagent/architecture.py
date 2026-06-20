@@ -29,7 +29,11 @@ def _collect_text(root: Path, max_bytes: int = 2_000_000) -> str:
     if root.is_file():
         files = [root]
     else:
-        files = [path for path in root.rglob("*") if path.is_file() and path.suffix in suffixes]
+        files = [
+            path
+            for path in root.rglob("*")
+            if path.is_file() and path.suffix in suffixes
+        ]
     for path in sorted(files):
         try:
             data = path.read_bytes()[:max_bytes]
@@ -69,9 +73,21 @@ def extract_architecture(root: Path) -> dict[str, Any]:
 
     has_gate = any(".mlp.gate_proj" in target for target in parameter_targets)
     has_up = any(".mlp.up_proj" in target for target in parameter_targets)
-    has_down = any(".mlp.down_proj" in target for target in parameter_targets)
-    has_experts = any("expert" in target.lower() or ".experts." in target for target in parameter_targets)
-    has_rms = "rms_norm" in text or "rmsnorm" in text.lower() or "input_layernorm" in text
+    has_down = any(
+        ".mlp.down_proj" in target or ".mlp.experts.down_proj" in target
+        for target in parameter_targets
+    )
+    has_gate_up = any(
+        ".mlp.experts.gate_up_proj" in target for target in parameter_targets
+    )
+    has_linear_attn = any(".linear_attn." in target for target in parameter_targets)
+    has_experts = any(
+        "expert" in target.lower() or ".experts." in target
+        for target in parameter_targets
+    )
+    has_rms = (
+        "rms_norm" in text or "rmsnorm" in text.lower() or "input_layernorm" in text
+    )
 
     rope_layout = None
     if match := re.search(r"rope_layout\s*=\s*['\"]([^'\"]+)['\"]", text):
@@ -93,7 +109,10 @@ def extract_architecture(root: Path) -> dict[str, Any]:
         "rope_layout": rope_layout,
         "attention_type": attention_type,
         "normalization": "RMSNorm" if has_rms else None,
-        "ffn_activation": "SwiGLU/SiLU" if has_gate and has_up and has_down else None,
+        "ffn_activation": "SwiGLU/SiLU"
+        if (has_gate and has_up and has_down) or (has_gate_up and has_down)
+        else None,
+        "linear_attention": has_linear_attn,
         "moe": has_experts,
     }
 
@@ -114,19 +133,44 @@ def score_architecture(
     n_layers = architecture.get("num_hidden_layers")
     vocab_size = architecture.get("vocab_size")
     intermediate = architecture.get("intermediate_size")
+    has_linear_attn = bool(architecture.get("linear_attention"))
+    projected_attention = (
+        n_heads * head_dim
+        if isinstance(n_heads, int) and isinstance(head_dim, int)
+        else None
+    )
+    exact_head_dim = (
+        isinstance(hidden_size, int)
+        and isinstance(projected_attention, int)
+        and projected_attention == hidden_size
+    )
+    expanded_head_dim = (
+        has_linear_attn
+        and isinstance(hidden_size, int)
+        and isinstance(projected_attention, int)
+        and projected_attention >= hidden_size
+    )
 
-    add_check("has_hidden_size", isinstance(hidden_size, int) and hidden_size > 0, hidden_size)
+    add_check(
+        "has_hidden_size", isinstance(hidden_size, int) and hidden_size > 0, hidden_size
+    )
     add_check("has_layers", isinstance(n_layers, int) and n_layers > 0, n_layers)
     add_check("has_attention_heads", isinstance(n_heads, int) and n_heads > 0, n_heads)
     add_check("has_vocab", isinstance(vocab_size, int) and vocab_size > 0, vocab_size)
-    add_check("has_intermediate_size", isinstance(intermediate, int) and intermediate > 0, intermediate)
+    add_check(
+        "has_intermediate_size",
+        isinstance(intermediate, int) and intermediate > 0,
+        intermediate,
+    )
     add_check(
         "head_dim_consistent",
-        isinstance(hidden_size, int)
-        and isinstance(n_heads, int)
-        and isinstance(head_dim, int)
-        and n_heads * head_dim == hidden_size,
-        {"hidden_size": hidden_size, "num_attention_heads": n_heads, "head_dim": head_dim},
+        exact_head_dim or expanded_head_dim,
+        {
+            "hidden_size": hidden_size,
+            "num_attention_heads": n_heads,
+            "head_dim": head_dim,
+            "linear_attention": has_linear_attn,
+        },
     )
     add_check(
         "kv_heads_valid",
@@ -157,14 +201,18 @@ def score_architecture(
     }
 
 
-def analyze_architecture(root: Path, expected: dict[str, Any] | None = None) -> dict[str, Any]:
+def analyze_architecture(
+    root: Path, expected: dict[str, Any] | None = None
+) -> dict[str, Any]:
     return score_architecture(extract_architecture(root), expected)
 
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--artifact-root", required=True, type=Path)
-    parser.add_argument("--expected", type=Path, help="JSON object with expected architecture fields")
+    parser.add_argument(
+        "--expected", type=Path, help="JSON object with expected architecture fields"
+    )
     parser.add_argument("--output-json", type=Path)
     parser.add_argument("--print-json", action="store_true")
     return parser

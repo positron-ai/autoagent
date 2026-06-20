@@ -41,9 +41,12 @@ The command:
 
 - refuses to run in `$HOME/tron/main`;
 - uses the current directory as the Tron worktree by default;
-- downloads the HuggingFace snapshot to `/tmp/tron-<safe-model-name>-hf`;
-- converts `pytorch_model.bin` to safetensors when needed;
-- runs `ingest/build-model.py` in the Tron worktree;
+- downloads or resumes the HuggingFace snapshot at `/tmp/tron-<safe-model-name>-hf`;
+- converts PyTorch `.bin` weights to safetensors when needed;
+- runs `ingest/build-model.py --meta-device` in the Tron worktree;
+- leaves `build-model.py --dump-all` off unless you explicitly pass
+  `--dump-all`, because some newer ops are supported by C++ generation before
+  every dump backend supports them;
 - writes/updates that worktree's ignored `config/models.local.yaml`;
 - builds `gen/runtron` against the local model config;
 - writes a verifier `model_spec.json`;
@@ -209,6 +212,12 @@ Example overlay:
 }
 ```
 
+When an overlay asks the evaluator to produce a fresh performance comparison,
+set `performance_comparison.workload` to the scoring category. Use
+`independent_decode` for distinct-prompt generation throughput and
+`long_prefill` for prompt throughput. Prefix-cache reuse runs should be labeled
+`prefix_cache_reuse`; they are diagnostic and do not contribute to `delta`.
+
 ## Manual Workflow
 
 Use this when the script needs customization or when debugging a failed stage.
@@ -250,14 +259,16 @@ snapshot_download("$MODEL_SLUG", local_dir="$HF_DIR")
 PY
 ```
 
-If the snapshot already contains `model.safetensors` or
-`model.safetensors.index.json`, use `HF_DIR` as `WEIGHTS`:
+If the snapshot already contains `model.safetensors` or a complete
+`model.safetensors.index.json` with all referenced shards, use `HF_DIR` as
+`WEIGHTS`:
 
 ```bash
 export WEIGHTS="$HF_DIR"
 ```
 
-If it only contains `pytorch_model.bin`, convert it:
+If it only contains `pytorch_model.bin` or a complete `*.bin.index.json` shard
+set, convert it:
 
 ```bash
 printf '%s\n%s\nN\n' "$HF_DIR" "$WEIGHTS" | \
@@ -279,7 +290,7 @@ XDG_CACHE_HOME=/tmp/tron-nix-cache nix develop --no-write-lock-file -c sh -lc "
     --default-weights '$WEIGHTS' \
     --config '../config/models.local.yaml' \
     --max-seq-length 64 \
-    --dump-all \
+    --meta-device \
     -e host -e tp1
 "
 ```
@@ -291,7 +302,7 @@ XDG_CACHE_HOME=/tmp/tron-nix-cache nix develop --no-write-lock-file -c sh -lc "
   cmake --preset native -DCMAKE_BUILD_TYPE=RelWithDebInfo \
     -DBUILD_PRODUCTION_MODELS=OFF \
     -DBUILD_TEST_MODELS=OFF \
-    -DDEV_MODEL_CONFIG=$WT/config/models.local.yaml \
+    -DDEV_MODEL_CONFIG= \
     -DENABLE_FUSE_STATS=ON &&
   cmake --build gen --target runtron -j 16
 "
