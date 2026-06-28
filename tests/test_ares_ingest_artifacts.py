@@ -97,6 +97,26 @@ class AresIngestArtifactTest(unittest.TestCase):
                 " ".join(gate["errors"]),
             )
 
+    def test_backend_open_gate_requires_explicit_target_backend(self) -> None:
+        with TemporaryDirectory() as tmp:
+            path = Path(tmp) / "backend.json"
+            path.write_text(
+                json.dumps(
+                    {
+                        "status": "opened",
+                        "backend_id": "tron",
+                        "runtime_generated_sidecars": False,
+                        "ares_plan": {"sha256": SHA_A},
+                        "target_plan": {"sha256": SHA_B},
+                    }
+                )
+            )
+
+            gate = backend_open_gate(path)
+
+            self.assertFalse(gate["passed"])
+            self.assertIn("TargetPlan backend", " ".join(gate["errors"]))
+
     def test_backend_open_gate_rejects_nested_target_backend_mismatch(self) -> None:
         with TemporaryDirectory() as tmp:
             path = Path(tmp) / "backend.json"

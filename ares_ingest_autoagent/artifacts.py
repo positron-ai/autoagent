@@ -412,11 +412,13 @@ def validate_backend_open_evidence(payload: Any) -> ArtifactValidation:
     _require_sha256(errors, target_sha, "TargetPlan")
 
     target_backend = _first_string(
-        root, rows, ("target_plan_backend", "target_backend", "backend_id")
+        root, rows, ("target_plan_backend", "target_backend")
     )
     if isinstance(target_obj, dict):
         nested_target_backend = _first_string(target_obj, [], ("backend_id", "backend"))
         target_backend = nested_target_backend or target_backend
+    if target_backend is None:
+        errors.append("backend evidence must name TargetPlan backend explicitly")
     if (
         backend_id is not None
         and target_backend is not None
