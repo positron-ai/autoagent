@@ -211,7 +211,39 @@ class AresIngestCliTest(unittest.TestCase):
 
             self.assertEqual(targetplan_skill["name"], "ares-targetplan")
             self.assertIn("Rust validation", targetplan_skill["why"])
-            self.assertIn("backend/", targetplan_skill["allowed_scope"])
+            self.assertEqual(
+                targetplan_skill["allowed_scope"],
+                [
+                    "ingest/lean/",
+                    "backend/",
+                    "runtime/",
+                    str(cfg.run_dir / "artifacts"),
+                    str(cfg.model_spec_path),
+                ],
+            )
+            reward = {
+                "score": 0.38,
+                "alpha_execution": 0.7,
+                "tau_tokens": 0.0,
+                "delta_inference": 0.0,
+                "stage_cap": 0.48,
+                "first_failed_gate": "targetplan_valid",
+                "gates": {},
+            }
+            (cfg.run_dir).mkdir()
+            write_handoff(cfg, reward, state={"workflow_skills": skills, "history": []})
+            handoff = (cfg.run_dir / "handoff.md").read_text()
+            self.assertIn("`ares-targetplan` for `targetplan_valid`", handoff)
+            self.assertIn("runtime/", handoff)
+            prompt = write_refinement_prompt(
+                cfg,
+                iteration=1,
+                spec={},
+                reward=reward,
+            ).read_text()
+            self.assertIn("`ares-targetplan` for `targetplan_valid`", prompt)
+            self.assertIn("runtime handoff", prompt)
+            self.assertIn(str(cfg.model_spec_path), prompt)
 
     def test_target_score_completion_does_not_invoke_refiner(self) -> None:
         with TemporaryDirectory() as tmp:
