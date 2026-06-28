@@ -132,6 +132,16 @@ def load_state(path: Path) -> dict[str, Any]:
     return load_json(path)
 
 
+def load_state_or_recover(path: Path) -> dict[str, Any]:
+    try:
+        return load_state(path)
+    except AresIngestError as state_error:
+        return {
+            "history": [],
+            "previous_state_error": str(state_error),
+        }
+
+
 def resolve_run_path(path: str, cfg: AresIngestConfig) -> Path:
     raw = Path(path)
     if raw.is_absolute():
@@ -144,10 +154,26 @@ def resolve_run_path(path: str, cfg: AresIngestConfig) -> Path:
 
 
 def read_json_or_jsonl(path: Path) -> Any:
-    text = path.read_text()
+    try:
+        text = path.read_text()
+    except FileNotFoundError as exc:
+        raise AresIngestError(f"missing JSON file: {path}") from exc
     if path.suffix == ".jsonl":
-        return [json.loads(line) for line in text.splitlines() if line.strip()]
-    return json.loads(text)
+        rows = []
+        for lineno, line in enumerate(text.splitlines(), start=1):
+            if not line.strip():
+                continue
+            try:
+                rows.append(json.loads(line))
+            except json.JSONDecodeError as exc:
+                raise AresIngestError(
+                    f"invalid JSONL in {path}:{lineno}: {exc}"
+                ) from exc
+        return rows
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError as exc:
+        raise AresIngestError(f"invalid JSON in {path}: {exc}") from exc
 
 
 def write_handoff(
@@ -564,9 +590,16 @@ def append_history(
 
 
 def write_failure_state(cfg: AresIngestConfig, error: BaseException) -> None:
-    state = load_state(cfg.state_path)
+    cfg.run_dir.mkdir(parents=True, exist_ok=True)
+    cfg.logs_dir.mkdir(parents=True, exist_ok=True)
+    state = load_state_or_recover(cfg.state_path)
     state["status"] = "failed"
     state["error"] = str(error)
+    state.setdefault("model", cfg.model_slug)
+    state.setdefault("safe_model", cfg.safe_model)
+    state.setdefault("run_dir", str(cfg.run_dir))
+    state.setdefault("gate_profile", cfg.gate_profile)
+    state.setdefault("refinement_loop", "one_failing_gate")
     state["updated_at"] = datetime.now(timezone.utc).isoformat()
     write_json(cfg.state_path, state)
     reward_path = cfg.run_dir / "reward.json"
@@ -581,7 +614,7 @@ def run_loop(cfg: AresIngestConfig) -> int:
 
     cfg.run_dir.mkdir(parents=True, exist_ok=True)
     cfg.logs_dir.mkdir(parents=True, exist_ok=True)
-    state = load_state(cfg.state_path)
+    state = load_state_or_recover(cfg.state_path)
     best_score = max(
         [float(item.get("score", 0.0) or 0.0) for item in state.get("history", [])]
         or [0.0]
@@ -744,12 +777,13 @@ def main(argv: list[str] | None = None) -> int:
             print(json.dumps(load_state(cfg.state_path), indent=2))
         return rc
     except AresIngestError as exc:
+        failure_note = ""
         if cfg is not None:
             try:
                 write_failure_state(cfg, exc)
-            except Exception:
-                pass
-        parser.exit(1, f"ares-ingest-agent: error: {exc}\n")
+            except Exception as state_exc:
+                failure_note = f" (also failed to write failure state: {state_exc})"
+        parser.exit(1, f"ares-ingest-agent: error: {exc}{failure_note}\n")
     except KeyboardInterrupt:
         parser.exit(130, "ares-ingest-agent: interrupted\n")
 

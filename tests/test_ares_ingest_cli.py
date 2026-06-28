@@ -168,6 +168,72 @@ class AresIngestCliTest(unittest.TestCase):
             )
             self.assertEqual(Path(state["latest_refinement_prompt"]), prompt.resolve())
 
+    def test_missing_oracle_records_writes_failure_state_over_corrupt_state(
+        self,
+    ) -> None:
+        with TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            run_dir = root / "run"
+            run_dir.mkdir()
+            (run_dir / "state.json").write_text("{")
+            (run_dir / "model_spec.json").write_text(
+                json.dumps(
+                    {
+                        "model": "Provider/Model",
+                        "required_gates": ["model_spec", "hf_cpu_oracle"],
+                        "explicit_gates": {
+                            "model_spec": {
+                                "passed": True,
+                                "score": 1.0,
+                            },
+                        },
+                        "oracle_records": "missing-oracle.jsonl",
+                    }
+                )
+            )
+
+            with self.assertRaises(SystemExit) as raised:
+                main(
+                    [
+                        "--ares-repo",
+                        str(root),
+                        "--run-dir",
+                        str(run_dir),
+                        "--no-refiner",
+                        "Provider/Model",
+                    ]
+                )
+
+            self.assertEqual(raised.exception.code, 1)
+            state = json.loads((run_dir / "state.json").read_text())
+            self.assertEqual(state["status"], "failed")
+            self.assertIn("missing JSON file", state["error"])
+            self.assertIn("previous_state_error", state)
+
+    def test_refiner_failure_writes_state_and_handoff(self) -> None:
+        with TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            run_dir = root / "run"
+
+            with self.assertRaises(SystemExit) as raised:
+                main(
+                    [
+                        "--ares-repo",
+                        str(root),
+                        "--run-dir",
+                        str(run_dir),
+                        "--refinement-command",
+                        "exit 7",
+                        "Provider/Model",
+                    ]
+                )
+
+            self.assertEqual(raised.exception.code, 1)
+            state = json.loads((run_dir / "state.json").read_text())
+            self.assertEqual(state["status"], "failed")
+            self.assertIn("refiner failed with exit 7", state["error"])
+            self.assertIn("Status: `failed`", (run_dir / "handoff.md").read_text())
+
     def test_main_setup_only_writes_state(self) -> None:
         with TemporaryDirectory() as tmp:
             root = Path(tmp)
