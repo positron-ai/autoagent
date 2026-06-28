@@ -111,6 +111,7 @@ class AresIngestScoreTest(unittest.TestCase):
                 "gates": {
                     "aresplan_valid": artifact_gate("ares_plan"),
                     "targetplan_valid": artifact_gate("target_plan"),
+                    "artifact_consistency": artifact_gate("artifact_consistency"),
                     "shortcut_scan": artifact_gate("shortcut_scan"),
                     "backend_open": artifact_gate("backend_open"),
                     "one_token_logits": artifact_gate("one_token_logits"),
@@ -147,6 +148,7 @@ class AresIngestScoreTest(unittest.TestCase):
                 "gates": {
                     "aresplan_valid": artifact_gate("ares_plan"),
                     "targetplan_valid": artifact_gate("target_plan"),
+                    "artifact_consistency": artifact_gate("artifact_consistency"),
                     "shortcut_scan": artifact_gate("shortcut_scan"),
                 }
             },
@@ -259,6 +261,7 @@ class AresIngestScoreTest(unittest.TestCase):
                 "gates": {
                     "aresplan_valid": artifact_gate("ares_plan"),
                     "targetplan_valid": artifact_gate("target_plan"),
+                    "artifact_consistency": artifact_gate("artifact_consistency"),
                 }
             },
             oracle_payload=oracle_record(),
@@ -269,12 +272,46 @@ class AresIngestScoreTest(unittest.TestCase):
                 "lean_ingest",
                 "aresplan_valid",
                 "targetplan_valid",
+                "artifact_consistency",
                 "shortcut_scan",
             ),
         )
 
         self.assertEqual(reward["first_failed_gate"], "shortcut_scan")
         self.assertFalse(reward["gates"]["shortcut_scan"]["passed"])
+
+    def test_explicit_artifact_gate_cannot_replace_consistency_validator(
+        self,
+    ) -> None:
+        reward = compute_reward(
+            gates_payload={
+                "gates": {
+                    "model_spec": True,
+                    "frontend_export": True,
+                    "lean_ingest": True,
+                    "artifact_consistency": True,
+                }
+            },
+            validated_gates_payload={
+                "gates": {
+                    "aresplan_valid": artifact_gate("ares_plan"),
+                    "targetplan_valid": artifact_gate("target_plan"),
+                }
+            },
+            oracle_payload=oracle_record(),
+            required_gates=(
+                "model_spec",
+                "hf_cpu_oracle",
+                "frontend_export",
+                "lean_ingest",
+                "aresplan_valid",
+                "targetplan_valid",
+                "artifact_consistency",
+            ),
+        )
+
+        self.assertEqual(reward["first_failed_gate"], "artifact_consistency")
+        self.assertFalse(reward["gates"]["artifact_consistency"]["passed"])
 
     def test_explicit_runtime_gates_cannot_replace_artifact_validators(self) -> None:
         reward = compute_reward(
@@ -294,6 +331,7 @@ class AresIngestScoreTest(unittest.TestCase):
                 "gates": {
                     "aresplan_valid": artifact_gate("ares_plan"),
                     "targetplan_valid": artifact_gate("target_plan"),
+                    "artifact_consistency": artifact_gate("artifact_consistency"),
                     "shortcut_scan": artifact_gate("shortcut_scan"),
                 }
             },
@@ -311,6 +349,7 @@ class AresIngestScoreTest(unittest.TestCase):
                 "lean_ingest",
                 "aresplan_valid",
                 "targetplan_valid",
+                "artifact_consistency",
                 "shortcut_scan",
                 "backend_open",
                 "one_token_logits",

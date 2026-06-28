@@ -1,5 +1,6 @@
 {
   "model": "hf-internal-testing/tiny-random-LlamaForCausalLM",
+  "expected_model_ids": ["hf-internal-testing/tiny-random-LlamaForCausalLM"],
   "work_dir": "/tmp/ares-ingest-template",
   "required_gates": [
     "model_spec",
@@ -8,6 +9,7 @@
     "lean_ingest",
     "aresplan_valid",
     "targetplan_valid",
+    "artifact_consistency",
     "shortcut_scan"
   ],
   "explicit_gates": {

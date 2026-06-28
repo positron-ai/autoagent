@@ -33,6 +33,7 @@ STAGE_CAPS: dict[str, float] = {
     "lean_ingest": 0.28,
     "aresplan_valid": 0.38,
     "targetplan_valid": 0.48,
+    "artifact_consistency": 0.50,
     "shortcut_scan": 0.52,
     "backend_open": 0.58,
     "one_token_logits": 0.70,
@@ -49,6 +50,7 @@ CPU_ONLY_GATES: tuple[str, ...] = (
     "lean_ingest",
     "aresplan_valid",
     "targetplan_valid",
+    "artifact_consistency",
     "shortcut_scan",
 )
 
@@ -77,6 +79,7 @@ ALPHA_EXECUTION_WEIGHTS: dict[str, float] = {
     "lean_ingest": 0.10,
     "aresplan_valid": 0.15,
     "targetplan_valid": 0.15,
+    "artifact_consistency": 0.05,
     "shortcut_scan": 0.05,
     "backend_open": 0.10,
     "one_token_logits": 0.20,
@@ -86,6 +89,7 @@ ARTIFACT_GATE_VALIDATORS: dict[str, str] = {
     "hf_cpu_oracle": "hf_cpu_oracle",
     "aresplan_valid": "ares_plan",
     "targetplan_valid": "target_plan",
+    "artifact_consistency": "artifact_consistency",
     "shortcut_scan": "shortcut_scan",
     "backend_open": "backend_open",
     "one_token_logits": "one_token_logits",

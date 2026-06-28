@@ -43,6 +43,8 @@ For local development, mount or copy:
 ## Useful `model_spec.json` Fields
 
 - `explicit_gates`: gates already proven by supplied artifacts.
+- `expected_model_ids`: allowed model ids for cross-artifact consistency when a
+  registry row, local checkpoint path, and HF model id are legitimate aliases.
 - `oracle_records`: HF CPU oracle JSONL file, relative to `work_dir`,
   `files/`, or `ARES_REPO`.
 - `ares_plan`: generated AresPlan JSON artifact.
@@ -69,11 +71,11 @@ For local development, mount or copy:
   `delta_inference`.
 
 The default setup profile should require only CPU-side gates through
-`targetplan_valid` plus `shortcut_scan`. Enable backend, C++ comparison, or
-performance gates only when the task environment supplies the corresponding
-generated artifacts, runtime backend, model checkpoint, and comparison binaries.
-Wrapper command output still must be transformed into validator-backed evidence
-files before the backend, token, C++ TVD, or depth/performance gates can pass.
-The runtime wrappers consume `ares_plan`; keep `target_plan` attached
-separately for TargetPlan validation rather than treating wrapper launch output
-as TargetPlan proof.
+`targetplan_valid`, `artifact_consistency`, and `shortcut_scan`. Enable backend,
+C++ comparison, or performance gates only when the task environment supplies the
+corresponding generated artifacts, runtime backend, model checkpoint, and
+comparison binaries. Wrapper command output still must be transformed into
+validator-backed evidence files before the backend, token, C++ TVD, or
+depth/performance gates can pass. The runtime wrappers consume `ares_plan`; keep
+`target_plan` attached separately for TargetPlan validation rather than treating
+wrapper launch output as TargetPlan proof.

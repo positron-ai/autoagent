@@ -68,12 +68,15 @@ Use `--no-refiner` for evaluation-only runs; below target, it exits with
 4. `lean_ingest`
 5. `aresplan_valid`
 6. `targetplan_valid`
-7. `shortcut_scan`
+7. `artifact_consistency`
+8. `shortcut_scan`
 
 The default `cpu-only` profile stops after generated artifact validation and a
-source-tree shortcut scan. The scan rejects hand-authored Rust model-family
-plugin paths and runtime-generated AresPlan/TargetPlan sidecars as promotion
-evidence.
+source-tree shortcut scan. `artifact_consistency` requires the HF CPU oracle and
+TargetPlan model ids to match the expected row, or an explicit
+`expected_model_ids` alias list in `model_spec.json`. The scan rejects
+hand-authored Rust model-family plugin paths and runtime-generated
+AresPlan/TargetPlan sidecars as promotion evidence.
 
 Optional profiles extend the required gate list:
 

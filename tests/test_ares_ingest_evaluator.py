@@ -347,6 +347,7 @@ class AresIngestEvaluatorTest(unittest.TestCase):
                     "lean_ingest",
                     "aresplan_valid",
                     "targetplan_valid",
+                    "artifact_consistency",
                     "shortcut_scan",
                     "backend_open",
                     "one_token_logits",
@@ -407,6 +408,41 @@ class AresIngestEvaluatorTest(unittest.TestCase):
         self.assertEqual(reward["delta_inference"], 0.8)
         self.assertTrue((result["work_dir"] / "tokens.json").exists())
         self.assertTrue((result["work_dir"] / "performance.json").exists())
+
+    def test_evaluator_rejects_target_plan_model_mismatch(self) -> None:
+        target_plan = valid_target_plan()
+        target_plan["model_id"] = "fixture/model"
+        result = self.run_evaluator(
+            {
+                "required_gates": [
+                    "model_spec",
+                    "hf_cpu_oracle",
+                    "frontend_export",
+                    "lean_ingest",
+                    "aresplan_valid",
+                    "targetplan_valid",
+                    "artifact_consistency",
+                    "shortcut_scan",
+                ],
+                "explicit_gates": {
+                    "model_spec": True,
+                    "frontend_export": True,
+                    "lean_ingest": True,
+                },
+                "oracle_records": "oracle.jsonl",
+                "ares_plan": "ares-plan.json",
+                "target_plan": "tron.target-plan.json",
+            },
+            {
+                "oracle.jsonl": json.dumps(oracle_record()) + "\n",
+                "ares-plan.json": json.dumps(valid_ares_plan()) + "\n",
+                "tron.target-plan.json": json.dumps(target_plan) + "\n",
+            },
+        )
+
+        reward = result["reward"]
+        self.assertEqual(reward["first_failed_gate"], "artifact_consistency")
+        self.assertFalse(reward["gates"]["artifact_consistency"]["passed"])
 
     def test_evaluator_rejects_placeholder_plan_json(self) -> None:
         result = self.run_evaluator(

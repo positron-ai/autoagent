@@ -14,6 +14,7 @@ from typing import Any, Mapping
 
 from ares_ingest_autoagent.artifacts import (
     ares_plan_gate,
+    artifact_consistency_gate,
     backend_open_gate,
     cpp_tvd_gate,
     depth_performance_gate,
@@ -77,6 +78,7 @@ def default_run_dir(ares_repo: Path, safe_model: str) -> Path:
 def build_model_spec(cfg: AresIngestConfig) -> dict[str, Any]:
     return {
         "model": cfg.model_slug,
+        "expected_model_ids": [cfg.model_slug],
         "safe_model": cfg.safe_model,
         "ares_repo": str(cfg.ares_repo),
         "frontend": "fx",
@@ -339,6 +341,12 @@ def evaluate_run(cfg: AresIngestConfig) -> tuple[dict[str, Any], dict[str, Any]]
         validated_gates["targetplan_valid"] = target_plan_gate(
             resolve_run_path(str(target_plan), cfg)
         )
+    if "artifact_consistency" in spec["required_gates"]:
+        validated_gates["artifact_consistency"] = artifact_consistency_gate(
+            spec,
+            oracle_payload=oracle_payload,
+            validated_gates=validated_gates,
+        )
     if backend_open := spec.get("backend_open_evidence"):
         validated_gates["backend_open"] = backend_open_gate(
             resolve_run_path(str(backend_open), cfg)
@@ -442,6 +450,11 @@ def gate_guidance(
         "targetplan_valid": [
             "- Attach a Lean-emitted TargetPlan JSON artifact and set `target_plan` in `model_spec.json`.",
             "- Missing TargetPlan artifacts must fail before backend execution.",
+        ],
+        "artifact_consistency": [
+            "- Make the HF CPU oracle and TargetPlan identify the same model row.",
+            "- Set `expected_model_ids` in `model_spec.json` when a registry row, local checkpoint path, and HF model id are legitimate aliases.",
+            "- Do not pass this gate by mixing a real oracle with unrelated fixture plans.",
         ],
         "shortcut_scan": [
             "- Remove any hand-authored Rust model-family plugin or runtime-generated plan sidecar.",

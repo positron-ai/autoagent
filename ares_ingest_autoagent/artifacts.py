@@ -6,7 +6,7 @@ import json
 import re
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any, Iterable, Mapping
 
 
 HF_CPU_SCHEMA_ID = "ares.oracles.hf_cpu.record.v1"
@@ -169,6 +169,23 @@ def target_plan_gate(path: Path, *, label: str = "Lean TargetPlan") -> dict[str,
         label=label,
         validator_name="target_plan",
         validator=validate_target_plan,
+    )
+
+
+def artifact_consistency_gate(
+    spec: Mapping[str, Any],
+    *,
+    oracle_payload: Any,
+    validated_gates: Mapping[str, Any],
+    label: str = "artifact model consistency",
+) -> dict[str, Any]:
+    return validate_artifact_consistency(
+        spec,
+        oracle_payload=oracle_payload,
+        validated_gates=validated_gates,
+    ).as_gate(
+        label=label,
+        validator_name="artifact_consistency",
     )
 
 
@@ -718,6 +735,45 @@ def validate_target_plan(plan: Any) -> ArtifactValidation:
     return _validation(not errors, errors, detail)
 
 
+def validate_artifact_consistency(
+    spec: Mapping[str, Any],
+    *,
+    oracle_payload: Any,
+    validated_gates: Mapping[str, Any],
+) -> ArtifactValidation:
+    errors: list[str] = []
+    expected_ids = _expected_model_ids(spec)
+    oracle_ids = _oracle_model_ids(oracle_payload)
+    target_model_id = _gate_detail_string(
+        validated_gates.get("targetplan_valid"), "model_id"
+    )
+
+    if not expected_ids:
+        errors.append("model_spec must name model or expected_model_ids")
+    if not oracle_ids:
+        errors.append("HF CPU oracle model_id is missing")
+    if target_model_id is None:
+        errors.append("TargetPlan model_id is missing")
+
+    unexpected_oracle_ids = sorted(oracle_ids.difference(expected_ids))
+    if unexpected_oracle_ids:
+        errors.append(
+            "HF CPU oracle model_id not allowed by model_spec: "
+            + ", ".join(unexpected_oracle_ids)
+        )
+    if target_model_id is not None and target_model_id not in expected_ids:
+        errors.append(
+            "TargetPlan model_id not allowed by model_spec: " + target_model_id
+        )
+
+    detail = {
+        "expected_model_ids": sorted(expected_ids),
+        "oracle_model_ids": sorted(oracle_ids),
+        "target_plan_model_id": target_model_id,
+    }
+    return _validation(not errors, errors, detail)
+
+
 def _validation(
     passed: bool,
     errors: Iterable[str],
@@ -924,6 +980,50 @@ def _validate_revision_metadata(
     _require_non_empty_string(errors, revision, f"{label}.requested_revision")
     if isinstance(revision, str) and is_floating_revision(revision):
         errors.append(f"{label}.requested_revision must not be floating")
+
+
+def _expected_model_ids(spec: Mapping[str, Any]) -> set[str]:
+    expected: set[str] = set()
+    for field in (
+        "expected_model_ids",
+        "artifact_model_ids",
+        "model_aliases",
+        "model_id",
+        "model",
+    ):
+        expected.update(_string_values(spec.get(field)))
+    return expected
+
+
+def _oracle_model_ids(payload: Any) -> set[str]:
+    records = payload if isinstance(payload, list) else [payload]
+    model_ids: set[str] = set()
+    for record in records:
+        if not isinstance(record, dict):
+            continue
+        model = record.get("model")
+        if not isinstance(model, dict):
+            continue
+        model_ids.update(_string_values(model.get("model_id")))
+    return model_ids
+
+
+def _gate_detail_string(gate: Any, field: str) -> str | None:
+    if not isinstance(gate, dict):
+        return None
+    detail = gate.get("detail")
+    if not isinstance(detail, dict):
+        return None
+    value = detail.get(field)
+    return value if isinstance(value, str) and value else None
+
+
+def _string_values(value: Any) -> set[str]:
+    if isinstance(value, str) and value:
+        return {value}
+    if isinstance(value, list):
+        return {item for item in value if isinstance(item, str) and item}
+    return set()
 
 
 def _validate_run(errors: list[str], run: dict[str, Any]) -> None:

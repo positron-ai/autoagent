@@ -6,6 +6,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 
 from ares_ingest_autoagent.artifacts import (
+    artifact_consistency_gate,
     backend_open_gate,
     cpp_tvd_gate,
     depth_performance_gate,
@@ -31,6 +32,50 @@ def replay_context() -> dict:
 
 
 class AresIngestArtifactTest(unittest.TestCase):
+    def test_artifact_consistency_accepts_matching_model_ids(self) -> None:
+        gate = artifact_consistency_gate(
+            {"model": "synthetic/model"},
+            oracle_payload=[{"model": {"model_id": "synthetic/model"}}],
+            validated_gates={
+                "targetplan_valid": {
+                    "detail": {"model_id": "synthetic/model"},
+                }
+            },
+        )
+
+        self.assertTrue(gate["passed"])
+        self.assertEqual(gate["artifact_validator"], "artifact_consistency")
+
+    def test_artifact_consistency_rejects_target_plan_model_mismatch(self) -> None:
+        gate = artifact_consistency_gate(
+            {"model": "hf/model"},
+            oracle_payload=[{"model": {"model_id": "hf/model"}}],
+            validated_gates={
+                "targetplan_valid": {
+                    "detail": {"model_id": "fixture/model"},
+                }
+            },
+        )
+
+        self.assertFalse(gate["passed"])
+        self.assertIn("TargetPlan model_id", " ".join(gate["errors"]))
+
+    def test_artifact_consistency_accepts_explicit_model_aliases(self) -> None:
+        gate = artifact_consistency_gate(
+            {
+                "model": "registry/model",
+                "expected_model_ids": ["registry/model", "hf/model"],
+            },
+            oracle_payload=[{"model": {"model_id": "hf/model"}}],
+            validated_gates={
+                "targetplan_valid": {
+                    "detail": {"model_id": "registry/model"},
+                }
+            },
+        )
+
+        self.assertTrue(gate["passed"])
+
     def test_backend_open_gate_accepts_jsonl_event_evidence(self) -> None:
         with TemporaryDirectory() as tmp:
             path = Path(tmp) / "backend.jsonl"

@@ -64,6 +64,8 @@ class AresIngestCliTest(unittest.TestCase):
             self.assertNotIn("cpp_tvd", spec["required_gates"])
             self.assertEqual(spec["explicit_gates"]["model_spec"]["passed"], True)
             self.assertIn("shortcut_scan", spec["required_gates"])
+            self.assertIn("artifact_consistency", spec["required_gates"])
+            self.assertEqual(spec["expected_model_ids"], ["Provider/Model"])
             self.assertEqual(
                 spec["explicit_gates"]["shortcut_scan"]["artifact_validator"],
                 "shortcut_scan",

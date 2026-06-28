@@ -12,6 +12,7 @@ from typing import Any
 
 from ares_ingest_autoagent.artifacts import (
     ares_plan_gate,
+    artifact_consistency_gate,
     backend_open_gate,
     cpp_tvd_gate,
     depth_performance_gate,
@@ -121,6 +122,14 @@ def main() -> int:
             )
         )
         gates["targetplan_valid"] = validated_gates["targetplan_valid"]
+
+    if "artifact_consistency" in required_gates:
+        validated_gates["artifact_consistency"] = artifact_consistency_gate(
+            spec,
+            oracle_payload=oracle_payload if oracle_summary is not None else None,
+            validated_gates=validated_gates,
+        )
+        gates["artifact_consistency"] = validated_gates["artifact_consistency"]
 
     if backend_open := spec.get("backend_open_evidence"):
         validated_gates["backend_open"] = backend_open_gate(
