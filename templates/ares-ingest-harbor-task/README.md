@@ -54,6 +54,9 @@ For local development, mount or copy:
   runtime-generated plan sidecars participated.
 - `one_token_logits_evidence`: one-token Ares-vs-HF CPU logit/TVD evidence
   with replay-context metadata.
+- `eight_token_greedy_evidence`: validator-backed greedy token evidence with
+  at least eight generated tokens, source digests, HF CPU oracle provenance, and
+  exact Ares-vs-oracle token identity.
 - `cpp_tvd_evidence`: C++ Tron/Rinzler comparison TVD evidence. This is
   comparison/rollback evidence, not an oracle.
 - `depth_performance_evidence`: 8/64/512 depth-ladder performance evidence
@@ -66,7 +69,9 @@ For local development, mount or copy:
   even when it is not listed in `required_gates`.
 - `command_gates`: optional command-backed gates.
 - `token_comparison`: optional reference/candidate token files for
-  `tau_tokens`.
+  `tau_tokens`; when `eight_token_greedy` is required, the evaluator converts
+  this comparison into `ares.runtime.greedy_token_agreement.v1` evidence and
+  validates it before closing the gate.
 - `performance_comparison`: optional measured/speed target files for
   `delta_inference`.
 
@@ -76,6 +81,6 @@ C++ comparison, or performance gates only when the task environment supplies the
 corresponding generated artifacts, runtime backend, model checkpoint, and
 comparison binaries. Wrapper command output still must be transformed into
 validator-backed evidence files before the backend, token, C++ TVD, or
-depth/performance gates can pass. The runtime wrappers consume `ares_plan`; keep
-`target_plan` attached separately for TargetPlan validation rather than treating
-wrapper launch output as TargetPlan proof.
+depth/performance gates can pass. The runtime wrappers consume `ares_plan`;
+keep `target_plan` attached separately for TargetPlan validation rather than
+treating wrapper launch output as TargetPlan proof.

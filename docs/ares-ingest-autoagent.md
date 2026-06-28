@@ -97,6 +97,9 @@ Attach optional evidence files in `model_spec.json` when using profiles beyond
   AresPlan and TargetPlan SHA-256 values and no runtime-generated sidecars.
 - `one_token_logits_evidence`: Ares system-under-test logits/TVD evidence
   compared against HF CPU oracle rows, with replay context.
+- `eight_token_greedy_evidence`: Ares system-under-test greedy token evidence
+  with at least eight generated tokens, HF CPU oracle provenance, source
+  digests, and exact token identity.
 - `cpp_tvd_evidence`: C++ Tron/Rinzler dense-logit TVD comparison evidence.
   This never replaces HF CPU oracle correctness evidence.
 - `depth_performance_evidence`: 8/64/512 depth-ladder evidence with token
@@ -117,6 +120,9 @@ sets `execute_command_wrappers` to `true`. Their outputs are launch artifacts,
 not scoring evidence by themselves. Attach post-processed
 `backend_open_evidence`, `one_token_logits_evidence`, `cpp_tvd_evidence`, or
 `depth_performance_evidence` files to close the corresponding validator-backed
-gates. The runtime launchers currently consume `ares_plan`; keep
-`target_plan` attached separately as validator evidence instead of treating the
-wrapper command itself as TargetPlan proof.
+gates. A `token_comparison` block also writes `tokens.json` as
+`ares.runtime.greedy_token_agreement.v1` evidence and validates it as
+`eight_token_greedy` when that gate is required. The runtime launchers
+currently consume `ares_plan`; keep `target_plan` attached separately as
+validator evidence instead of treating the wrapper command itself as TargetPlan
+proof.

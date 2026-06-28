@@ -16,18 +16,21 @@ from ares_ingest_autoagent.artifacts import (
     ares_plan_gate,
     artifact_consistency_gate,
     backend_open_gate,
+    build_greedy_token_evidence,
     cpp_tvd_gate,
     depth_performance_gate,
     one_token_logits_gate,
     target_plan_gate,
+    token_agreement_gate,
 )
 from ares_ingest_autoagent.commands import build_command_wrapper_plan
-from ares_ingest_autoagent.gates import shortcut_scan_gate, write_json
+from ares_ingest_autoagent.gates import read_payload, shortcut_scan_gate, write_json
 from ares_ingest_autoagent.score import (
     GATE_PROFILES,
     compute_reward,
     required_gates_for_profile,
 )
+from tron_ingest_autoagent.tokens import compare_payloads
 
 
 DEFAULT_REFINER_COMMAND = (
@@ -357,6 +360,33 @@ def evaluate_run(cfg: AresIngestConfig) -> tuple[dict[str, Any], dict[str, Any]]
         validated_gates["one_token_logits"] = one_token_logits_gate(
             resolve_run_path(str(one_token), cfg)
         )
+    token_payload = None
+    if eight_token := spec.get("eight_token_greedy_evidence") or spec.get(
+        "token_results_json"
+    ):
+        eight_token_path = resolve_run_path(str(eight_token), cfg)
+        validated_gates["eight_token_greedy"] = token_agreement_gate(eight_token_path)
+        token_payload = read_json_or_jsonl(eight_token_path)
+    if token_spec := spec.get("token_comparison"):
+        if not isinstance(token_spec, Mapping):
+            raise AresIngestError("model_spec token_comparison must be a JSON object")
+        reference = resolve_run_path(str(token_spec["reference"]), cfg)
+        candidate = resolve_run_path(str(token_spec["candidate"]), cfg)
+        token_result = compare_payloads(
+            read_payload(reference), read_payload(candidate)
+        )
+        token_payload = build_greedy_token_evidence(
+            token_result,
+            reference=reference,
+            candidate=candidate,
+            expected_generated_tokens=int(
+                token_spec.get("expected_generated_tokens", 8)
+            ),
+        )
+        token_results_path = cfg.run_dir / str(token_spec.get("output", "tokens.json"))
+        write_json(token_results_path, token_payload)
+        spec["eight_token_greedy_evidence"] = token_results_path.name
+        validated_gates["eight_token_greedy"] = token_agreement_gate(token_results_path)
     if cpp_tvd := spec.get("cpp_tvd_evidence"):
         validated_gates["cpp_tvd"] = cpp_tvd_gate(resolve_run_path(str(cpp_tvd), cfg))
     if depth_performance := spec.get("depth_performance_evidence"):
@@ -382,6 +412,7 @@ def evaluate_run(cfg: AresIngestConfig) -> tuple[dict[str, Any], dict[str, Any]]
         gates_payload={"gates": spec["explicit_gates"]},
         validated_gates_payload={"gates": validated_gates},
         oracle_payload=oracle_payload,
+        token_payload=token_payload,
         required_gates=tuple(spec["required_gates"]),
     )
     write_json(cfg.run_dir / "reward.json", reward)

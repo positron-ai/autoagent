@@ -8,9 +8,11 @@ from tempfile import TemporaryDirectory
 from ares_ingest_autoagent.artifacts import (
     artifact_consistency_gate,
     backend_open_gate,
+    build_greedy_token_evidence,
     cpp_tvd_gate,
     depth_performance_gate,
     one_token_logits_gate,
+    token_agreement_gate,
     validate_cpp_tvd_evidence,
 )
 
@@ -298,6 +300,76 @@ class AresIngestArtifactTest(unittest.TestCase):
 
             self.assertTrue(gate["passed"])
             self.assertEqual(gate["artifact_validator"], "cpp_tvd")
+
+    def test_token_agreement_gate_accepts_eight_token_evidence(self) -> None:
+        with TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            reference = root / "reference.json"
+            candidate = root / "candidate.json"
+            path = root / "tokens.json"
+            reference.write_text(json.dumps(list(range(8))))
+            candidate.write_text(json.dumps(list(range(8))))
+            path.write_text(
+                json.dumps(
+                    build_greedy_token_evidence(
+                        {
+                            "score": 1.0,
+                            "exact_match": True,
+                            "exact_fraction": 1.0,
+                            "top1_agreement": 1.0,
+                            "cases": [
+                                {
+                                    "name": "default",
+                                    "exact_match": True,
+                                    "candidate_length": 8,
+                                }
+                            ],
+                        },
+                        reference=reference,
+                        candidate=candidate,
+                    )
+                )
+            )
+
+            gate = token_agreement_gate(path)
+
+            self.assertTrue(gate["passed"])
+            self.assertEqual(gate["artifact_validator"], "eight_token_greedy")
+
+    def test_token_agreement_gate_rejects_short_match(self) -> None:
+        with TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            reference = root / "reference.json"
+            candidate = root / "candidate.json"
+            path = root / "tokens.json"
+            reference.write_text(json.dumps([1, 2, 3]))
+            candidate.write_text(json.dumps([1, 2, 3]))
+            path.write_text(
+                json.dumps(
+                    build_greedy_token_evidence(
+                        {
+                            "score": 1.0,
+                            "exact_match": True,
+                            "exact_fraction": 1.0,
+                            "top1_agreement": 1.0,
+                            "cases": [
+                                {
+                                    "name": "default",
+                                    "exact_match": True,
+                                    "candidate_length": 3,
+                                }
+                            ],
+                        },
+                        reference=reference,
+                        candidate=candidate,
+                    )
+                )
+            )
+
+            gate = token_agreement_gate(path)
+
+            self.assertFalse(gate["passed"])
+            self.assertIn("expected at least 8", " ".join(gate["errors"]))
 
     def test_depth_performance_gate_requires_full_ladder(self) -> None:
         with TemporaryDirectory() as tmp:

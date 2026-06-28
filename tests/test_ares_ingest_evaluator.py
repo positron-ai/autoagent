@@ -359,7 +359,6 @@ class AresIngestEvaluatorTest(unittest.TestCase):
                     "model_spec": True,
                     "frontend_export": True,
                     "lean_ingest": True,
-                    "eight_token_greedy": True,
                 },
                 "oracle_records": "oracle.jsonl",
                 "ares_plan": "ares-plan.json",
@@ -371,6 +370,7 @@ class AresIngestEvaluatorTest(unittest.TestCase):
                 "token_comparison": {
                     "reference": "reference_tokens.json",
                     "candidate": "candidate_tokens.json",
+                    "expected_generated_tokens": 8,
                 },
                 "performance_comparison": {
                     "measured": "measured.log",
@@ -386,8 +386,8 @@ class AresIngestEvaluatorTest(unittest.TestCase):
                 "one-token.json": json.dumps(one_token_logits_evidence()) + "\n",
                 "cpp-tvd.json": json.dumps(cpp_tvd_evidence()) + "\n",
                 "depth.json": json.dumps(depth_performance_evidence()) + "\n",
-                "reference_tokens.json": json.dumps([1, 2, 3]),
-                "candidate_tokens.json": json.dumps([1, 2, 3]),
+                "reference_tokens.json": json.dumps([1, 2, 3, 4, 5, 6, 7, 8]),
+                "candidate_tokens.json": json.dumps([1, 2, 3, 4, 5, 6, 7, 8]),
                 "measured.log": "Throughput 80.0 tok/s\n",
                 "speed.json": json.dumps(
                     {
@@ -407,6 +407,7 @@ class AresIngestEvaluatorTest(unittest.TestCase):
         self.assertEqual(reward["tau_tokens"], 1.0)
         self.assertEqual(reward["delta_inference"], 0.8)
         self.assertTrue((result["work_dir"] / "tokens.json").exists())
+        self.assertTrue(reward["gates"]["eight_token_greedy"]["passed"])
         self.assertTrue((result["work_dir"] / "performance.json").exists())
 
     def test_evaluator_rejects_target_plan_model_mismatch(self) -> None:

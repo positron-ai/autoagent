@@ -12,6 +12,35 @@ def artifact_gate(validator: str) -> dict:
     return {"passed": True, "score": 1.0, "artifact_validator": validator}
 
 
+def token_evidence(length: int = 8, *, exact: bool = True) -> dict:
+    return {
+        "schema": "ares.runtime.greedy_token_agreement.v1",
+        "evidence_class": "system_under_test",
+        "oracle": "huggingface_transformers_pytorch_cpu",
+        "candidate": "ares",
+        "decode_strategy": "greedy",
+        "expected_generated_tokens": 8,
+        "generated_tokens": length,
+        "score": 1.0 if exact else 0.0,
+        "exact_match": exact,
+        "exact_fraction": 1.0 if exact else 0.875,
+        "top1_agreement": 1.0 if exact else 0.875,
+        "reference": {"path": "reference.json", "sha256": "a" * 64},
+        "candidate_output": {
+            "path": "candidate.json",
+            "sha256": "b" * 64,
+            "runtime": "ares",
+        },
+        "cases": [
+            {
+                "name": "default",
+                "exact_match": exact,
+                "candidate_length": length,
+            }
+        ],
+    }
+
+
 def oracle_record(
     kind: str = "hf_cpu_oracle_capture",
     oracle: str = "huggingface_transformers_pytorch_cpu",
@@ -104,7 +133,6 @@ class AresIngestScoreTest(unittest.TestCase):
                     "model_spec": True,
                     "frontend_export": True,
                     "lean_ingest": True,
-                    "eight_token_greedy": True,
                 }
             },
             validated_gates_payload={
@@ -120,7 +148,7 @@ class AresIngestScoreTest(unittest.TestCase):
                 }
             },
             oracle_payload=oracle_record(),
-            token_payload={"score": 1.0},
+            token_payload=token_evidence(),
             performance_payload={
                 "workload": "independent_decode",
                 "measured_tokens_per_second": 100.0,
@@ -336,7 +364,7 @@ class AresIngestScoreTest(unittest.TestCase):
                 }
             },
             oracle_payload=oracle_record(),
-            token_payload={"score": 1.0},
+            token_payload=token_evidence(),
             performance_payload={
                 "workload": "independent_decode",
                 "measured_tokens_per_second": 100.0,
@@ -361,6 +389,45 @@ class AresIngestScoreTest(unittest.TestCase):
 
         self.assertEqual(reward["first_failed_gate"], "backend_open")
         self.assertFalse(reward["gates"]["backend_open"]["passed"])
+
+    def test_explicit_eight_token_gate_cannot_replace_token_evidence(self) -> None:
+        reward = compute_reward(
+            gates_payload={
+                "gates": {
+                    "model_spec": True,
+                    "frontend_export": True,
+                    "lean_ingest": True,
+                    "eight_token_greedy": True,
+                }
+            },
+            validated_gates_payload={
+                "gates": {
+                    "aresplan_valid": artifact_gate("ares_plan"),
+                    "targetplan_valid": artifact_gate("target_plan"),
+                    "artifact_consistency": artifact_gate("artifact_consistency"),
+                    "shortcut_scan": artifact_gate("shortcut_scan"),
+                    "backend_open": artifact_gate("backend_open"),
+                    "one_token_logits": artifact_gate("one_token_logits"),
+                }
+            },
+            oracle_payload=oracle_record(),
+            required_gates=(
+                "model_spec",
+                "hf_cpu_oracle",
+                "frontend_export",
+                "lean_ingest",
+                "aresplan_valid",
+                "targetplan_valid",
+                "artifact_consistency",
+                "shortcut_scan",
+                "backend_open",
+                "one_token_logits",
+                "eight_token_greedy",
+            ),
+        )
+
+        self.assertEqual(reward["first_failed_gate"], "eight_token_greedy")
+        self.assertFalse(reward["gates"]["eight_token_greedy"]["passed"])
 
     def test_cli_writes_reward_files(self) -> None:
         with tempfile.TemporaryDirectory() as td:

@@ -21,7 +21,10 @@ from tron_ingest_autoagent.score import (
     score_token_results,
 )
 
-from ares_ingest_autoagent.artifacts import validate_hf_cpu_oracle_record
+from ares_ingest_autoagent.artifacts import (
+    validate_hf_cpu_oracle_record,
+    validate_token_agreement_evidence,
+)
 
 
 STAGE_CAPS: dict[str, float] = {
@@ -93,6 +96,7 @@ ARTIFACT_GATE_VALIDATORS: dict[str, str] = {
     "shortcut_scan": "shortcut_scan",
     "backend_open": "backend_open",
     "one_token_logits": "one_token_logits",
+    "eight_token_greedy": "eight_token_greedy",
     "cpp_tvd": "cpp_tvd",
     "depth_performance": "depth_performance",
 }
@@ -291,6 +295,18 @@ def _score_oracle_records(payload: Any) -> Gate:
     )
 
 
+def _score_token_agreement_payload(payload: Any) -> Gate:
+    validation = validate_token_agreement_evidence(payload)
+    return Gate(
+        passed=validation.passed,
+        score=1.0 if validation.passed else 0.0,
+        detail=validation.as_gate(
+            label="eight-token greedy evidence",
+            validator_name="eight_token_greedy",
+        ),
+    )
+
+
 def compute_reward(
     *,
     gates_payload: Any = None,
@@ -311,6 +327,9 @@ def compute_reward(
 
     if one_token_payload is not None:
         gates["one_token_logits"] = _score_logit_payload(one_token_payload)
+
+    if token_payload is not None and "eight_token_greedy" in required_gates:
+        gates["eight_token_greedy"] = _score_token_agreement_payload(token_payload)
 
     enforce_artifact_gate_evidence(gates, required_gates)
 

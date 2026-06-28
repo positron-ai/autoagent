@@ -9,22 +9,30 @@ as `third_party/autoagent` from the Ares repository.
 
 ## Completed
 
-- Added the first `ares_ingest_autoagent` package skeleton.
+- Added the `ares_ingest_autoagent` package and `ares-ingest-agent` CLI.
 - Added Ares reward scoring for `alpha_execution`, `tau_tokens`, and
-  `delta_inference`.
-- Added a lightweight `ares-ingest-agent` CLI that creates durable run
-  directories and handoff files without hardware.
-- Added an Ares Harbor task template with a CPU-only verifier.
+  `delta_inference`, with stage caps that stop speed from hiding missing
+  correctness gates.
+- Added the one-failing-gate verifier/refiner loop, durable reward/state/
+  handoff artifacts, and refinement prompts.
+- Added an Ares Harbor task template with CPU-only artifact gates and optional
+  backend/comparison/full profiles.
+- Added validator-backed HF CPU oracle, AresPlan, TargetPlan,
+  artifact-consistency, shortcut-scan, backend-open, one-token logits, C++ TVD,
+  depth-performance, and eight-token greedy evidence gates.
+- Added dry-run-by-default runtime and C++ comparison wrapper plans.
+- Validated synthetic and public CPU-only diagnostic rows through the staged
+  loop.
 - Added an Ares runbook.
 
 ## Remaining
 
-- Expand artifact gates to call real Ares wrappers directly.
 - Add HF CPU oracle capture wrappers.
-- Add runtime comparison parsers for Rinzler side-by-side summaries and backend
-  event JSONL.
 - Add Perfetto trace parsing once the Ares perfetto skill is ported.
-- Validate a real model row through the staged loop.
+- Recapture or copy the public CPU-only row into durable evidence storage before
+  using it as promotion evidence.
+- Escalate to real backend/comparison/performance rows only when generated
+  artifacts, checkpoints, and hardware are available.
 
 ## Ares Rules
 

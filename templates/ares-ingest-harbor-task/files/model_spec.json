@@ -22,6 +22,7 @@
   "target_plan": null,
   "backend_open_evidence": null,
   "one_token_logits_evidence": null,
+  "eight_token_greedy_evidence": null,
   "cpp_tvd_evidence": null,
   "depth_performance_evidence": null,
   "command_wrapper_config": {

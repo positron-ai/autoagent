@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import re
 from dataclasses import dataclass
@@ -231,6 +232,52 @@ def depth_performance_gate(
         validator_name="depth_performance",
         validator=validate_depth_performance_evidence,
     )
+
+
+def token_agreement_gate(
+    path: Path, *, label: str = "eight-token greedy evidence"
+) -> dict[str, Any]:
+    return evidence_gate(
+        path,
+        label=label,
+        validator_name="eight_token_greedy",
+        validator=validate_token_agreement_evidence,
+    )
+
+
+def build_greedy_token_evidence(
+    token_result: Mapping[str, Any],
+    *,
+    reference: Path,
+    candidate: Path,
+    expected_generated_tokens: int = 8,
+    evidence_class: str = "system_under_test",
+    oracle: str = HF_CPU_ORACLE_KIND,
+    candidate_runtime: str = "ares",
+) -> dict[str, Any]:
+    evidence = dict(token_result)
+    evidence.update(
+        {
+            "schema": "ares.runtime.greedy_token_agreement.v1",
+            "evidence_class": evidence_class,
+            "oracle": oracle,
+            "candidate": candidate_runtime,
+            "decode_strategy": "greedy",
+            "expected_generated_tokens": expected_generated_tokens,
+            "generated_tokens": _token_result_generated_count(token_result),
+            "exact_match": _token_result_exact_match(token_result),
+            "reference": {
+                "path": str(reference),
+                "sha256": _sha256_file(reference),
+            },
+            "candidate_output": {
+                "path": str(candidate),
+                "sha256": _sha256_file(candidate),
+                "runtime": candidate_runtime,
+            },
+        }
+    )
+    return evidence
 
 
 def is_floating_revision(revision: str) -> bool:
@@ -620,6 +667,107 @@ def validate_depth_performance_evidence(payload: Any) -> ArtifactValidation:
     return _validation(not errors, errors, detail)
 
 
+def validate_token_agreement_evidence(payload: Any) -> ArtifactValidation:
+    errors: list[str] = []
+    root = _payload_root(payload, errors, "eight-token greedy evidence")
+    if root is None:
+        return _validation(False, errors, {})
+    if not isinstance(root, dict):
+        return _validation(
+            False,
+            [*errors, "eight-token greedy evidence must be a JSON object"],
+            {},
+        )
+
+    if root.get("schema") != "ares.runtime.greedy_token_agreement.v1":
+        errors.append(
+            "eight-token evidence schema must be ares.runtime.greedy_token_agreement.v1"
+        )
+    evidence_class = _first_string(root, [], ("evidence_class", "classification"))
+    if evidence_class not in {"system_under_test", "diagnostic", "promotion"}:
+        errors.append(
+            "eight-token evidence_class must classify Ares as system under test"
+        )
+    if _first_string(root, [], ("oracle", "oracle_source")) != HF_CPU_ORACLE_KIND:
+        errors.append(f"eight-token oracle must be {HF_CPU_ORACLE_KIND}")
+    candidate = _first_string(root, [], ("candidate", "subject", "runtime"))
+    if candidate not in ARES_RUNTIME_CANDIDATES:
+        errors.append(
+            "eight-token candidate must identify Ares system-under-test output"
+        )
+    if root.get("decode_strategy") != "greedy":
+        errors.append("eight-token decode_strategy must be greedy")
+
+    expected = root.get("expected_generated_tokens", 8)
+    if not isinstance(expected, int) or expected < 8:
+        errors.append("eight-token expected_generated_tokens must be an integer >= 8")
+        expected = 8
+    generated = root.get("generated_tokens")
+    if not isinstance(generated, int):
+        generated = _token_result_generated_count(root)
+    if not isinstance(generated, int):
+        errors.append("eight-token generated_tokens must be an integer")
+    elif generated < expected:
+        errors.append(
+            f"eight-token evidence generated {generated} token(s), expected at least {expected}"
+        )
+
+    score = root.get("score")
+    exact_fraction = root.get("exact_fraction")
+    top1 = root.get("top1_agreement")
+    if root.get("exact_match") is not True:
+        errors.append("eight-token exact_match must be true")
+    if not isinstance(score, int | float) or float(score) < 1.0:
+        errors.append("eight-token score must be 1.0")
+    if not isinstance(exact_fraction, int | float) or float(exact_fraction) < 1.0:
+        errors.append("eight-token exact_fraction must be 1.0")
+    if not isinstance(top1, int | float) or float(top1) < 1.0:
+        errors.append("eight-token top1_agreement must be 1.0")
+
+    reference = _expect_object(errors, root.get("reference"), "eight-token reference")
+    if reference is not None:
+        _require_non_empty_string(errors, reference.get("path"), "reference.path")
+        _require_sha256(errors, reference.get("sha256"), "reference.sha256")
+    candidate_output = _expect_object(
+        errors, root.get("candidate_output"), "eight-token candidate_output"
+    )
+    if candidate_output is not None:
+        _require_non_empty_string(
+            errors, candidate_output.get("path"), "candidate_output.path"
+        )
+        _require_sha256(
+            errors, candidate_output.get("sha256"), "candidate_output.sha256"
+        )
+        runtime = candidate_output.get("runtime")
+        if runtime is not None and runtime not in ARES_RUNTIME_CANDIDATES:
+            errors.append("candidate_output.runtime must identify Ares")
+
+    cases = root.get("cases")
+    case_count = len(cases) if isinstance(cases, list) else 0
+    if case_count == 0:
+        errors.append("eight-token evidence must include at least one case")
+    elif isinstance(cases, list):
+        for index, case in enumerate(cases):
+            if not isinstance(case, dict):
+                errors.append(f"cases[{index}] must be an object")
+                continue
+            if case.get("exact_match") is not True:
+                errors.append(f"cases[{index}].exact_match must be true")
+            candidate_length = case.get("candidate_length")
+            if not isinstance(candidate_length, int) or candidate_length < expected:
+                errors.append(
+                    f"cases[{index}].candidate_length must be at least {expected}"
+                )
+
+    detail = {
+        "expected_generated_tokens": expected,
+        "generated_tokens": generated,
+        "case_count": case_count,
+        "candidate": candidate,
+    }
+    return _validation(not errors, errors, detail)
+
+
 def validate_target_plan(plan: Any) -> ArtifactValidation:
     errors: list[str] = []
     if not isinstance(plan, dict):
@@ -772,6 +920,43 @@ def validate_artifact_consistency(
         "target_plan_model_id": target_model_id,
     }
     return _validation(not errors, errors, detail)
+
+
+def _sha256_file(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def _token_result_generated_count(payload: Mapping[str, Any]) -> int | None:
+    explicit = payload.get("generated_tokens", payload.get("generated_token_count"))
+    if isinstance(explicit, int):
+        return explicit
+    cases = payload.get("cases")
+    if not isinstance(cases, list):
+        return None
+    lengths = [
+        case.get("candidate_length")
+        for case in cases
+        if isinstance(case, dict) and isinstance(case.get("candidate_length"), int)
+    ]
+    if not lengths:
+        return None
+    return min(lengths)
+
+
+def _token_result_exact_match(payload: Mapping[str, Any]) -> bool:
+    explicit = payload.get("exact_match")
+    if isinstance(explicit, bool):
+        return explicit
+    cases = payload.get("cases")
+    if not isinstance(cases, list) or not cases:
+        return False
+    return all(
+        isinstance(case, dict) and case.get("exact_match") is True for case in cases
+    )
 
 
 def _validation(

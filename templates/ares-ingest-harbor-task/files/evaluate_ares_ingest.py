@@ -14,10 +14,12 @@ from ares_ingest_autoagent.artifacts import (
     ares_plan_gate,
     artifact_consistency_gate,
     backend_open_gate,
+    build_greedy_token_evidence,
     cpp_tvd_gate,
     depth_performance_gate,
     one_token_logits_gate,
     target_plan_gate,
+    token_agreement_gate,
 )
 from ares_ingest_autoagent.commands import build_command_wrapper_plan
 from ares_ingest_autoagent.gates import (
@@ -180,6 +182,19 @@ def main() -> int:
         )
         gates["depth_performance"] = validated_gates["depth_performance"]
 
+    if eight_token := spec.get("eight_token_greedy_evidence") or spec.get(
+        "token_results_json"
+    ):
+        validated_gates["eight_token_greedy"] = token_agreement_gate(
+            resolve_path(
+                eight_token,
+                task_files=task_files,
+                ares_repo=ares_repo,
+                work_dir=work_dir,
+            )
+        )
+        gates["eight_token_greedy"] = validated_gates["eight_token_greedy"]
+
     command_wrapper_plan = build_command_wrapper_plan(
         spec,
         run_dir=work_dir,
@@ -231,9 +246,17 @@ def main() -> int:
         token_result = compare_payloads(
             read_payload(reference), read_payload(candidate)
         )
-        token_result["reference"] = str(reference)
-        token_result["candidate"] = str(candidate)
-        write_json(token_results_path, token_result)
+        token_evidence = build_greedy_token_evidence(
+            token_result,
+            reference=reference,
+            candidate=candidate,
+            expected_generated_tokens=int(
+                token_spec.get("expected_generated_tokens", 8)
+            ),
+        )
+        write_json(token_results_path, token_evidence)
+        validated_gates["eight_token_greedy"] = token_agreement_gate(token_results_path)
+        gates["eight_token_greedy"] = validated_gates["eight_token_greedy"]
 
     performance_results_path = None
     if performance_spec := spec.get("performance_comparison"):
