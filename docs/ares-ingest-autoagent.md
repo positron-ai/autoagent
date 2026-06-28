@@ -44,13 +44,23 @@ Each verifier pass refreshes deterministic gates, writes `reward.json`,
 `reward.txt`, `state.json`, and `handoff.md`, then stops at target score,
 stall, max iterations, or `--no-refiner`. When a refiner is enabled, the CLI
 writes `prompts/refinement-NN.md` with the current first failing gate, Ares
-evidence rules, allowed write scope, and verification requirements, then runs
-the configured shell command with `REFINEMENT_PROMPT`, `ARES_REPO`,
-`AUTOAGENT_REPO`, `RUN_DIR`, `MODEL_SPEC`, `REWARD_JSON`, and
+evidence rules, selected workflow skills, allowed write scope, and verification
+requirements, then runs the configured shell command with `REFINEMENT_PROMPT`,
+`ARES_REPO`, `AUTOAGENT_REPO`, `RUN_DIR`, `MODEL_SPEC`, `REWARD_JSON`, and
 `FIRST_FAILED_GATE` in its environment.
 
 Use `--no-refiner` for evaluation-only runs; below target, it exits with
 `blocked_no_refiner` recorded in `state.json`.
+
+## Workflow Skills
+
+Every verifier pass records `workflow_skills` in `state.json` and mirrors the
+same list in `handoff.md`. The list names the skill or workflow expected for
+the next gate, why it was selected, which files or artifacts it may touch, and
+the verification command that should prove the result. `command-wiggum` and
+`ares-evidence` are always present; the current failing gate adds the relevant
+Ares language or profiling skill, and unfinished gates include `command-fess`
+for post-commit claim audits.
 
 ## Evidence Rules
 

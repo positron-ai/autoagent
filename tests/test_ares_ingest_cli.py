@@ -76,6 +76,18 @@ class AresIngestCliTest(unittest.TestCase):
             )
             self.assertEqual(state["reward"]["first_failed_gate"], "hf_cpu_oracle")
             self.assertEqual(state["refinement_loop"], "setup_only")
+            self.assertEqual(
+                [skill["name"] for skill in state["workflow_skills"]],
+                ["command-wiggum", "ares-evidence", "ares-python", "command-fess"],
+            )
+            self.assertIn(
+                "tools/oracles/hf-cpu/",
+                state["workflow_skills"][2]["allowed_scope"],
+            )
+            handoff = (run_dir / "handoff.md").read_text()
+            self.assertIn("## Workflow Skills", handoff)
+            self.assertIn("`ares-python`", handoff)
+            self.assertIn("validate-jsonl", handoff)
 
     def test_no_refiner_blocks_below_target(self) -> None:
         with TemporaryDirectory() as tmp:
@@ -151,6 +163,10 @@ class AresIngestCliTest(unittest.TestCase):
             self.assertIn(
                 "Work only the first failing gate: `hf_cpu_oracle`", prompt_text
             )
+            self.assertIn("## Expected Workflow Skills", prompt_text)
+            self.assertIn("`command-wiggum`", prompt_text)
+            self.assertIn("`ares-python`", prompt_text)
+            self.assertIn("Allowed scope:", prompt_text)
             self.assertIn("## Allowed Write Scope", prompt_text)
             self.assertIn("HF Transformers on PyTorch CPU", prompt_text)
             self.assertIn(
@@ -164,6 +180,10 @@ class AresIngestCliTest(unittest.TestCase):
             self.assertTrue((run_dir / "logs/01-refiner.log").exists())
             state = json.loads((run_dir / "state.json").read_text())
             self.assertEqual(state["status"], "max_iterations")
+            self.assertEqual(
+                [skill["name"] for skill in state["workflow_skills"]],
+                ["command-wiggum", "ares-evidence", "ares-python", "command-fess"],
+            )
             self.assertEqual(
                 [item["status"] for item in state["history"]],
                 ["refiner_ran", "max_iterations"],

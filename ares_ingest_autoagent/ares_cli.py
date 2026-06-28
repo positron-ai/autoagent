@@ -127,6 +127,211 @@ def reward_fingerprint(reward: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def verifier_command(cfg: AresIngestConfig) -> str:
+    return (
+        "ares-ingest-agent "
+        f"{cfg.model_slug} "
+        f"--ares-repo {cfg.ares_repo} "
+        f"--run-dir {cfg.run_dir} "
+        "--no-refiner"
+    )
+
+
+def selected_workflow_skills(
+    cfg: AresIngestConfig,
+    *,
+    first_failed_gate: str,
+) -> list[dict[str, Any]]:
+    verify = verifier_command(cfg)
+    skills: list[dict[str, Any]] = [
+        {
+            "name": "command-wiggum",
+            "why": "Continue one gate at a time while maintaining durable run state.",
+            "allowed_scope": [
+                str(cfg.run_dir),
+                str(cfg.model_spec_path),
+                str(cfg.run_dir / "handoff.md"),
+            ],
+            "verification_commands": [verify],
+        },
+        {
+            "name": "ares-evidence",
+            "why": "Classify oracle, system-under-test, comparison, and performance evidence correctly.",
+            "allowed_scope": [
+                str(cfg.run_dir / "artifacts"),
+                str(cfg.run_dir / "reward.json"),
+                str(cfg.model_spec_path),
+            ],
+            "verification_commands": [verify],
+        },
+    ]
+    gate_skills: dict[str, dict[str, Any]] = {
+        "hf_cpu_oracle": {
+            "name": "ares-python",
+            "why": "Capture or validate HF Transformers + PyTorch CPU oracle records.",
+            "allowed_scope": [
+                "tools/oracles/hf-cpu/",
+                str(cfg.run_dir / "artifacts"),
+                str(cfg.model_spec_path),
+            ],
+            "verification_commands": [
+                "tools/oracles/hf-cpu/capture_hf_cpu_oracle.py validate-jsonl <oracle.jsonl>",
+                verify,
+            ],
+        },
+        "frontend_export": {
+            "name": "ares-python",
+            "why": "Work on frontend export artifacts before Lean ingest.",
+            "allowed_scope": [
+                "frontend/hf-export/",
+                str(cfg.run_dir / "artifacts"),
+                str(cfg.model_spec_path),
+            ],
+            "verification_commands": [verify],
+        },
+        "lean_ingest": {
+            "name": "ares-lean",
+            "why": "Run Lean ingest on frontend artifacts without moving planning into Rust.",
+            "allowed_scope": [
+                "ingest/lean/",
+                str(cfg.run_dir / "artifacts"),
+                str(cfg.model_spec_path),
+            ],
+            "verification_commands": [verify],
+        },
+        "aresplan_valid": {
+            "name": "ares-lean",
+            "why": "Produce and validate Lean-emitted AresPlan artifacts.",
+            "allowed_scope": [
+                "ingest/lean/",
+                str(cfg.run_dir / "artifacts"),
+                str(cfg.model_spec_path),
+            ],
+            "verification_commands": [verify],
+        },
+        "targetplan_valid": {
+            "name": "ares-lean",
+            "why": "Produce and validate Lean-emitted backend TargetPlan artifacts.",
+            "allowed_scope": [
+                "ingest/lean/",
+                str(cfg.run_dir / "artifacts"),
+                str(cfg.model_spec_path),
+            ],
+            "verification_commands": [verify],
+        },
+        "artifact_consistency": {
+            "name": "ares-evidence",
+            "why": "Check that oracle and generated artifacts describe the same model row.",
+            "allowed_scope": [
+                str(cfg.run_dir / "artifacts"),
+                str(cfg.model_spec_path),
+            ],
+            "verification_commands": [verify],
+        },
+        "shortcut_scan": {
+            "name": "ares-rust",
+            "why": "Remove forbidden Rust model plugins or runtime-created plan sidecars.",
+            "allowed_scope": [
+                "runtime/",
+                "backend/",
+                str(cfg.model_spec_path),
+            ],
+            "verification_commands": [verify],
+        },
+        "backend_open": {
+            "name": "ares-rust",
+            "why": "Debug backend-provider open evidence for generated AresPlan and TargetPlan artifacts.",
+            "allowed_scope": [
+                "runtime/",
+                "backend/",
+                str(cfg.run_dir / "artifacts"),
+                str(cfg.model_spec_path),
+            ],
+            "verification_commands": [verify],
+        },
+        "one_token_logits": {
+            "name": "ares-rust",
+            "why": "Debug Ares system-under-test logits evidence against HF CPU oracle rows.",
+            "allowed_scope": [
+                "runtime/",
+                "backend/",
+                str(cfg.run_dir / "artifacts"),
+                str(cfg.model_spec_path),
+            ],
+            "verification_commands": [verify],
+        },
+        "eight_token_greedy": {
+            "name": "ares-rust",
+            "why": "Debug greedy generated-token evidence before widening decode depth.",
+            "allowed_scope": [
+                "runtime/",
+                "backend/",
+                str(cfg.run_dir / "artifacts"),
+                str(cfg.model_spec_path),
+            ],
+            "verification_commands": [verify],
+        },
+        "cpp_tvd": {
+            "name": "ares-evidence",
+            "why": "Keep C++ Tron/Rinzler classified as comparison and rollback evidence.",
+            "allowed_scope": [
+                str(cfg.run_dir / "artifacts"),
+                str(cfg.model_spec_path),
+            ],
+            "verification_commands": [verify],
+        },
+        "depth_performance": {
+            "name": "ares-perfetto",
+            "why": "Analyze profiling evidence only after token correctness gates remain green.",
+            "allowed_scope": [
+                str(cfg.run_dir / "artifacts"),
+                str(cfg.run_dir / "logs"),
+                str(cfg.model_spec_path),
+            ],
+            "verification_commands": [verify],
+        },
+    }
+    gate_skill = gate_skills.get(first_failed_gate)
+    if gate_skill and all(skill["name"] != gate_skill["name"] for skill in skills):
+        skills.append(gate_skill)
+    if first_failed_gate != "complete":
+        skills.append(
+            {
+                "name": "command-fess",
+                "why": "Audit claims after any implementation commit produced by the refinement loop.",
+                "allowed_scope": [
+                    "the commit range changed by this gate",
+                    str(cfg.run_dir / "handoff.md"),
+                    str(cfg.run_dir / "reward.json"),
+                ],
+                "verification_commands": [
+                    "git show --stat",
+                    verify,
+                ],
+            }
+        )
+    return skills
+
+
+def workflow_skill_lines(skills: list[Mapping[str, Any]]) -> list[str]:
+    lines: list[str] = []
+    for skill in skills:
+        name = str(skill.get("name", "unknown"))
+        why = str(skill.get("why", ""))
+        lines.append(f"- `{name}`: {why}")
+        allowed = skill.get("allowed_scope", [])
+        if isinstance(allowed, list) and allowed:
+            lines.append(
+                "  Allowed scope: " + ", ".join(f"`{item}`" for item in allowed)
+            )
+        commands = skill.get("verification_commands", [])
+        if isinstance(commands, list) and commands:
+            lines.append(
+                "  Verification: " + ", ".join(f"`{item}`" for item in commands)
+            )
+    return lines
+
+
 def load_json(path: Path) -> dict[str, Any]:
     try:
         payload = json.loads(path.read_text())
@@ -216,6 +421,15 @@ def write_handoff(
     latest_prompt = (
         state.get("latest_refinement_prompt") if isinstance(state, Mapping) else None
     )
+    skills = (
+        state.get("workflow_skills")
+        if isinstance(state, Mapping) and isinstance(state.get("workflow_skills"), list)
+        else selected_workflow_skills(
+            cfg,
+            first_failed_gate=str(reward.get("first_failed_gate", "unknown")),
+        )
+    )
+    skill_text = "\n".join(workflow_skill_lines(skills))
     text = f"""# Ares AutoAgent Run Handoff
 
 ## Objective
@@ -233,6 +447,10 @@ Status: `{status}`
 History entries: `{history_count}`
 
 Latest refinement prompt: `{latest_prompt or "none"}`
+
+## Workflow Skills
+
+{skill_text}
 
 ## Rules
 
@@ -440,6 +658,10 @@ def evaluate_run(cfg: AresIngestConfig) -> tuple[dict[str, Any], dict[str, Any]]
 
 def initialize_run(cfg: AresIngestConfig) -> dict[str, Any]:
     _, reward = evaluate_run(cfg)
+    workflow_skills = selected_workflow_skills(
+        cfg,
+        first_failed_gate=str(reward.get("first_failed_gate", "unknown")),
+    )
     state = {
         "status": "initialized_setup_only",
         "model": cfg.model_slug,
@@ -449,6 +671,7 @@ def initialize_run(cfg: AresIngestConfig) -> dict[str, Any]:
         "refinement_command": cfg.refinement_command,
         "gate_profile": cfg.gate_profile,
         "refinement_loop": "setup_only",
+        "workflow_skills": workflow_skills,
         "reward": reward_fingerprint(reward),
         "history": [],
     }
@@ -543,12 +766,10 @@ def write_refinement_prompt(
     prompt_dir.mkdir(parents=True, exist_ok=True)
     path = prompt_dir / f"refinement-{iteration:02d}.md"
     first_failed_gate = str(reward.get("first_failed_gate", "unknown"))
-    verify_command = (
-        "ares-ingest-agent "
-        f"{cfg.model_slug} "
-        f"--ares-repo {cfg.ares_repo} "
-        f"--run-dir {cfg.run_dir} "
-        "--no-refiner"
+    verify_command = verifier_command(cfg)
+    workflow_skills = selected_workflow_skills(
+        cfg,
+        first_failed_gate=first_failed_gate,
     )
     prompt = "\n".join(
         [
@@ -577,6 +798,10 @@ def write_refinement_prompt(
             f"- Reward JSON: `{cfg.run_dir / 'reward.json'}`",
             f"- Handoff: `{cfg.run_dir / 'handoff.md'}`",
             f"- Logs: `{cfg.logs_dir}`",
+            "",
+            "## Expected Workflow Skills",
+            "",
+            *workflow_skill_lines(workflow_skills),
             "",
             "## Relevant Artifacts To Inspect",
             "",
@@ -675,6 +900,10 @@ def append_history(
     state["refinement_command"] = cfg.refinement_command
     state["gate_profile"] = cfg.gate_profile
     state["refinement_loop"] = "one_failing_gate"
+    state["workflow_skills"] = selected_workflow_skills(
+        cfg,
+        first_failed_gate=str(reward.get("first_failed_gate", "unknown")),
+    )
     state["reward"] = reward_fingerprint(reward)
     if prompt_path is not None:
         state["latest_refinement_prompt"] = str(prompt_path)
@@ -703,6 +932,10 @@ def write_failure_state(cfg: AresIngestConfig, error: BaseException) -> None:
     state.setdefault("run_dir", str(cfg.run_dir))
     state.setdefault("gate_profile", cfg.gate_profile)
     state.setdefault("refinement_loop", "one_failing_gate")
+    state["workflow_skills"] = selected_workflow_skills(
+        cfg,
+        first_failed_gate="failed",
+    )
     state["updated_at"] = datetime.now(timezone.utc).isoformat()
     write_json(cfg.state_path, state)
     reward_path = cfg.run_dir / "reward.json"
