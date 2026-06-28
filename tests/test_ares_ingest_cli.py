@@ -73,12 +73,100 @@ class AresIngestCliTest(unittest.TestCase):
                 True,
             )
             self.assertEqual(state["reward"]["first_failed_gate"], "hf_cpu_oracle")
+            self.assertEqual(state["refinement_loop"], "setup_only")
 
-    def test_non_setup_mode_errors_instead_of_claiming_refinement(self) -> None:
-        with self.assertRaises(SystemExit) as raised:
-            main(["Provider/Model"])
+    def test_no_refiner_blocks_below_target(self) -> None:
+        with TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            run_dir = root / "run"
 
-        self.assertEqual(raised.exception.code, 2)
+            rc = main(
+                [
+                    "--ares-repo",
+                    str(root),
+                    "--run-dir",
+                    str(run_dir),
+                    "--no-refiner",
+                    "Provider/Model",
+                ]
+            )
+
+            self.assertEqual(rc, 3)
+            state = json.loads((run_dir / "state.json").read_text())
+            self.assertEqual(state["status"], "blocked_no_refiner")
+            self.assertEqual(state["refinement_loop"], "one_failing_gate")
+            self.assertEqual(state["history"][0]["first_failed_gate"], "hf_cpu_oracle")
+
+    def test_target_score_completion_does_not_invoke_refiner(self) -> None:
+        with TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            run_dir = root / "run"
+
+            rc = main(
+                [
+                    "--ares-repo",
+                    str(root),
+                    "--run-dir",
+                    str(run_dir),
+                    "--target-score",
+                    "0.05",
+                    "--refinement-command",
+                    "exit 99",
+                    "Provider/Model",
+                ]
+            )
+
+            self.assertEqual(rc, 0)
+            state = json.loads((run_dir / "state.json").read_text())
+            self.assertEqual(state["status"], "complete")
+            self.assertFalse((run_dir / "logs/01-refiner.log").exists())
+
+    def test_refiner_loop_writes_prompt_log_and_history(self) -> None:
+        with TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            run_dir = root / "run"
+
+            rc = main(
+                [
+                    "--ares-repo",
+                    str(root),
+                    "--run-dir",
+                    str(run_dir),
+                    "--max-iterations",
+                    "2",
+                    "--stall-patience",
+                    "5",
+                    "--refinement-command",
+                    'printf \'%s\\n\' "$FIRST_FAILED_GATE" > "$RUN_DIR/refiner-ran.txt"',
+                    "Provider/Model",
+                ]
+            )
+
+            self.assertEqual(rc, 2)
+            prompt = run_dir / "prompts/refinement-01.md"
+            self.assertTrue(prompt.exists())
+            prompt_text = prompt.read_text()
+            self.assertIn(
+                "Work only the first failing gate: `hf_cpu_oracle`", prompt_text
+            )
+            self.assertIn("## Allowed Write Scope", prompt_text)
+            self.assertIn("HF Transformers on PyTorch CPU", prompt_text)
+            self.assertIn(
+                f"ares-ingest-agent Provider/Model --ares-repo {root.resolve()} "
+                f"--run-dir {run_dir.resolve()} --no-refiner",
+                prompt_text,
+            )
+            self.assertEqual(
+                (run_dir / "refiner-ran.txt").read_text().strip(), "hf_cpu_oracle"
+            )
+            self.assertTrue((run_dir / "logs/01-refiner.log").exists())
+            state = json.loads((run_dir / "state.json").read_text())
+            self.assertEqual(state["status"], "max_iterations")
+            self.assertEqual(
+                [item["status"] for item in state["history"]],
+                ["refiner_ran", "max_iterations"],
+            )
+            self.assertEqual(Path(state["latest_refinement_prompt"]), prompt.resolve())
 
     def test_main_setup_only_writes_state(self) -> None:
         with TemporaryDirectory() as tmp:
@@ -97,7 +185,7 @@ class AresIngestCliTest(unittest.TestCase):
 
             self.assertEqual(rc, 0)
             state = json.loads((run_dir / "state.json").read_text())
-            self.assertEqual(state["refinement_loop"], "not_implemented")
+            self.assertEqual(state["refinement_loop"], "setup_only")
 
 
 if __name__ == "__main__":

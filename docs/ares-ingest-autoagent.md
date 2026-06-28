@@ -12,7 +12,7 @@ execution sidecars.
 
 ## Quick Start
 
-From an Ares checkout:
+From an Ares checkout, create setup state without invoking the refiner:
 
 ```bash
 ares-ingest-agent PROVIDER/MODEL --ares-repo "$PWD" --setup-only
@@ -34,9 +34,23 @@ the model spec, the shortcut scan evidence, and the run handoff. The next agent
 should capture a real HF CPU oracle record, then work one failing gate at a
 time.
 
-The refinement loop is not implemented in this scaffold yet. Invoking
-`ares-ingest-agent` without `--setup-only` exits with an argparse error instead
-of claiming to run a refiner.
+To run the one-failing-gate loop, omit `--setup-only`:
+
+```bash
+ares-ingest-agent PROVIDER/MODEL --ares-repo "$PWD" --max-iterations 2
+```
+
+Each verifier pass refreshes deterministic gates, writes `reward.json`,
+`reward.txt`, `state.json`, and `handoff.md`, then stops at target score,
+stall, max iterations, or `--no-refiner`. When a refiner is enabled, the CLI
+writes `prompts/refinement-NN.md` with the current first failing gate, Ares
+evidence rules, allowed write scope, and verification requirements, then runs
+the configured shell command with `REFINEMENT_PROMPT`, `ARES_REPO`,
+`AUTOAGENT_REPO`, `RUN_DIR`, `MODEL_SPEC`, `REWARD_JSON`, and
+`FIRST_FAILED_GATE` in its environment.
+
+Use `--no-refiner` for evaluation-only runs; below target, it exits with
+`blocked_no_refiner` recorded in `state.json`.
 
 ## Evidence Rules
 
