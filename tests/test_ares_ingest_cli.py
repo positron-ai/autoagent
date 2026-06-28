@@ -63,6 +63,16 @@ class AresIngestCliTest(unittest.TestCase):
             self.assertEqual(spec["gate_profile"], "cpu-only")
             self.assertNotIn("cpp_tvd", spec["required_gates"])
             self.assertEqual(spec["explicit_gates"]["model_spec"]["passed"], True)
+            self.assertIn("shortcut_scan", spec["required_gates"])
+            self.assertEqual(
+                spec["explicit_gates"]["shortcut_scan"]["artifact_validator"],
+                "shortcut_scan",
+            )
+            self.assertEqual(
+                state["reward"]["gates"]["shortcut_scan"]["passed"],
+                True,
+            )
+            self.assertEqual(state["reward"]["first_failed_gate"], "hf_cpu_oracle")
 
     def test_non_setup_mode_errors_instead_of_claiming_refinement(self) -> None:
         with self.assertRaises(SystemExit) as raised:

@@ -10,7 +10,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from ares_ingest_autoagent.gates import write_json
+from ares_ingest_autoagent.gates import shortcut_scan_gate, write_json
 from ares_ingest_autoagent.score import (
     GATE_PROFILES,
     compute_reward,
@@ -157,6 +157,7 @@ def config_from_args(args: argparse.Namespace) -> AresIngestConfig:
 def initialize_run(cfg: AresIngestConfig) -> dict[str, Any]:
     cfg.run_dir.mkdir(parents=True, exist_ok=True)
     spec = build_model_spec(cfg)
+    spec["explicit_gates"]["shortcut_scan"] = shortcut_scan_gate(cfg.ares_repo)
     write_json(cfg.run_dir / "model_spec.json", spec)
     gates_payload = {"gates": spec["explicit_gates"]}
     reward = compute_reward(

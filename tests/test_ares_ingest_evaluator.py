@@ -266,6 +266,7 @@ class AresIngestEvaluatorTest(unittest.TestCase):
                     "lean_ingest",
                     "aresplan_valid",
                     "targetplan_valid",
+                    "shortcut_scan",
                     "backend_open",
                     "eight_token_greedy",
                     "depth_performance",

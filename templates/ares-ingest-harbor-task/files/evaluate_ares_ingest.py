@@ -15,6 +15,7 @@ from ares_ingest_autoagent.gates import (
     evaluate_command_gate,
     read_payload,
     run_command,
+    shortcut_scan_gate,
     write_json,
 )
 from tron_ingest_autoagent.performance import (
@@ -75,6 +76,11 @@ def main() -> int:
 
     gates: dict[str, Any] = dict(spec.get("explicit_gates", {}))
     write_json(gates_path, {"gates": gates})
+
+    required_gates = spec.get("required_gates") or []
+    if "shortcut_scan" in required_gates or spec.get("shortcut_scan"):
+        gates["shortcut_scan"] = shortcut_scan_gate(ares_repo)
+        write_json(gates_path, {"gates": gates})
 
     if oracle_spec := spec.get("oracle_records"):
         oracle_path = resolve_path(

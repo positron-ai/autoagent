@@ -30,8 +30,9 @@ This creates:
 ```
 
 The first reward normally stops at `hf_cpu_oracle`, because setup only creates
-the model spec and the run handoff. The next agent should capture a real HF
-CPU oracle record, then work one failing gate at a time.
+the model spec, the shortcut scan evidence, and the run handoff. The next agent
+should capture a real HF CPU oracle record, then work one failing gate at a
+time.
 
 The refinement loop is not implemented in this scaffold yet. Invoking
 `ares-ingest-agent` without `--setup-only` exits with an argparse error instead
@@ -53,8 +54,12 @@ of claiming to run a refiner.
 4. `lean_ingest`
 5. `aresplan_valid`
 6. `targetplan_valid`
+7. `shortcut_scan`
 
-The default `cpu-only` profile stops at generated artifact validation.
+The default `cpu-only` profile stops after generated artifact validation and a
+source-tree shortcut scan. The scan rejects hand-authored Rust model-family
+plugin paths and runtime-generated AresPlan/TargetPlan sidecars as promotion
+evidence.
 
 Optional profiles extend the required gate list:
 

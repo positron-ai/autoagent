@@ -47,6 +47,8 @@ For local development, mount or copy:
   `files/`, or `ARES_REPO`.
 - `ares_plan`: generated AresPlan JSON artifact.
 - `target_plan`: Lean-emitted backend TargetPlan JSON artifact.
+- `shortcut_scan`: optional boolean to run the shortcut/static-sidecar scan
+  even when it is not listed in `required_gates`.
 - `command_gates`: optional command-backed gates.
 - `token_comparison`: optional reference/candidate token files for
   `tau_tokens`.
@@ -54,6 +56,6 @@ For local development, mount or copy:
   `delta_inference`.
 
 The default setup profile should require only CPU-side gates through
-`targetplan_valid`. Enable backend, C++ comparison, or performance gates only
-when the task environment supplies the corresponding generated artifacts,
-runtime backend, model checkpoint, and comparison binaries.
+`targetplan_valid` plus `shortcut_scan`. Enable backend, C++ comparison, or
+performance gates only when the task environment supplies the corresponding
+generated artifacts, runtime backend, model checkpoint, and comparison binaries.

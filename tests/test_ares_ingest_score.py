@@ -106,6 +106,7 @@ class AresIngestScoreTest(unittest.TestCase):
                     "lean_ingest": True,
                     "aresplan_valid": artifact_gate("ares_plan"),
                     "targetplan_valid": artifact_gate("target_plan"),
+                    "shortcut_scan": artifact_gate("shortcut_scan"),
                     "backend_open": True,
                     "one_token_logits": True,
                     "eight_token_greedy": True,
@@ -138,6 +139,7 @@ class AresIngestScoreTest(unittest.TestCase):
                     "lean_ingest": True,
                     "aresplan_valid": artifact_gate("ares_plan"),
                     "targetplan_valid": artifact_gate("target_plan"),
+                    "shortcut_scan": artifact_gate("shortcut_scan"),
                 }
             },
             oracle_payload=oracle_record(),
@@ -232,6 +234,33 @@ class AresIngestScoreTest(unittest.TestCase):
 
         self.assertEqual(reward["first_failed_gate"], "aresplan_valid")
         self.assertFalse(reward["gates"]["aresplan_valid"]["passed"])
+
+    def test_explicit_artifact_gate_cannot_replace_shortcut_scan(self) -> None:
+        reward = compute_reward(
+            gates_payload={
+                "gates": {
+                    "model_spec": True,
+                    "frontend_export": True,
+                    "lean_ingest": True,
+                    "aresplan_valid": artifact_gate("ares_plan"),
+                    "targetplan_valid": artifact_gate("target_plan"),
+                    "shortcut_scan": True,
+                }
+            },
+            oracle_payload=oracle_record(),
+            required_gates=(
+                "model_spec",
+                "hf_cpu_oracle",
+                "frontend_export",
+                "lean_ingest",
+                "aresplan_valid",
+                "targetplan_valid",
+                "shortcut_scan",
+            ),
+        )
+
+        self.assertEqual(reward["first_failed_gate"], "shortcut_scan")
+        self.assertFalse(reward["gates"]["shortcut_scan"]["passed"])
 
     def test_cli_writes_reward_files(self) -> None:
         with tempfile.TemporaryDirectory() as td:
