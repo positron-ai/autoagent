@@ -59,8 +59,8 @@ same list in `handoff.md`. The list names the skill or workflow expected for
 the next gate, why it was selected, which files or artifacts it may touch, and
 the verification command that should prove the result. `command-wiggum` and
 `ares-evidence` are always present; the current failing gate adds the relevant
-Ares language or profiling skill, and unfinished gates include `command-fess`
-for post-commit claim audits.
+Ares language, profiling, or gate-specific evidence context, and unfinished
+gates include `command-fess` for conditional post-commit claim audits.
 
 ## Evidence Rules
 

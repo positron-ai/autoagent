@@ -146,6 +146,7 @@ def selected_workflow_skills(
     skills: list[dict[str, Any]] = [
         {
             "name": "command-wiggum",
+            "gate": "all",
             "why": "Continue one gate at a time while maintaining durable run state.",
             "allowed_scope": [
                 str(cfg.run_dir),
@@ -156,6 +157,7 @@ def selected_workflow_skills(
         },
         {
             "name": "ares-evidence",
+            "gate": "all",
             "why": "Classify oracle, system-under-test, comparison, and performance evidence correctly.",
             "allowed_scope": [
                 str(cfg.run_dir / "artifacts"),
@@ -168,6 +170,7 @@ def selected_workflow_skills(
     gate_skills: dict[str, dict[str, Any]] = {
         "hf_cpu_oracle": {
             "name": "ares-python",
+            "gate": "hf_cpu_oracle",
             "why": "Capture or validate HF Transformers + PyTorch CPU oracle records.",
             "allowed_scope": [
                 "tools/oracles/hf-cpu/",
@@ -181,6 +184,7 @@ def selected_workflow_skills(
         },
         "frontend_export": {
             "name": "ares-python",
+            "gate": "frontend_export",
             "why": "Work on frontend export artifacts before Lean ingest.",
             "allowed_scope": [
                 "frontend/hf-export/",
@@ -191,6 +195,7 @@ def selected_workflow_skills(
         },
         "lean_ingest": {
             "name": "ares-lean",
+            "gate": "lean_ingest",
             "why": "Run Lean ingest on frontend artifacts without moving planning into Rust.",
             "allowed_scope": [
                 "ingest/lean/",
@@ -201,6 +206,7 @@ def selected_workflow_skills(
         },
         "aresplan_valid": {
             "name": "ares-lean",
+            "gate": "aresplan_valid",
             "why": "Produce and validate Lean-emitted AresPlan artifacts.",
             "allowed_scope": [
                 "ingest/lean/",
@@ -211,6 +217,7 @@ def selected_workflow_skills(
         },
         "targetplan_valid": {
             "name": "ares-lean",
+            "gate": "targetplan_valid",
             "why": "Produce and validate Lean-emitted backend TargetPlan artifacts.",
             "allowed_scope": [
                 "ingest/lean/",
@@ -221,6 +228,7 @@ def selected_workflow_skills(
         },
         "artifact_consistency": {
             "name": "ares-evidence",
+            "gate": "artifact_consistency",
             "why": "Check that oracle and generated artifacts describe the same model row.",
             "allowed_scope": [
                 str(cfg.run_dir / "artifacts"),
@@ -230,6 +238,7 @@ def selected_workflow_skills(
         },
         "shortcut_scan": {
             "name": "ares-rust",
+            "gate": "shortcut_scan",
             "why": "Remove forbidden Rust model plugins or runtime-created plan sidecars.",
             "allowed_scope": [
                 "runtime/",
@@ -240,6 +249,7 @@ def selected_workflow_skills(
         },
         "backend_open": {
             "name": "ares-rust",
+            "gate": "backend_open",
             "why": "Debug backend-provider open evidence for generated AresPlan and TargetPlan artifacts.",
             "allowed_scope": [
                 "runtime/",
@@ -251,6 +261,7 @@ def selected_workflow_skills(
         },
         "one_token_logits": {
             "name": "ares-rust",
+            "gate": "one_token_logits",
             "why": "Debug Ares system-under-test logits evidence against HF CPU oracle rows.",
             "allowed_scope": [
                 "runtime/",
@@ -262,6 +273,7 @@ def selected_workflow_skills(
         },
         "eight_token_greedy": {
             "name": "ares-rust",
+            "gate": "eight_token_greedy",
             "why": "Debug greedy generated-token evidence before widening decode depth.",
             "allowed_scope": [
                 "runtime/",
@@ -273,6 +285,7 @@ def selected_workflow_skills(
         },
         "cpp_tvd": {
             "name": "ares-evidence",
+            "gate": "cpp_tvd",
             "why": "Keep C++ Tron/Rinzler classified as comparison and rollback evidence.",
             "allowed_scope": [
                 str(cfg.run_dir / "artifacts"),
@@ -282,6 +295,7 @@ def selected_workflow_skills(
         },
         "depth_performance": {
             "name": "ares-perfetto",
+            "gate": "depth_performance",
             "why": "Analyze profiling evidence only after token correctness gates remain green.",
             "allowed_scope": [
                 str(cfg.run_dir / "artifacts"),
@@ -292,15 +306,16 @@ def selected_workflow_skills(
         },
     }
     gate_skill = gate_skills.get(first_failed_gate)
-    if gate_skill and all(skill["name"] != gate_skill["name"] for skill in skills):
+    if gate_skill:
         skills.append(gate_skill)
     if first_failed_gate != "complete":
         skills.append(
             {
                 "name": "command-fess",
-                "why": "Audit claims after any implementation commit produced by the refinement loop.",
+                "gate": "post_commit",
+                "why": "Use only when the gate work produced an implementation commit that needs claim audit.",
                 "allowed_scope": [
-                    "the commit range changed by this gate",
+                    "the commit range changed by this gate, if any",
                     str(cfg.run_dir / "handoff.md"),
                     str(cfg.run_dir / "reward.json"),
                 ],
@@ -317,8 +332,12 @@ def workflow_skill_lines(skills: list[Mapping[str, Any]]) -> list[str]:
     lines: list[str] = []
     for skill in skills:
         name = str(skill.get("name", "unknown"))
+        gate = str(skill.get("gate", ""))
         why = str(skill.get("why", ""))
-        lines.append(f"- `{name}`: {why}")
+        label = f"`{name}`"
+        if gate and gate != "all":
+            label += f" for `{gate}`"
+        lines.append(f"- {label}: {why}")
         allowed = skill.get("allowed_scope", [])
         if isinstance(allowed, list) and allowed:
             lines.append(
@@ -932,15 +951,21 @@ def write_failure_state(cfg: AresIngestConfig, error: BaseException) -> None:
     state.setdefault("run_dir", str(cfg.run_dir))
     state.setdefault("gate_profile", cfg.gate_profile)
     state.setdefault("refinement_loop", "one_failing_gate")
+    reward_path = cfg.run_dir / "reward.json"
+    reward_payload = load_json(reward_path) if reward_path.exists() else None
+    first_failed_gate = (
+        str(reward_payload.get("first_failed_gate", "failed"))
+        if reward_payload is not None
+        else "failed"
+    )
     state["workflow_skills"] = selected_workflow_skills(
         cfg,
-        first_failed_gate="failed",
+        first_failed_gate=first_failed_gate,
     )
     state["updated_at"] = datetime.now(timezone.utc).isoformat()
     write_json(cfg.state_path, state)
-    reward_path = cfg.run_dir / "reward.json"
-    if reward_path.exists():
-        write_handoff(cfg, load_json(reward_path), state=state)
+    if reward_payload is not None:
+        write_handoff(cfg, reward_payload, state=state)
 
 
 def run_loop(cfg: AresIngestConfig) -> int:

@@ -11,7 +11,10 @@ from ares_ingest_autoagent.ares_cli import (
     config_from_args,
     initialize_run,
     main,
+    selected_workflow_skills,
     slugify,
+    write_handoff,
+    write_refinement_prompt,
 )
 
 
@@ -110,6 +113,78 @@ class AresIngestCliTest(unittest.TestCase):
             self.assertEqual(state["status"], "blocked_no_refiner")
             self.assertEqual(state["refinement_loop"], "one_failing_gate")
             self.assertEqual(state["history"][0]["first_failed_gate"], "hf_cpu_oracle")
+
+    def test_evidence_gate_preserves_gate_specific_skill_context(self) -> None:
+        with TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            run_dir = root / "run"
+            run_dir.mkdir()
+            cfg = config_from_args(
+                build_parser().parse_args(
+                    [
+                        "--ares-repo",
+                        str(root),
+                        "--run-dir",
+                        str(run_dir),
+                        "Provider/Model",
+                    ]
+                )
+            )
+            reward = {
+                "score": 0.48,
+                "alpha_execution": 0.8,
+                "tau_tokens": 0.0,
+                "delta_inference": 0.0,
+                "stage_cap": 0.5,
+                "first_failed_gate": "artifact_consistency",
+                "gates": {},
+            }
+
+            skills = selected_workflow_skills(
+                cfg,
+                first_failed_gate="artifact_consistency",
+            )
+            evidence_skills = [
+                skill for skill in skills if skill["name"] == "ares-evidence"
+            ]
+
+            self.assertEqual(len(evidence_skills), 2)
+            self.assertEqual(evidence_skills[1]["gate"], "artifact_consistency")
+            self.assertIn("same model row", evidence_skills[1]["why"])
+            write_handoff(cfg, reward, state={"workflow_skills": skills, "history": []})
+            handoff = (run_dir / "handoff.md").read_text()
+            self.assertIn("`ares-evidence` for `artifact_consistency`", handoff)
+            prompt = write_refinement_prompt(
+                cfg,
+                iteration=1,
+                spec={},
+                reward=reward,
+            ).read_text()
+            self.assertIn("`ares-evidence` for `artifact_consistency`", prompt)
+            self.assertIn("same model row", prompt)
+
+    def test_cpp_tvd_selects_comparison_evidence_context(self) -> None:
+        with TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            cfg = config_from_args(
+                build_parser().parse_args(
+                    [
+                        "--ares-repo",
+                        str(root),
+                        "--run-dir",
+                        str(root / "run"),
+                        "Provider/Model",
+                    ]
+                )
+            )
+
+            skills = selected_workflow_skills(cfg, first_failed_gate="cpp_tvd")
+            cpp_skill = next(
+                skill for skill in skills if skill.get("gate") == "cpp_tvd"
+            )
+
+            self.assertEqual(cpp_skill["name"], "ares-evidence")
+            self.assertIn("comparison and rollback evidence", cpp_skill["why"])
 
     def test_target_score_completion_does_not_invoke_refiner(self) -> None:
         with TemporaryDirectory() as tmp:
@@ -254,7 +329,17 @@ class AresIngestCliTest(unittest.TestCase):
             state = json.loads((run_dir / "state.json").read_text())
             self.assertEqual(state["status"], "failed")
             self.assertIn("refiner failed with exit 7", state["error"])
-            self.assertIn("Status: `failed`", (run_dir / "handoff.md").read_text())
+            self.assertIn(
+                "ares-python",
+                [skill["name"] for skill in state["workflow_skills"]],
+            )
+            self.assertNotIn(
+                "failed",
+                [skill.get("gate") for skill in state["workflow_skills"]],
+            )
+            handoff = (run_dir / "handoff.md").read_text()
+            self.assertIn("Status: `failed`", handoff)
+            self.assertIn("`ares-python` for `hf_cpu_oracle`", handoff)
 
     def test_main_setup_only_writes_state(self) -> None:
         with TemporaryDirectory() as tmp:
