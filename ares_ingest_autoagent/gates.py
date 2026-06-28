@@ -350,11 +350,12 @@ def _forbidden_model_plugin_reason(path: Path, root: Path) -> str | None:
         return None
     stem = path.stem.lower()
     if any(
-        stem == family or stem.startswith(f"{family}_")
+        stem == family
+        or stem.startswith(f"{family}_")
+        or stem.startswith(f"{family}-")
+        or _stem_starts_with_family_digit(stem, family)
         for family in MODEL_FAMILY_PLUGIN_STEMS
     ):
-        return "Rust model-family plugin source is under a plugins directory"
-    if any(stem.startswith(f"{family}-") for family in MODEL_FAMILY_PLUGIN_STEMS):
         return "Rust model-family plugin source is under a plugins directory"
     return None
 
@@ -363,11 +364,18 @@ def _runtime_sidecar_marker(path: Path, root: Path) -> str | None:
     if path.suffix not in {".json", ".jsonl"}:
         return None
     rel = path.relative_to(root).as_posix().lower()
-    if not any(
-        plan in rel for plan in ("aresplan", "ares_plan", "targetplan", "target_plan")
-    ):
+    compact_rel = rel.replace("_", "").replace("-", "")
+    if not any(plan in compact_rel for plan in ("aresplan", "targetplan")):
         return None
     for marker in RUNTIME_SIDECAR_MARKERS:
         if marker in rel:
             return marker
     return None
+
+
+def _stem_starts_with_family_digit(stem: str, family: str) -> bool:
+    return (
+        len(stem) > len(family)
+        and stem.startswith(family)
+        and stem[len(family)].isdigit()
+    )

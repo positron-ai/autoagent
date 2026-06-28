@@ -40,6 +40,44 @@ class AresIngestGateTest(unittest.TestCase):
                 "runtime/runares/artifacts/model.runtime_generated.target_plan.json",
             )
 
+    def test_shortcut_scan_rejects_hyphenated_runtime_generated_targetplan(
+        self,
+    ) -> None:
+        with TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            sidecar = (
+                root
+                / "runtime/runares/artifacts/model.runtime-generated.target-plan.json"
+            )
+            sidecar.parent.mkdir(parents=True)
+            sidecar.write_text("{}\n")
+
+            gate = shortcut_scan_gate(root)
+
+            self.assertFalse(gate["passed"])
+            self.assertEqual(
+                gate["detail"]["forbidden_hits"][0]["kind"],
+                "runtime_generated_plan_sidecar",
+            )
+
+    def test_shortcut_scan_rejects_static_runtime_ares_plan_sidecar(self) -> None:
+        with TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            sidecar = (
+                root
+                / "runtime/runares/artifacts/model.static-runtime-sidecar.ares-plan.json"
+            )
+            sidecar.parent.mkdir(parents=True)
+            sidecar.write_text("{}\n")
+
+            gate = shortcut_scan_gate(root)
+
+            self.assertFalse(gate["passed"])
+            self.assertEqual(
+                gate["detail"]["forbidden_hits"][0]["kind"],
+                "runtime_generated_plan_sidecar",
+            )
+
     def test_shortcut_scan_rejects_hand_authored_rust_model_plugin(self) -> None:
         with TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -53,6 +91,20 @@ class AresIngestGateTest(unittest.TestCase):
             hits = gate["detail"]["forbidden_hits"]
             self.assertEqual(hits[0]["kind"], "hand_authored_rust_model_plugin")
             self.assertEqual(hits[0]["path"], "backend/tron/model_plugins/llama.rs")
+
+    def test_shortcut_scan_rejects_digit_suffixed_model_family_plugin(self) -> None:
+        with TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            plugin = root / "backend/tron/plugins/qwen3.rs"
+            plugin.parent.mkdir(parents=True)
+            plugin.write_text("pub fn forward() {}\n")
+
+            gate = shortcut_scan_gate(root)
+
+            self.assertFalse(gate["passed"])
+            hits = gate["detail"]["forbidden_hits"]
+            self.assertEqual(hits[0]["kind"], "hand_authored_rust_model_plugin")
+            self.assertEqual(hits[0]["path"], "backend/tron/plugins/qwen3.rs")
 
 
 if __name__ == "__main__":
