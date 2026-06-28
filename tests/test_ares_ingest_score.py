@@ -104,12 +104,16 @@ class AresIngestScoreTest(unittest.TestCase):
                     "model_spec": True,
                     "frontend_export": True,
                     "lean_ingest": True,
+                    "eight_token_greedy": True,
+                }
+            },
+            validated_gates_payload={
+                "gates": {
                     "aresplan_valid": artifact_gate("ares_plan"),
                     "targetplan_valid": artifact_gate("target_plan"),
                     "shortcut_scan": artifact_gate("shortcut_scan"),
                     "backend_open": artifact_gate("backend_open"),
                     "one_token_logits": artifact_gate("one_token_logits"),
-                    "eight_token_greedy": True,
                     "cpp_tvd": artifact_gate("cpp_tvd"),
                     "depth_performance": artifact_gate("depth_performance"),
                 }
@@ -137,6 +141,10 @@ class AresIngestScoreTest(unittest.TestCase):
                     "model_spec": True,
                     "frontend_export": True,
                     "lean_ingest": True,
+                }
+            },
+            validated_gates_payload={
+                "gates": {
                     "aresplan_valid": artifact_gate("ares_plan"),
                     "targetplan_valid": artifact_gate("target_plan"),
                     "shortcut_scan": artifact_gate("shortcut_scan"),
@@ -163,8 +171,10 @@ class AresIngestScoreTest(unittest.TestCase):
                     "model_spec": True,
                     "frontend_export": True,
                     "lean_ingest": True,
-                    "aresplan_valid": artifact_gate("ares_plan"),
                 }
+            },
+            validated_gates_payload={
+                "gates": {"aresplan_valid": artifact_gate("ares_plan")}
             },
             oracle_payload=oracle_record(),
             token_payload={"score": 1.0},
@@ -242,9 +252,13 @@ class AresIngestScoreTest(unittest.TestCase):
                     "model_spec": True,
                     "frontend_export": True,
                     "lean_ingest": True,
+                    "shortcut_scan": True,
+                }
+            },
+            validated_gates_payload={
+                "gates": {
                     "aresplan_valid": artifact_gate("ares_plan"),
                     "targetplan_valid": artifact_gate("target_plan"),
-                    "shortcut_scan": True,
                 }
             },
             oracle_payload=oracle_record(),
@@ -269,14 +283,18 @@ class AresIngestScoreTest(unittest.TestCase):
                     "model_spec": True,
                     "frontend_export": True,
                     "lean_ingest": True,
+                    "backend_open": artifact_gate("backend_open"),
+                    "one_token_logits": artifact_gate("one_token_logits"),
+                    "eight_token_greedy": True,
+                    "cpp_tvd": artifact_gate("cpp_tvd"),
+                    "depth_performance": artifact_gate("depth_performance"),
+                }
+            },
+            validated_gates_payload={
+                "gates": {
                     "aresplan_valid": artifact_gate("ares_plan"),
                     "targetplan_valid": artifact_gate("target_plan"),
                     "shortcut_scan": artifact_gate("shortcut_scan"),
-                    "backend_open": True,
-                    "one_token_logits": True,
-                    "eight_token_greedy": True,
-                    "cpp_tvd": True,
-                    "depth_performance": True,
                 }
             },
             oracle_payload=oracle_record(),

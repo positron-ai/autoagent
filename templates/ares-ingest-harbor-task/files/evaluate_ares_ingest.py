@@ -79,14 +79,17 @@ def main() -> int:
     reward_json = os.environ.get("REWARD_JSON", "/logs/verifier/reward.json")
     reward_txt = os.environ.get("REWARD_TXT", "/logs/reward.txt")
     gates_path = work_dir / "gates.json"
+    validated_gates_path = work_dir / "validated_gates.json"
     work_dir.mkdir(parents=True, exist_ok=True)
 
     gates: dict[str, Any] = dict(spec.get("explicit_gates", {}))
+    validated_gates: dict[str, Any] = {}
     write_json(gates_path, {"gates": gates})
 
     required_gates = spec.get("required_gates") or []
     if "shortcut_scan" in required_gates or spec.get("shortcut_scan"):
-        gates["shortcut_scan"] = shortcut_scan_gate(ares_repo)
+        validated_gates["shortcut_scan"] = shortcut_scan_gate(ares_repo)
+        gates["shortcut_scan"] = validated_gates["shortcut_scan"]
         write_json(gates_path, {"gates": gates})
 
     if oracle_spec := spec.get("oracle_records"):
@@ -100,14 +103,15 @@ def main() -> int:
         oracle_summary = None
 
     if ares_plan := spec.get("ares_plan"):
-        gates["aresplan_valid"] = ares_plan_gate(
+        validated_gates["aresplan_valid"] = ares_plan_gate(
             resolve_path(
                 ares_plan, task_files=task_files, ares_repo=ares_repo, work_dir=work_dir
             )
         )
+        gates["aresplan_valid"] = validated_gates["aresplan_valid"]
 
     if target_plan := spec.get("target_plan"):
-        gates["targetplan_valid"] = target_plan_gate(
+        validated_gates["targetplan_valid"] = target_plan_gate(
             resolve_path(
                 target_plan,
                 task_files=task_files,
@@ -115,9 +119,10 @@ def main() -> int:
                 work_dir=work_dir,
             )
         )
+        gates["targetplan_valid"] = validated_gates["targetplan_valid"]
 
     if backend_open := spec.get("backend_open_evidence"):
-        gates["backend_open"] = backend_open_gate(
+        validated_gates["backend_open"] = backend_open_gate(
             resolve_path(
                 backend_open,
                 task_files=task_files,
@@ -125,12 +130,13 @@ def main() -> int:
                 work_dir=work_dir,
             )
         )
+        gates["backend_open"] = validated_gates["backend_open"]
 
     one_token_results_path = None
     if one_token := spec.get("one_token_logits_evidence") or spec.get(
         "one_token_results_json"
     ):
-        gates["one_token_logits"] = one_token_logits_gate(
+        validated_gates["one_token_logits"] = one_token_logits_gate(
             resolve_path(
                 one_token,
                 task_files=task_files,
@@ -138,11 +144,12 @@ def main() -> int:
                 work_dir=work_dir,
             )
         )
+        gates["one_token_logits"] = validated_gates["one_token_logits"]
         one_token_results_path = work_dir / "one-token-logits.json"
         write_json(one_token_results_path, gates["one_token_logits"])
 
     if cpp_tvd := spec.get("cpp_tvd_evidence"):
-        gates["cpp_tvd"] = cpp_tvd_gate(
+        validated_gates["cpp_tvd"] = cpp_tvd_gate(
             resolve_path(
                 cpp_tvd,
                 task_files=task_files,
@@ -150,9 +157,10 @@ def main() -> int:
                 work_dir=work_dir,
             )
         )
+        gates["cpp_tvd"] = validated_gates["cpp_tvd"]
 
     if depth_performance := spec.get("depth_performance_evidence"):
-        gates["depth_performance"] = depth_performance_gate(
+        validated_gates["depth_performance"] = depth_performance_gate(
             resolve_path(
                 depth_performance,
                 task_files=task_files,
@@ -160,6 +168,7 @@ def main() -> int:
                 work_dir=work_dir,
             )
         )
+        gates["depth_performance"] = validated_gates["depth_performance"]
 
     for command_gate in spec.get("command_gates", []):
         name = command_gate["name"]
@@ -238,6 +247,7 @@ def main() -> int:
         write_json(performance_results_path, performance_result)
 
     write_json(gates_path, {"gates": gates})
+    write_json(validated_gates_path, {"gates": validated_gates})
 
     args = [
         sys.executable,
@@ -245,6 +255,8 @@ def main() -> int:
         "ares_ingest_autoagent.score",
         "--gates",
         str(gates_path),
+        "--validated-gates",
+        str(validated_gates_path),
         "--output-json",
         reward_json,
         "--output-txt",

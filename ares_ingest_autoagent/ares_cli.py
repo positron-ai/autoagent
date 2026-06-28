@@ -324,41 +324,43 @@ def evaluate_run(cfg: AresIngestConfig) -> tuple[dict[str, Any], dict[str, Any]]
             "source": "ares-ingest-agent setup",
         },
     )
-    spec["explicit_gates"]["shortcut_scan"] = shortcut_scan_gate(cfg.ares_repo)
+    validated_gates: dict[str, Any] = {}
+    validated_gates["shortcut_scan"] = shortcut_scan_gate(cfg.ares_repo)
 
     oracle_payload = None
     if oracle_spec := spec.get("oracle_records"):
         oracle_payload = read_json_or_jsonl(resolve_run_path(str(oracle_spec), cfg))
     if ares_plan := spec.get("ares_plan"):
-        spec["explicit_gates"]["aresplan_valid"] = ares_plan_gate(
+        validated_gates["aresplan_valid"] = ares_plan_gate(
             resolve_run_path(str(ares_plan), cfg)
         )
     if target_plan := spec.get("target_plan"):
-        spec["explicit_gates"]["targetplan_valid"] = target_plan_gate(
+        validated_gates["targetplan_valid"] = target_plan_gate(
             resolve_run_path(str(target_plan), cfg)
         )
     if backend_open := spec.get("backend_open_evidence"):
-        spec["explicit_gates"]["backend_open"] = backend_open_gate(
+        validated_gates["backend_open"] = backend_open_gate(
             resolve_run_path(str(backend_open), cfg)
         )
     if one_token := spec.get("one_token_logits_evidence") or spec.get(
         "one_token_results_json"
     ):
-        spec["explicit_gates"]["one_token_logits"] = one_token_logits_gate(
+        validated_gates["one_token_logits"] = one_token_logits_gate(
             resolve_run_path(str(one_token), cfg)
         )
     if cpp_tvd := spec.get("cpp_tvd_evidence"):
-        spec["explicit_gates"]["cpp_tvd"] = cpp_tvd_gate(
-            resolve_run_path(str(cpp_tvd), cfg)
-        )
+        validated_gates["cpp_tvd"] = cpp_tvd_gate(resolve_run_path(str(cpp_tvd), cfg))
     if depth_performance := spec.get("depth_performance_evidence"):
-        spec["explicit_gates"]["depth_performance"] = depth_performance_gate(
+        validated_gates["depth_performance"] = depth_performance_gate(
             resolve_run_path(str(depth_performance), cfg)
         )
+    spec["validated_gates"] = validated_gates
+    spec["explicit_gates"].update(validated_gates)
 
     write_json(cfg.model_spec_path, spec)
     reward = compute_reward(
         gates_payload={"gates": spec["explicit_gates"]},
+        validated_gates_payload={"gates": validated_gates},
         oracle_payload=oracle_payload,
         required_gates=tuple(spec["required_gates"]),
     )

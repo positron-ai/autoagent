@@ -75,6 +75,48 @@ class AresIngestArtifactTest(unittest.TestCase):
             self.assertFalse(gate["passed"])
             self.assertIn("runtime-generated", " ".join(gate["errors"]))
 
+    def test_backend_open_gate_requires_explicit_no_runtime_sidecars(self) -> None:
+        with TemporaryDirectory() as tmp:
+            path = Path(tmp) / "backend.json"
+            path.write_text(
+                json.dumps(
+                    {
+                        "status": "opened",
+                        "backend_id": "tron",
+                        "ares_plan": {"sha256": SHA_A},
+                        "target_plan": {"sha256": SHA_B, "backend_id": "tron"},
+                    }
+                )
+            )
+
+            gate = backend_open_gate(path)
+
+            self.assertFalse(gate["passed"])
+            self.assertIn(
+                "runtime_generated_sidecars=false",
+                " ".join(gate["errors"]),
+            )
+
+    def test_backend_open_gate_rejects_nested_target_backend_mismatch(self) -> None:
+        with TemporaryDirectory() as tmp:
+            path = Path(tmp) / "backend.json"
+            path.write_text(
+                json.dumps(
+                    {
+                        "status": "opened",
+                        "backend_id": "tron",
+                        "runtime_generated_sidecars": False,
+                        "ares_plan": {"sha256": SHA_A},
+                        "target_plan": {"sha256": SHA_B, "backend_id": "cpu"},
+                    }
+                )
+            )
+
+            gate = backend_open_gate(path)
+
+            self.assertFalse(gate["passed"])
+            self.assertIn("backend must match", " ".join(gate["errors"]))
+
     def test_one_token_logits_gate_requires_hf_cpu_oracle_and_replay_context(
         self,
     ) -> None:
@@ -125,13 +167,37 @@ class AresIngestArtifactTest(unittest.TestCase):
             self.assertFalse(gate["passed"])
             self.assertIn("top1_agreement must be 1.0", " ".join(gate["errors"]))
 
+    def test_one_token_logits_gate_rejects_non_ares_candidate(self) -> None:
+        with TemporaryDirectory() as tmp:
+            path = Path(tmp) / "one-token.json"
+            path.write_text(
+                json.dumps(
+                    {
+                        "schema": "ares.runtime.one_token_logits.v1",
+                        "evidence_class": "system_under_test",
+                        "oracle": "huggingface_transformers_pytorch_cpu",
+                        "candidate": "cpp_tron_rinzler",
+                        "tvd": 0.001,
+                        "tvd_threshold": 0.01,
+                        "top1_agreement": 1.0,
+                        "same_argmax": True,
+                        "replay_context": replay_context(),
+                    }
+                )
+            )
+
+            gate = one_token_logits_gate(path)
+
+            self.assertFalse(gate["passed"])
+            self.assertIn("candidate must identify Ares", " ".join(gate["errors"]))
+
     def test_cpp_tvd_rejects_cpp_as_oracle(self) -> None:
         validation = validate_cpp_tvd_evidence(
             {
                 "schema": "ares.comparison.cpp_tvd.v1",
                 "evidence_class": "comparison",
                 "comparison_source": "cpp_tron_rinzler",
-                "oracle": "cpp_tron",
+                "oracle": "cpp_tron_rinzler",
                 "tvd": 0.001,
                 "tvd_threshold": 0.01,
                 "replay_context": replay_context(),
@@ -203,6 +269,42 @@ class AresIngestArtifactTest(unittest.TestCase):
 
             self.assertTrue(gate["passed"])
             self.assertEqual(gate["detail"]["depths"], [8, 64, 512])
+
+    def test_depth_performance_gate_rejects_reversed_ladder(self) -> None:
+        with TemporaryDirectory() as tmp:
+            path = Path(tmp) / "depth.json"
+            path.write_text(
+                json.dumps(
+                    {
+                        "schema": "ares.performance.depth_ladder.v1",
+                        "evidence_class": "system_under_test",
+                        "workload": "independent_decode",
+                        "correctness_gates_green": True,
+                        "depths": [
+                            {
+                                "generated_tokens": 512,
+                                "tokens_match": True,
+                                "throughput_tokens_per_second": 60.0,
+                            },
+                            {
+                                "generated_tokens": 64,
+                                "tokens_match": True,
+                                "throughput_tokens_per_second": 70.0,
+                            },
+                            {
+                                "generated_tokens": 8,
+                                "tokens_match": True,
+                                "throughput_tokens_per_second": 80.0,
+                            },
+                        ],
+                    }
+                )
+            )
+
+            gate = depth_performance_gate(path)
+
+            self.assertFalse(gate["passed"])
+            self.assertIn("ordered 8 -> 64 -> 512", " ".join(gate["errors"]))
 
 
 if __name__ == "__main__":

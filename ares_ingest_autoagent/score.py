@@ -177,6 +177,23 @@ def enforce_artifact_gate_evidence(
             gates[name] = fail_closed_artifact_gate(name, validator_name)
 
 
+def reject_untrusted_artifact_gates(
+    gates: dict[str, Gate],
+    required_gates: tuple[str, ...],
+) -> None:
+    for name, validator_name in ARTIFACT_GATE_VALIDATORS.items():
+        if name in gates and name in required_gates:
+            gates[name] = fail_closed_artifact_gate(name, validator_name)
+
+
+def merge_validated_gates(
+    gates: dict[str, Gate],
+    validated_gates_payload: Any,
+) -> None:
+    for name, gate in extract_gates(validated_gates_payload).items():
+        gates[name] = gate
+
+
 def first_failed_gate(gates: dict[str, Gate], required: tuple[str, ...]) -> str:
     if not gates:
         return "not_started"
@@ -273,6 +290,7 @@ def _score_oracle_records(payload: Any) -> Gate:
 def compute_reward(
     *,
     gates_payload: Any = None,
+    validated_gates_payload: Any = None,
     oracle_payload: Any = None,
     token_payload: Any = None,
     performance_payload: Any = None,
@@ -280,12 +298,15 @@ def compute_reward(
     required_gates: tuple[str, ...] = STANDARD_GATES,
 ) -> dict[str, Any]:
     gates = extract_gates(gates_payload)
+    reject_untrusted_artifact_gates(gates, required_gates)
+    if validated_gates_payload is not None:
+        merge_validated_gates(gates, validated_gates_payload)
 
     if oracle_payload is not None:
-        merge_gate(gates, "hf_cpu_oracle", _score_oracle_records(oracle_payload))
+        gates["hf_cpu_oracle"] = _score_oracle_records(oracle_payload)
 
     if one_token_payload is not None:
-        merge_gate(gates, "one_token_logits", _score_logit_payload(one_token_payload))
+        gates["one_token_logits"] = _score_logit_payload(one_token_payload)
 
     enforce_artifact_gate_evidence(gates, required_gates)
 
@@ -347,6 +368,11 @@ def parse_gate_override(text: str) -> tuple[str, Gate]:
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--gates", type=Path, help="JSON file containing gates")
+    parser.add_argument(
+        "--validated-gates",
+        type=Path,
+        help="JSON file containing gates produced by artifact validators",
+    )
     parser.add_argument("--oracle", type=Path, help="HF CPU oracle JSON/JSONL summary")
     parser.add_argument("--tokens", type=Path, help="Token agreement JSON")
     parser.add_argument("--performance", type=Path, help="Performance JSON")
@@ -402,6 +428,7 @@ def main(argv: list[str] | None = None) -> int:
 
     reward = compute_reward(
         gates_payload=gates_payload,
+        validated_gates_payload=read_json(args.validated_gates),
         oracle_payload=_read_json_or_jsonl(args.oracle),
         token_payload=read_json(args.tokens),
         performance_payload=read_json(args.performance),

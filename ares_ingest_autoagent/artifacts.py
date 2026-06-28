@@ -29,6 +29,7 @@ CPP_COMPARISON_SOURCES = {
     "cxx_tron_rinzler",
     "tron_rinzler_cpp",
 }
+ARES_RUNTIME_CANDIDATES = {"ares", "ares_rust", "ares_runtime", "runares", "rinzler"}
 SCORING_WORKLOADS = {"independent_decode", "long_prefill"}
 
 FLOATING_REVISION_NAMES = {
@@ -413,6 +414,9 @@ def validate_backend_open_evidence(payload: Any) -> ArtifactValidation:
     target_backend = _first_string(
         root, rows, ("target_plan_backend", "target_backend", "backend_id")
     )
+    if isinstance(target_obj, dict):
+        nested_target_backend = _first_string(target_obj, [], ("backend_id", "backend"))
+        target_backend = nested_target_backend or target_backend
     if (
         backend_id is not None
         and target_backend is not None
@@ -420,10 +424,17 @@ def validate_backend_open_evidence(payload: Any) -> ArtifactValidation:
     ):
         errors.append("TargetPlan backend must match opened backend")
 
+    runtime_sidecars = _first_bool(
+        root, rows, ("runtime_generated_sidecars", "runtime_generated_plan")
+    )
     if _truthy_field(
         root, rows, ("runtime_generated_sidecars", "runtime_generated_plan")
     ):
         errors.append("backend evidence must not use runtime-generated plan sidecars")
+    elif runtime_sidecars is not False:
+        errors.append(
+            "backend evidence must explicitly record runtime_generated_sidecars=false"
+        )
 
     event_names = {_event_name(row) for row in rows}
     event_names.discard(None)
@@ -461,6 +472,9 @@ def validate_one_token_logits_evidence(payload: Any) -> ArtifactValidation:
         errors.append(
             "one-token evidence_class must classify Ares as system under test"
         )
+    candidate = _first_string(root, [], ("candidate", "subject", "runtime"))
+    if candidate not in ARES_RUNTIME_CANDIDATES:
+        errors.append("one-token candidate must identify Ares system-under-test output")
 
     tvd, threshold = _validate_tvd(errors, root, "one-token")
     top1 = root.get("top1_agreement")
@@ -481,6 +495,7 @@ def validate_one_token_logits_evidence(payload: Any) -> ArtifactValidation:
         "tvd_threshold": threshold,
         "top1_agreement": float(top1) if isinstance(top1, int | float) else None,
         "same_argmax": same_argmax,
+        "candidate": candidate,
     }
     return _validation(passed, errors, detail)
 
@@ -505,7 +520,8 @@ def validate_cpp_tvd_evidence(payload: Any) -> ArtifactValidation:
         errors.append("comparison_source must identify C++ Tron/Rinzler")
     tvd, threshold = _validate_tvd(errors, root, "C++ TVD")
     _validate_replay_context(errors, root.get("replay_context"), "C++ TVD")
-    if root.get("oracle") == "cpp_tron":
+    oracle = _first_string(root, [], ("oracle", "oracle_source"))
+    if oracle in CPP_COMPARISON_SOURCES:
         errors.append("C++ Tron/Rinzler must not be labeled as correctness oracle")
 
     passed = (
@@ -544,6 +560,7 @@ def validate_depth_performance_evidence(payload: Any) -> ArtifactValidation:
 
     depths = root.get("depths")
     seen_depths: set[int] = set()
+    ordered_depths: list[int] = []
     if not isinstance(depths, list) or not depths:
         errors.append("depth performance depths must be a non-empty list")
     else:
@@ -555,6 +572,7 @@ def validate_depth_performance_evidence(payload: Any) -> ArtifactValidation:
             if not isinstance(depth, int):
                 errors.append(f"depths[{index}].generated_tokens must be an integer")
                 continue
+            ordered_depths.append(depth)
             seen_depths.add(depth)
             if entry.get("tokens_match") is not True:
                 errors.append(f"depth {depth} must have tokens_match=true")
@@ -568,10 +586,16 @@ def validate_depth_performance_evidence(payload: Any) -> ArtifactValidation:
         errors.append(
             "depth performance missing ladder depth(s): " + ", ".join(map(str, missing))
         )
+    ladder_positions = [
+        ordered_depths.index(depth) for depth in (8, 64, 512) if depth in seen_depths
+    ]
+    if len(ladder_positions) == 3 and ladder_positions != sorted(ladder_positions):
+        errors.append("depth performance ladder must be ordered 8 -> 64 -> 512")
 
     detail = {
         "workload": workload,
         "depths": sorted(seen_depths),
+        "depth_order": ordered_depths,
         "depth_count": len(seen_depths),
     }
     return _validation(not errors, errors, detail)
@@ -765,6 +789,24 @@ def _truthy_field(
             if payload.get(key) is True:
                 return True
     return any(row.get(key) is True for row in rows for key in keys)
+
+
+def _first_bool(
+    payload: dict[str, Any] | list[Any],
+    rows: list[dict[str, Any]],
+    keys: tuple[str, ...],
+) -> bool | None:
+    if isinstance(payload, dict):
+        for key in keys:
+            value = payload.get(key)
+            if isinstance(value, bool):
+                return value
+    for row in rows:
+        for key in keys:
+            value = row.get(key)
+            if isinstance(value, bool):
+                return value
+    return None
 
 
 def _event_name(row: dict[str, Any]) -> str | None:
