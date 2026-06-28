@@ -216,11 +216,13 @@ def selected_workflow_skills(
             "verification_commands": [verify],
         },
         "targetplan_valid": {
-            "name": "ares-lean",
+            "name": "ares-targetplan",
             "gate": "targetplan_valid",
-            "why": "Produce and validate Lean-emitted backend TargetPlan artifacts.",
+            "why": "Coordinate Lean-emitted TargetPlan artifacts with Rust validation and runtime handoff.",
             "allowed_scope": [
                 "ingest/lean/",
+                "backend/",
+                "runtime/",
                 str(cfg.run_dir / "artifacts"),
                 str(cfg.model_spec_path),
             ],

@@ -61,6 +61,8 @@ the verification command that should prove the result. `command-wiggum` and
 `ares-evidence` are always present; the current failing gate adds the relevant
 Ares language, profiling, or gate-specific evidence context, and unfinished
 gates include `command-fess` for conditional post-commit claim audits.
+The `targetplan_valid` gate uses `ares-targetplan` because it crosses Lean
+lowering, Rust validation, and runtime provider handoff.
 
 ## Evidence Rules
 

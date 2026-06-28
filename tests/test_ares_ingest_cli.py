@@ -186,6 +186,33 @@ class AresIngestCliTest(unittest.TestCase):
             self.assertEqual(cpp_skill["name"], "ares-evidence")
             self.assertIn("comparison and rollback evidence", cpp_skill["why"])
 
+    def test_targetplan_gate_selects_targetplan_skill_context(self) -> None:
+        with TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            cfg = config_from_args(
+                build_parser().parse_args(
+                    [
+                        "--ares-repo",
+                        str(root),
+                        "--run-dir",
+                        str(root / "run"),
+                        "Provider/Model",
+                    ]
+                )
+            )
+
+            skills = selected_workflow_skills(
+                cfg,
+                first_failed_gate="targetplan_valid",
+            )
+            targetplan_skill = next(
+                skill for skill in skills if skill.get("gate") == "targetplan_valid"
+            )
+
+            self.assertEqual(targetplan_skill["name"], "ares-targetplan")
+            self.assertIn("Rust validation", targetplan_skill["why"])
+            self.assertIn("backend/", targetplan_skill["allowed_scope"])
+
     def test_target_score_completion_does_not_invoke_refiner(self) -> None:
         with TemporaryDirectory() as tmp:
             root = Path(tmp)
