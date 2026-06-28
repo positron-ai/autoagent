@@ -349,6 +349,90 @@ class AresIngestEvaluatorTest(unittest.TestCase):
         self.assertEqual(reward["first_failed_gate"], "aresplan_valid")
         self.assertFalse(reward["gates"]["aresplan_valid"]["passed"])
 
+    def test_explicit_gates_cannot_replace_missing_oracle_artifact(self) -> None:
+        result = self.run_evaluator(
+            {
+                "required_gates": [
+                    "model_spec",
+                    "hf_cpu_oracle",
+                    "frontend_export",
+                    "lean_ingest",
+                    "aresplan_valid",
+                    "targetplan_valid",
+                ],
+                "explicit_gates": {
+                    "model_spec": True,
+                    "hf_cpu_oracle": True,
+                    "frontend_export": True,
+                    "lean_ingest": True,
+                    "aresplan_valid": True,
+                    "targetplan_valid": True,
+                },
+            },
+            {},
+        )
+
+        reward = result["reward"]
+        self.assertEqual(reward["first_failed_gate"], "hf_cpu_oracle")
+        self.assertFalse(reward["gates"]["hf_cpu_oracle"]["passed"])
+
+    def test_explicit_gates_cannot_replace_missing_plan_artifacts(self) -> None:
+        result = self.run_evaluator(
+            {
+                "required_gates": [
+                    "model_spec",
+                    "hf_cpu_oracle",
+                    "frontend_export",
+                    "lean_ingest",
+                    "aresplan_valid",
+                    "targetplan_valid",
+                ],
+                "explicit_gates": {
+                    "model_spec": True,
+                    "frontend_export": True,
+                    "lean_ingest": True,
+                    "aresplan_valid": True,
+                    "targetplan_valid": True,
+                },
+                "oracle_records": "oracle.jsonl",
+            },
+            {"oracle.jsonl": json.dumps(oracle_record()) + "\n"},
+        )
+
+        reward = result["reward"]
+        self.assertEqual(reward["first_failed_gate"], "aresplan_valid")
+        self.assertFalse(reward["gates"]["aresplan_valid"]["passed"])
+
+    def test_explicit_gates_cannot_replace_missing_target_plan_artifact(self) -> None:
+        result = self.run_evaluator(
+            {
+                "required_gates": [
+                    "model_spec",
+                    "hf_cpu_oracle",
+                    "frontend_export",
+                    "lean_ingest",
+                    "aresplan_valid",
+                    "targetplan_valid",
+                ],
+                "explicit_gates": {
+                    "model_spec": True,
+                    "frontend_export": True,
+                    "lean_ingest": True,
+                    "targetplan_valid": True,
+                },
+                "oracle_records": "oracle.jsonl",
+                "ares_plan": "ares-plan.json",
+            },
+            {
+                "oracle.jsonl": json.dumps(oracle_record()) + "\n",
+                "ares-plan.json": json.dumps(valid_ares_plan()) + "\n",
+            },
+        )
+
+        reward = result["reward"]
+        self.assertEqual(reward["first_failed_gate"], "targetplan_valid")
+        self.assertFalse(reward["gates"]["targetplan_valid"]["passed"])
+
 
 if __name__ == "__main__":
     unittest.main()

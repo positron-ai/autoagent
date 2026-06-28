@@ -40,9 +40,16 @@ class ArtifactValidation:
     errors: tuple[str, ...]
     detail: dict[str, Any]
 
-    def as_gate(self, *, label: str, path: Path | None = None) -> dict[str, Any]:
+    def as_gate(
+        self,
+        *,
+        label: str,
+        validator_name: str,
+        path: Path | None = None,
+    ) -> dict[str, Any]:
         gate: dict[str, Any] = {
             "label": label,
+            "artifact_validator": validator_name,
             "passed": self.passed,
             "score": 1.0 if self.passed else 0.0,
             "detail": self.detail,
@@ -59,11 +66,13 @@ def artifact_gate(
     path: Path,
     *,
     label: str,
+    validator_name: str,
     validator: Any,
 ) -> dict[str, Any]:
     if not path.is_file():
         return {
             "label": label,
+            "artifact_validator": validator_name,
             "path": str(path),
             "exists": path.exists(),
             "passed": False,
@@ -75,21 +84,36 @@ def artifact_gate(
     except json.JSONDecodeError as exc:
         return {
             "label": label,
+            "artifact_validator": validator_name,
             "path": str(path),
             "exists": True,
             "passed": False,
             "score": 0.0,
             "errors": [f"invalid JSON: {exc}"],
         }
-    return validator(payload).as_gate(label=label, path=path)
+    return validator(payload).as_gate(
+        label=label,
+        validator_name=validator_name,
+        path=path,
+    )
 
 
 def ares_plan_gate(path: Path, *, label: str = "generated AresPlan") -> dict[str, Any]:
-    return artifact_gate(path, label=label, validator=validate_ares_plan)
+    return artifact_gate(
+        path,
+        label=label,
+        validator_name="ares_plan",
+        validator=validate_ares_plan,
+    )
 
 
 def target_plan_gate(path: Path, *, label: str = "Lean TargetPlan") -> dict[str, Any]:
-    return artifact_gate(path, label=label, validator=validate_target_plan)
+    return artifact_gate(
+        path,
+        label=label,
+        validator_name="target_plan",
+        validator=validate_target_plan,
+    )
 
 
 def is_floating_revision(revision: str) -> bool:

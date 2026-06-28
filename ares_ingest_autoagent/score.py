@@ -79,6 +79,12 @@ ALPHA_EXECUTION_WEIGHTS: dict[str, float] = {
     "one_token_logits": 0.20,
 }
 
+ARTIFACT_GATE_VALIDATORS: dict[str, str] = {
+    "hf_cpu_oracle": "hf_cpu_oracle",
+    "aresplan_valid": "ares_plan",
+    "targetplan_valid": "target_plan",
+}
+
 
 @dataclass(frozen=True)
 class Gate:
@@ -129,6 +135,38 @@ def merge_gate(gates: dict[str, Gate], name: str, gate: Gate) -> None:
     if existing is not None and existing.passed is False:
         return
     gates[name] = gate
+
+
+def gate_has_artifact_validator(gate: Gate, validator_name: str) -> bool:
+    return (
+        isinstance(gate.detail, dict)
+        and gate.detail.get("artifact_validator") == validator_name
+    )
+
+
+def fail_closed_artifact_gate(name: str, validator_name: str) -> Gate:
+    return Gate(
+        passed=False,
+        score=0.0,
+        detail={
+            "artifact_validator": validator_name,
+            "error": f"{name} requires validator evidence, not an explicit gate",
+        },
+    )
+
+
+def enforce_artifact_gate_evidence(
+    gates: dict[str, Gate],
+    required_gates: tuple[str, ...],
+) -> None:
+    for name, validator_name in ARTIFACT_GATE_VALIDATORS.items():
+        if name not in required_gates:
+            continue
+        gate = gates.get(name)
+        if gate is None or not gate.passed:
+            continue
+        if not gate_has_artifact_validator(gate, validator_name):
+            gates[name] = fail_closed_artifact_gate(name, validator_name)
 
 
 def first_failed_gate(gates: dict[str, Gate], required: tuple[str, ...]) -> str:
@@ -212,6 +250,7 @@ def _score_oracle_records(payload: Any) -> Gate:
         passed=passed,
         score=1.0 if passed else 0.0,
         detail={
+            "artifact_validator": "hf_cpu_oracle",
             "records": len(records),
             "valid_records": sum(1 for validation in validations if validation.passed),
             "errors": [
@@ -239,6 +278,8 @@ def compute_reward(
 
     if one_token_payload is not None:
         merge_gate(gates, "one_token_logits", _score_logit_payload(one_token_payload))
+
+    enforce_artifact_gate_evidence(gates, required_gates)
 
     first_failed = first_failed_gate(gates, required_gates)
     stage_cap = STAGE_CAPS.get(first_failed, 0.0)

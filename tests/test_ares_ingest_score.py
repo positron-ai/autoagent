@@ -8,6 +8,10 @@ from pathlib import Path
 from ares_ingest_autoagent.score import CPU_ONLY_GATES, compute_reward, main
 
 
+def artifact_gate(validator: str) -> dict:
+    return {"passed": True, "score": 1.0, "artifact_validator": validator}
+
+
 def oracle_record(
     kind: str = "hf_cpu_oracle_capture",
     oracle: str = "huggingface_transformers_pytorch_cpu",
@@ -100,8 +104,8 @@ class AresIngestScoreTest(unittest.TestCase):
                     "model_spec": True,
                     "frontend_export": True,
                     "lean_ingest": True,
-                    "aresplan_valid": True,
-                    "targetplan_valid": True,
+                    "aresplan_valid": artifact_gate("ares_plan"),
+                    "targetplan_valid": artifact_gate("target_plan"),
                     "backend_open": True,
                     "one_token_logits": True,
                     "eight_token_greedy": True,
@@ -132,8 +136,8 @@ class AresIngestScoreTest(unittest.TestCase):
                     "model_spec": True,
                     "frontend_export": True,
                     "lean_ingest": True,
-                    "aresplan_valid": True,
-                    "targetplan_valid": True,
+                    "aresplan_valid": artifact_gate("ares_plan"),
+                    "targetplan_valid": artifact_gate("target_plan"),
                 }
             },
             oracle_payload=oracle_record(),
@@ -157,7 +161,7 @@ class AresIngestScoreTest(unittest.TestCase):
                     "model_spec": True,
                     "frontend_export": True,
                     "lean_ingest": True,
-                    "aresplan_valid": True,
+                    "aresplan_valid": artifact_gate("ares_plan"),
                 }
             },
             oracle_payload=oracle_record(),
@@ -194,6 +198,40 @@ class AresIngestScoreTest(unittest.TestCase):
 
         self.assertEqual(reward["first_failed_gate"], "hf_cpu_oracle")
         self.assertFalse(reward["gates"]["hf_cpu_oracle"]["passed"])
+
+    def test_explicit_artifact_gate_cannot_replace_oracle_payload(self) -> None:
+        reward = compute_reward(
+            gates_payload={"gates": {"model_spec": True, "hf_cpu_oracle": True}},
+            required_gates=("model_spec", "hf_cpu_oracle"),
+        )
+
+        self.assertEqual(reward["first_failed_gate"], "hf_cpu_oracle")
+        self.assertFalse(reward["gates"]["hf_cpu_oracle"]["passed"])
+
+    def test_explicit_artifact_gate_cannot_replace_plan_validators(self) -> None:
+        reward = compute_reward(
+            gates_payload={
+                "gates": {
+                    "model_spec": True,
+                    "frontend_export": True,
+                    "lean_ingest": True,
+                    "aresplan_valid": True,
+                    "targetplan_valid": True,
+                }
+            },
+            oracle_payload=oracle_record(),
+            required_gates=(
+                "model_spec",
+                "hf_cpu_oracle",
+                "frontend_export",
+                "lean_ingest",
+                "aresplan_valid",
+                "targetplan_valid",
+            ),
+        )
+
+        self.assertEqual(reward["first_failed_gate"], "aresplan_valid")
+        self.assertFalse(reward["gates"]["aresplan_valid"]["passed"])
 
     def test_cli_writes_reward_files(self) -> None:
         with tempfile.TemporaryDirectory() as td:
