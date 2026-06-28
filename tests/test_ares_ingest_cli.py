@@ -163,6 +163,53 @@ class AresIngestCliTest(unittest.TestCase):
             self.assertIn("`ares-evidence` for `artifact_consistency`", prompt)
             self.assertIn("same model row", prompt)
 
+    def test_model_spec_gate_selects_model_port_skill_context(self) -> None:
+        with TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            run_dir = root / "run"
+            cfg = config_from_args(
+                build_parser().parse_args(
+                    [
+                        "--ares-repo",
+                        str(root),
+                        "--run-dir",
+                        str(run_dir),
+                        "Provider/Model",
+                    ]
+                )
+            )
+            reward = {
+                "score": 0.0,
+                "alpha_execution": 0.0,
+                "tau_tokens": 0.0,
+                "delta_inference": 0.0,
+                "stage_cap": 0.03,
+                "first_failed_gate": "model_spec",
+                "gates": {},
+            }
+
+            skills = selected_workflow_skills(cfg, first_failed_gate="model_spec")
+            model_skill = next(
+                skill for skill in skills if skill.get("gate") == "model_spec"
+            )
+
+            self.assertEqual(model_skill["name"], "ares-model-port")
+            self.assertIn("model row inventory", model_skill["why"])
+            self.assertEqual(
+                model_skill["allowed_scope"],
+                [
+                    str(cfg.run_dir),
+                    str(cfg.model_spec_path),
+                    str(cfg.run_dir / "handoff.md"),
+                ],
+            )
+            run_dir.mkdir()
+            write_handoff(cfg, reward, state={"workflow_skills": skills, "history": []})
+            self.assertIn(
+                "`ares-model-port` for `model_spec`",
+                (run_dir / "handoff.md").read_text(),
+            )
+
     def test_cpp_tvd_selects_comparison_evidence_context(self) -> None:
         with TemporaryDirectory() as tmp:
             root = Path(tmp)

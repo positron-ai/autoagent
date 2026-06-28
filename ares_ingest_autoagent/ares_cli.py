@@ -168,6 +168,17 @@ def selected_workflow_skills(
         },
     ]
     gate_skills: dict[str, dict[str, Any]] = {
+        "model_spec": {
+            "name": "ares-model-port",
+            "gate": "model_spec",
+            "why": "Build or repair the model row inventory before artifact gates run.",
+            "allowed_scope": [
+                str(cfg.run_dir),
+                str(cfg.model_spec_path),
+                str(cfg.run_dir / "handoff.md"),
+            ],
+            "verification_commands": [verify],
+        },
         "hf_cpu_oracle": {
             "name": "ares-python",
             "gate": "hf_cpu_oracle",
