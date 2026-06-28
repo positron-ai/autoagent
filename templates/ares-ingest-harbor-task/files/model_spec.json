@@ -1,0 +1,23 @@
+{
+  "model": "hf-internal-testing/tiny-random-LlamaForCausalLM",
+  "work_dir": "/tmp/ares-ingest-template",
+  "required_gates": [
+    "model_spec",
+    "hf_cpu_oracle",
+    "frontend_export",
+    "lean_ingest",
+    "aresplan_valid",
+    "targetplan_valid"
+  ],
+  "explicit_gates": {
+    "model_spec": true,
+    "frontend_export": true,
+    "lean_ingest": true
+  },
+  "oracle_records": null,
+  "ares_plan": null,
+  "target_plan": null,
+  "command_gates": [],
+  "token_comparison": null,
+  "performance_comparison": null
+}
