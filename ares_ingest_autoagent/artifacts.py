@@ -1025,6 +1025,9 @@ def _validate_referenced_sha256(
     label: str,
 ) -> None:
     if base_dir is None:
+        errors.append(
+            f"{label}.sha256 cannot be verified without evidence path context"
+        )
         return
     path_value = value.get("path")
     digest_value = value.get("sha256")

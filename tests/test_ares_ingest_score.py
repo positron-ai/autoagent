@@ -5,7 +5,13 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from ares_ingest_autoagent.score import CPU_ONLY_GATES, compute_reward, main
+from ares_ingest_autoagent.artifacts import build_greedy_token_evidence
+from ares_ingest_autoagent.score import (
+    BACKEND_GATES,
+    CPU_ONLY_GATES,
+    compute_reward,
+    main,
+)
 
 
 def artifact_gate(validator: str) -> dict:
@@ -463,6 +469,100 @@ class AresIngestScoreTest(unittest.TestCase):
             reward = json.loads(out_json.read_text())
             self.assertEqual(reward["first_failed_gate"], "complete")
             self.assertEqual(out_txt.read_text().strip(), f"{reward['score']:.12g}")
+
+    def test_cli_rejects_stale_token_source_digest(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            gates = root / "gates.json"
+            validated_gates = root / "validated-gates.json"
+            oracle = root / "oracle.jsonl"
+            tokens = root / "tokens.json"
+            reference = root / "reference.json"
+            candidate = root / "candidate.json"
+            out_json = root / "reward.json"
+            out_txt = root / "reward.txt"
+            reference_payload = {"generated_token_ids": list(range(8))}
+            candidate_payload = {"generated_token_ids": list(range(8))}
+
+            gates.write_text(
+                json.dumps(
+                    {
+                        "gates": {
+                            "model_spec": True,
+                            "frontend_export": True,
+                            "lean_ingest": True,
+                        }
+                    }
+                )
+            )
+            validated_gates.write_text(
+                json.dumps(
+                    {
+                        "gates": {
+                            "aresplan_valid": artifact_gate("ares_plan"),
+                            "targetplan_valid": artifact_gate("target_plan"),
+                            "artifact_consistency": artifact_gate(
+                                "artifact_consistency"
+                            ),
+                            "shortcut_scan": artifact_gate("shortcut_scan"),
+                            "backend_open": artifact_gate("backend_open"),
+                            "one_token_logits": artifact_gate("one_token_logits"),
+                        }
+                    }
+                )
+            )
+            oracle.write_text(json.dumps(oracle_record()) + "\n")
+            reference.write_text(json.dumps(reference_payload))
+            candidate.write_text(json.dumps(candidate_payload))
+            tokens.write_text(
+                json.dumps(
+                    build_greedy_token_evidence(
+                        {
+                            "score": 1.0,
+                            "exact_match": True,
+                            "exact_fraction": 1.0,
+                            "top1_agreement": 1.0,
+                            "cases": [
+                                {
+                                    "name": "default",
+                                    "exact_match": True,
+                                    "candidate_length": 8,
+                                }
+                            ],
+                        },
+                        reference=reference,
+                        candidate=candidate,
+                        reference_payload=reference_payload,
+                        candidate_payload=candidate_payload,
+                    )
+                )
+            )
+            candidate.write_text(json.dumps({"generated_token_ids": [7] * 8}))
+
+            rc = main(
+                [
+                    "--gates",
+                    str(gates),
+                    "--validated-gates",
+                    str(validated_gates),
+                    "--oracle",
+                    str(oracle),
+                    "--tokens",
+                    str(tokens),
+                    "--required-gates",
+                    *BACKEND_GATES,
+                    "--output-json",
+                    str(out_json),
+                    "--output-txt",
+                    str(out_txt),
+                ]
+            )
+
+            self.assertEqual(rc, 0)
+            reward = json.loads(out_json.read_text())
+            self.assertEqual(reward["first_failed_gate"], "eight_token_greedy")
+            self.assertFalse(reward["gates"]["eight_token_greedy"]["passed"])
+            self.assertEqual(reward["tau_tokens"], 0.0)
 
 
 if __name__ == "__main__":

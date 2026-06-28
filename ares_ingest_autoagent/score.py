@@ -295,8 +295,12 @@ def _score_oracle_records(payload: Any) -> Gate:
     )
 
 
-def _score_token_agreement_payload(payload: Any) -> Gate:
-    validation = validate_token_agreement_evidence(payload)
+def _score_token_agreement_payload(
+    payload: Any,
+    *,
+    base_dir: Path | None = None,
+) -> Gate:
+    validation = validate_token_agreement_evidence(payload, base_dir=base_dir)
     return Gate(
         passed=validation.passed,
         score=1.0 if validation.passed else 0.0,
@@ -313,6 +317,7 @@ def compute_reward(
     validated_gates_payload: Any = None,
     oracle_payload: Any = None,
     token_payload: Any = None,
+    token_payload_base_dir: Path | None = None,
     performance_payload: Any = None,
     one_token_payload: Any = None,
     required_gates: tuple[str, ...] = STANDARD_GATES,
@@ -333,7 +338,10 @@ def compute_reward(
         and "eight_token_greedy" in required_gates
         and "eight_token_greedy" not in gates
     ):
-        gates["eight_token_greedy"] = _score_token_agreement_payload(token_payload)
+        gates["eight_token_greedy"] = _score_token_agreement_payload(
+            token_payload,
+            base_dir=token_payload_base_dir,
+        )
 
     enforce_artifact_gate_evidence(gates, required_gates)
 
@@ -342,6 +350,11 @@ def compute_reward(
 
     alpha_execution, alpha_components = compute_alpha_execution(gates, required_gates)
     tau_tokens = score_token_results(token_payload)
+    token_gate = gates.get("eight_token_greedy")
+    if "eight_token_greedy" in required_gates and (
+        token_gate is None or not token_gate.passed
+    ):
+        tau_tokens = 0.0
     delta_inference = score_performance_results(performance_payload)
     if not is_scoring_workload(
         performance_payload.get("workload")
@@ -458,6 +471,7 @@ def main(argv: list[str] | None = None) -> int:
         validated_gates_payload=read_json(args.validated_gates),
         oracle_payload=_read_json_or_jsonl(args.oracle),
         token_payload=read_json(args.tokens),
+        token_payload_base_dir=args.tokens.parent if args.tokens is not None else None,
         performance_payload=read_json(args.performance),
         one_token_payload=read_json(args.one_token),
         required_gates=tuple(args.required_gates),
