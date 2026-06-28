@@ -386,8 +386,18 @@ class AresIngestEvaluatorTest(unittest.TestCase):
                 "one-token.json": json.dumps(one_token_logits_evidence()) + "\n",
                 "cpp-tvd.json": json.dumps(cpp_tvd_evidence()) + "\n",
                 "depth.json": json.dumps(depth_performance_evidence()) + "\n",
-                "reference_tokens.json": json.dumps([1, 2, 3, 4, 5, 6, 7, 8]),
-                "candidate_tokens.json": json.dumps([1, 2, 3, 4, 5, 6, 7, 8]),
+                "reference_tokens.json": json.dumps(
+                    {
+                        "token_ids": [99, 98],
+                        "generated_token_ids": [1, 2, 3, 4, 5, 6, 7, 8],
+                    }
+                ),
+                "candidate_tokens.json": json.dumps(
+                    {
+                        "token_ids": [99, 98],
+                        "generated_token_ids": [1, 2, 3, 4, 5, 6, 7, 8],
+                    }
+                ),
                 "measured.log": "Throughput 80.0 tok/s\n",
                 "speed.json": json.dumps(
                     {

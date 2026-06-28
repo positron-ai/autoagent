@@ -72,6 +72,19 @@ def read_json_or_jsonl(path: Path) -> Any:
     return json.loads(text)
 
 
+def generated_payload(payload: Any) -> Any:
+    if not isinstance(payload, dict):
+        return payload
+    if isinstance(payload.get("generated_token_ids"), list):
+        return {"tokens": payload["generated_token_ids"]}
+    generation = payload.get("generation")
+    if isinstance(generation, dict) and isinstance(
+        generation.get("generated_token_ids"), list
+    ):
+        return {"tokens": generation["generated_token_ids"]}
+    return payload
+
+
 def main() -> int:
     task_files = Path(os.environ.get("TASK_FILES_DIR", "/task/files"))
     spec_path = Path(os.environ.get("MODEL_SPEC", task_files / "model_spec.json"))
@@ -182,17 +195,17 @@ def main() -> int:
         )
         gates["depth_performance"] = validated_gates["depth_performance"]
 
+    token_results_path = None
     if eight_token := spec.get("eight_token_greedy_evidence") or spec.get(
         "token_results_json"
     ):
-        validated_gates["eight_token_greedy"] = token_agreement_gate(
-            resolve_path(
-                eight_token,
-                task_files=task_files,
-                ares_repo=ares_repo,
-                work_dir=work_dir,
-            )
+        token_results_path = resolve_path(
+            eight_token,
+            task_files=task_files,
+            ares_repo=ares_repo,
+            work_dir=work_dir,
         )
+        validated_gates["eight_token_greedy"] = token_agreement_gate(token_results_path)
         gates["eight_token_greedy"] = validated_gates["eight_token_greedy"]
 
     command_wrapper_plan = build_command_wrapper_plan(
@@ -228,7 +241,6 @@ def main() -> int:
         gates[name] = gate
         write_json(gates_path, {"gates": gates})
 
-    token_results_path = None
     if token_spec := spec.get("token_comparison"):
         reference = resolve_path(
             token_spec["reference"],
@@ -243,13 +255,18 @@ def main() -> int:
             work_dir=work_dir,
         )
         token_results_path = work_dir / token_spec.get("output", "tokens.json")
+        reference_payload = read_payload(reference)
+        candidate_payload = read_payload(candidate)
         token_result = compare_payloads(
-            read_payload(reference), read_payload(candidate)
+            generated_payload(reference_payload),
+            generated_payload(candidate_payload),
         )
         token_evidence = build_greedy_token_evidence(
             token_result,
             reference=reference,
             candidate=candidate,
+            reference_payload=reference_payload,
+            candidate_payload=candidate_payload,
             expected_generated_tokens=int(
                 token_spec.get("expected_generated_tokens", 8)
             ),

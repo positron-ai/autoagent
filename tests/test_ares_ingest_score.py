@@ -21,6 +21,10 @@ def token_evidence(length: int = 8, *, exact: bool = True) -> dict:
         "decode_strategy": "greedy",
         "expected_generated_tokens": 8,
         "generated_tokens": length,
+        "reference_generated_token_ids": list(range(length)),
+        "candidate_generated_token_ids": list(range(length))
+        if exact
+        else [99] * length,
         "score": 1.0 if exact else 0.0,
         "exact_match": exact,
         "exact_fraction": 1.0 if exact else 0.875,

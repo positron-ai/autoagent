@@ -307,8 +307,16 @@ class AresIngestArtifactTest(unittest.TestCase):
             reference = root / "reference.json"
             candidate = root / "candidate.json"
             path = root / "tokens.json"
-            reference.write_text(json.dumps(list(range(8))))
-            candidate.write_text(json.dumps(list(range(8))))
+            reference_payload = {
+                "token_ids": [99],
+                "generated_token_ids": list(range(8)),
+            }
+            candidate_payload = {
+                "token_ids": [99],
+                "generated_token_ids": list(range(8)),
+            }
+            reference.write_text(json.dumps(reference_payload))
+            candidate.write_text(json.dumps(candidate_payload))
             path.write_text(
                 json.dumps(
                     build_greedy_token_evidence(
@@ -327,6 +335,8 @@ class AresIngestArtifactTest(unittest.TestCase):
                         },
                         reference=reference,
                         candidate=candidate,
+                        reference_payload=reference_payload,
+                        candidate_payload=candidate_payload,
                     )
                 )
             )
@@ -342,8 +352,10 @@ class AresIngestArtifactTest(unittest.TestCase):
             reference = root / "reference.json"
             candidate = root / "candidate.json"
             path = root / "tokens.json"
-            reference.write_text(json.dumps([1, 2, 3]))
-            candidate.write_text(json.dumps([1, 2, 3]))
+            reference_payload = {"generated_token_ids": [1, 2, 3]}
+            candidate_payload = {"generated_token_ids": [1, 2, 3]}
+            reference.write_text(json.dumps(reference_payload))
+            candidate.write_text(json.dumps(candidate_payload))
             path.write_text(
                 json.dumps(
                     build_greedy_token_evidence(
@@ -362,6 +374,8 @@ class AresIngestArtifactTest(unittest.TestCase):
                         },
                         reference=reference,
                         candidate=candidate,
+                        reference_payload=reference_payload,
+                        candidate_payload=candidate_payload,
                     )
                 )
             )
@@ -370,6 +384,46 @@ class AresIngestArtifactTest(unittest.TestCase):
 
             self.assertFalse(gate["passed"])
             self.assertIn("expected at least 8", " ".join(gate["errors"]))
+
+    def test_token_agreement_gate_rejects_stale_source_digest(self) -> None:
+        with TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            reference = root / "reference.json"
+            candidate = root / "candidate.json"
+            path = root / "tokens.json"
+            reference_payload = {"generated_token_ids": list(range(8))}
+            candidate_payload = {"generated_token_ids": list(range(8))}
+            reference.write_text(json.dumps(reference_payload))
+            candidate.write_text(json.dumps(candidate_payload))
+            path.write_text(
+                json.dumps(
+                    build_greedy_token_evidence(
+                        {
+                            "score": 1.0,
+                            "exact_match": True,
+                            "exact_fraction": 1.0,
+                            "top1_agreement": 1.0,
+                            "cases": [
+                                {
+                                    "name": "default",
+                                    "exact_match": True,
+                                    "candidate_length": 8,
+                                }
+                            ],
+                        },
+                        reference=reference,
+                        candidate=candidate,
+                        reference_payload=reference_payload,
+                        candidate_payload=candidate_payload,
+                    )
+                )
+            )
+            candidate.write_text(json.dumps({"generated_token_ids": [7] * 8}))
+
+            gate = token_agreement_gate(path)
+
+            self.assertFalse(gate["passed"])
+            self.assertIn("sha256 does not match", " ".join(gate["errors"]))
 
     def test_depth_performance_gate_requires_full_ladder(self) -> None:
         with TemporaryDirectory() as tmp:

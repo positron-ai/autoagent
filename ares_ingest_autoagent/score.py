@@ -328,7 +328,11 @@ def compute_reward(
     if one_token_payload is not None:
         gates["one_token_logits"] = _score_logit_payload(one_token_payload)
 
-    if token_payload is not None and "eight_token_greedy" in required_gates:
+    if (
+        token_payload is not None
+        and "eight_token_greedy" in required_gates
+        and "eight_token_greedy" not in gates
+    ):
         gates["eight_token_greedy"] = _score_token_agreement_payload(token_payload)
 
     enforce_artifact_gate_evidence(gates, required_gates)

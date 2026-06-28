@@ -71,7 +71,9 @@ For local development, mount or copy:
 - `token_comparison`: optional reference/candidate token files for
   `tau_tokens`; when `eight_token_greedy` is required, the evaluator converts
   this comparison into `ares.runtime.greedy_token_agreement.v1` evidence and
-  validates it before closing the gate.
+  validates it before closing the gate. The token files must expose
+  generated-only ids as `generated_token_ids` or
+  `generation.generated_token_ids`.
 - `performance_comparison`: optional measured/speed target files for
   `delta_inference`.
 

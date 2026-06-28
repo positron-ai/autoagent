@@ -189,6 +189,19 @@ def read_json_or_jsonl(path: Path) -> Any:
         raise AresIngestError(f"invalid JSON in {path}: {exc}") from exc
 
 
+def generated_payload(payload: Any) -> Any:
+    if not isinstance(payload, Mapping):
+        return payload
+    if isinstance(payload.get("generated_token_ids"), list):
+        return {"tokens": payload["generated_token_ids"]}
+    generation = payload.get("generation")
+    if isinstance(generation, Mapping) and isinstance(
+        generation.get("generated_token_ids"), list
+    ):
+        return {"tokens": generation["generated_token_ids"]}
+    return payload
+
+
 def write_handoff(
     cfg: AresIngestConfig,
     reward: dict[str, Any],
@@ -372,13 +385,18 @@ def evaluate_run(cfg: AresIngestConfig) -> tuple[dict[str, Any], dict[str, Any]]
             raise AresIngestError("model_spec token_comparison must be a JSON object")
         reference = resolve_run_path(str(token_spec["reference"]), cfg)
         candidate = resolve_run_path(str(token_spec["candidate"]), cfg)
+        reference_payload = read_payload(reference)
+        candidate_payload = read_payload(candidate)
         token_result = compare_payloads(
-            read_payload(reference), read_payload(candidate)
+            generated_payload(reference_payload),
+            generated_payload(candidate_payload),
         )
         token_payload = build_greedy_token_evidence(
             token_result,
             reference=reference,
             candidate=candidate,
+            reference_payload=reference_payload,
+            candidate_payload=candidate_payload,
             expected_generated_tokens=int(
                 token_spec.get("expected_generated_tokens", 8)
             ),

@@ -237,11 +237,35 @@ def depth_performance_gate(
 def token_agreement_gate(
     path: Path, *, label: str = "eight-token greedy evidence"
 ) -> dict[str, Any]:
-    return evidence_gate(
-        path,
+    if not path.is_file():
+        return {
+            "label": label,
+            "artifact_validator": "eight_token_greedy",
+            "path": str(path),
+            "exists": path.exists(),
+            "passed": False,
+            "score": 0.0,
+            "errors": ["evidence file is missing"],
+        }
+    try:
+        payload = _read_json_or_jsonl(path)
+    except ValueError as exc:
+        return {
+            "label": label,
+            "artifact_validator": "eight_token_greedy",
+            "path": str(path),
+            "exists": True,
+            "passed": False,
+            "score": 0.0,
+            "errors": [str(exc)],
+        }
+    return validate_token_agreement_evidence(
+        payload,
+        base_dir=path.parent,
+    ).as_gate(
         label=label,
         validator_name="eight_token_greedy",
-        validator=validate_token_agreement_evidence,
+        path=path,
     )
 
 
@@ -250,12 +274,16 @@ def build_greedy_token_evidence(
     *,
     reference: Path,
     candidate: Path,
+    reference_payload: Any,
+    candidate_payload: Any,
     expected_generated_tokens: int = 8,
     evidence_class: str = "system_under_test",
     oracle: str = HF_CPU_ORACLE_KIND,
     candidate_runtime: str = "ares",
 ) -> dict[str, Any]:
     evidence = dict(token_result)
+    reference_generated = _generated_token_ids(reference_payload)
+    candidate_generated = _generated_token_ids(candidate_payload)
     evidence.update(
         {
             "schema": "ares.runtime.greedy_token_agreement.v1",
@@ -264,7 +292,11 @@ def build_greedy_token_evidence(
             "candidate": candidate_runtime,
             "decode_strategy": "greedy",
             "expected_generated_tokens": expected_generated_tokens,
-            "generated_tokens": _token_result_generated_count(token_result),
+            "generated_tokens": (
+                len(candidate_generated) if candidate_generated is not None else None
+            ),
+            "reference_generated_token_ids": reference_generated,
+            "candidate_generated_token_ids": candidate_generated,
             "exact_match": _token_result_exact_match(token_result),
             "reference": {
                 "path": str(reference),
@@ -667,7 +699,11 @@ def validate_depth_performance_evidence(payload: Any) -> ArtifactValidation:
     return _validation(not errors, errors, detail)
 
 
-def validate_token_agreement_evidence(payload: Any) -> ArtifactValidation:
+def validate_token_agreement_evidence(
+    payload: Any,
+    *,
+    base_dir: Path | None = None,
+) -> ArtifactValidation:
     errors: list[str] = []
     root = _payload_root(payload, errors, "eight-token greedy evidence")
     if root is None:
@@ -702,14 +738,38 @@ def validate_token_agreement_evidence(payload: Any) -> ArtifactValidation:
     if not isinstance(expected, int) or expected < 8:
         errors.append("eight-token expected_generated_tokens must be an integer >= 8")
         expected = 8
+    reference_generated = _int_list(root.get("reference_generated_token_ids"))
+    candidate_generated = _int_list(root.get("candidate_generated_token_ids"))
+    if reference_generated is None:
+        errors.append(
+            "eight-token reference_generated_token_ids must be a list of integers"
+        )
+    if candidate_generated is None:
+        errors.append(
+            "eight-token candidate_generated_token_ids must be a list of integers"
+        )
+
     generated = root.get("generated_tokens")
-    if not isinstance(generated, int):
-        generated = _token_result_generated_count(root)
-    if not isinstance(generated, int):
+    if candidate_generated is not None:
+        if not isinstance(generated, int):
+            errors.append("eight-token generated_tokens must be an integer")
+        elif generated != len(candidate_generated):
+            errors.append(
+                "eight-token generated_tokens must match candidate_generated_token_ids length"
+            )
+    elif not isinstance(generated, int):
         errors.append("eight-token generated_tokens must be an integer")
-    elif generated < expected:
+    if isinstance(generated, int) and generated < expected:
         errors.append(
             f"eight-token evidence generated {generated} token(s), expected at least {expected}"
+        )
+    if (
+        reference_generated is not None
+        and candidate_generated is not None
+        and reference_generated != candidate_generated
+    ):
+        errors.append(
+            "eight-token reference_generated_token_ids and candidate_generated_token_ids must match"
         )
 
     score = root.get("score")
@@ -728,6 +788,7 @@ def validate_token_agreement_evidence(payload: Any) -> ArtifactValidation:
     if reference is not None:
         _require_non_empty_string(errors, reference.get("path"), "reference.path")
         _require_sha256(errors, reference.get("sha256"), "reference.sha256")
+        _validate_referenced_sha256(errors, reference, base_dir, "reference")
     candidate_output = _expect_object(
         errors, root.get("candidate_output"), "eight-token candidate_output"
     )
@@ -737,6 +798,9 @@ def validate_token_agreement_evidence(payload: Any) -> ArtifactValidation:
         )
         _require_sha256(
             errors, candidate_output.get("sha256"), "candidate_output.sha256"
+        )
+        _validate_referenced_sha256(
+            errors, candidate_output, base_dir, "candidate_output"
         )
         runtime = candidate_output.get("runtime")
         if runtime is not None and runtime not in ARES_RUNTIME_CANDIDATES:
@@ -928,6 +992,53 @@ def _sha256_file(path: Path) -> str:
         for chunk in iter(lambda: handle.read(1024 * 1024), b""):
             digest.update(chunk)
     return digest.hexdigest()
+
+
+def _generated_token_ids(payload: Any) -> list[int] | None:
+    if not isinstance(payload, Mapping):
+        return None
+    for key in (
+        "generated_token_ids",
+        "generated_tokens",
+        "candidate_generated_token_ids",
+        "reference_generated_token_ids",
+    ):
+        tokens = _int_list(payload.get(key))
+        if tokens is not None:
+            return tokens
+    generation = payload.get("generation")
+    if isinstance(generation, Mapping):
+        return _int_list(generation.get("generated_token_ids"))
+    return None
+
+
+def _int_list(value: Any) -> list[int] | None:
+    if not isinstance(value, list) or not all(isinstance(item, int) for item in value):
+        return None
+    return list(value)
+
+
+def _validate_referenced_sha256(
+    errors: list[str],
+    value: Mapping[str, Any],
+    base_dir: Path | None,
+    label: str,
+) -> None:
+    if base_dir is None:
+        return
+    path_value = value.get("path")
+    digest_value = value.get("sha256")
+    if not isinstance(path_value, str) or not isinstance(digest_value, str):
+        return
+    path = Path(path_value)
+    if not path.is_absolute():
+        path = base_dir / path
+    if not path.is_file():
+        errors.append(f"{label}.path does not exist: {path}")
+        return
+    actual = _sha256_file(path)
+    if actual != digest_value.lower():
+        errors.append(f"{label}.sha256 does not match referenced file")
 
 
 def _token_result_generated_count(payload: Mapping[str, Any]) -> int | None:

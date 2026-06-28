@@ -122,7 +122,8 @@ not scoring evidence by themselves. Attach post-processed
 `depth_performance_evidence` files to close the corresponding validator-backed
 gates. A `token_comparison` block also writes `tokens.json` as
 `ares.runtime.greedy_token_agreement.v1` evidence and validates it as
-`eight_token_greedy` when that gate is required. The runtime launchers
-currently consume `ares_plan`; keep `target_plan` attached separately as
-validator evidence instead of treating the wrapper command itself as TargetPlan
-proof.
+`eight_token_greedy` when that gate is required; its reference and candidate
+files must expose generated-only token ids as `generated_token_ids` or
+`generation.generated_token_ids`. The runtime launchers currently consume
+`ares_plan`; keep `target_plan` attached separately as validator evidence
+instead of treating the wrapper command itself as TargetPlan proof.
