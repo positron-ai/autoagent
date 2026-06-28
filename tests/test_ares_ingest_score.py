@@ -5,7 +5,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from ares_ingest_autoagent.score import compute_reward, main
+from ares_ingest_autoagent.score import CPU_ONLY_GATES, compute_reward, main
 
 
 def oracle_record(
@@ -13,10 +13,82 @@ def oracle_record(
     oracle: str = "huggingface_transformers_pytorch_cpu",
 ) -> dict:
     return {
+        "schema": "ares.oracles.hf_cpu.record.v1",
         "record_kind": kind,
-        "source": {"oracle": oracle},
-        "prompt_token_ids": [1, 2, 3],
-        "generated_token_ids": [4],
+        "capture_id": "test-capture",
+        "created_utc": "2026-06-26T00:00:00Z",
+        "source": {
+            "oracle": oracle,
+            "capture_script": "tools/oracles/hf-cpu/capture_hf_cpu_oracle.py",
+        },
+        "model": {
+            "model_id": "synthetic/model",
+            "requested_revision": "0123456789abcdef0123456789abcdef01234567",
+            "resolved_revision": "0123456789abcdef0123456789abcdef01234567",
+            "dtype": "float32",
+        },
+        "tokenizer": {
+            "tokenizer_id": "synthetic/model",
+            "requested_revision": "0123456789abcdef0123456789abcdef01234567",
+            "resolved_revision": "0123456789abcdef0123456789abcdef01234567",
+        },
+        "run": {
+            "seed": 0,
+            "decode_strategy": "greedy",
+            "max_new_tokens": 2,
+            "top_k": 2,
+            "torch_deterministic_algorithms": True,
+            "local_files_only": True,
+            "trust_remote_code": False,
+        },
+        "prompt": {
+            "kind": "raw",
+            "text": "Hello",
+            "token_ids": [1, 7],
+            "token_count": 2,
+            "add_special_tokens": True,
+        },
+        "generation": {
+            "generated_token_ids": [3, 2],
+            "generated_token_count": 2,
+            "generated_text": " world</s>",
+            "finish_reason": "eos_token",
+            "eos_token_id": 2,
+            "eos_token_ids": [2],
+            "stop_token_id": 2,
+        },
+        "logit_slices": [
+            {
+                "step": 0,
+                "position": 1,
+                "context_token_count": 2,
+                "selected_token_id": 3,
+                "selected_token_text": " world",
+                "selected_token_logit": 12.5,
+                "top_k": [
+                    {"rank": 1, "token_id": 3, "token_text": " world", "logit": 12.5},
+                    {"rank": 2, "token_id": 4, "token_text": " there", "logit": 8.0},
+                ],
+            },
+            {
+                "step": 1,
+                "position": 2,
+                "context_token_count": 3,
+                "selected_token_id": 2,
+                "selected_token_text": "</s>",
+                "selected_token_logit": 9.25,
+                "top_k": [
+                    {"rank": 1, "token_id": 2, "token_text": "</s>", "logit": 9.25},
+                    {"rank": 2, "token_id": 5, "token_text": "!", "logit": 4.0},
+                ],
+            },
+        ],
+        "environment": {
+            "python_version": "3.12.13",
+            "platform": "test-platform",
+            "torch_version": "test-torch",
+            "transformers_version": "test-transformers",
+        },
     }
 
 
@@ -53,6 +125,31 @@ class AresIngestScoreTest(unittest.TestCase):
         self.assertEqual(reward["tau_tokens"], 1.0)
         self.assertEqual(reward["delta_inference"], 1.0)
 
+    def test_default_required_gates_do_not_require_cpp_or_hardware(self) -> None:
+        reward = compute_reward(
+            gates_payload={
+                "gates": {
+                    "model_spec": True,
+                    "frontend_export": True,
+                    "lean_ingest": True,
+                    "aresplan_valid": True,
+                    "targetplan_valid": True,
+                }
+            },
+            oracle_payload=oracle_record(),
+            token_payload={"score": 1.0},
+            performance_payload={
+                "workload": "independent_decode",
+                "measured_tokens_per_second": 100.0,
+                "speed_of_light_tokens_per_second": 100.0,
+            },
+        )
+
+        for gate in CPU_ONLY_GATES:
+            self.assertIn(gate, reward["gates"])
+        self.assertEqual(reward["first_failed_gate"], "complete")
+        self.assertNotIn("cpp_tvd", reward["gates"])
+
     def test_missing_targetplan_caps_fast_token_match(self) -> None:
         reward = compute_reward(
             gates_payload={
@@ -79,6 +176,19 @@ class AresIngestScoreTest(unittest.TestCase):
                 kind="mock_fixture",
                 oracle="mock_fixture_not_oracle",
             ),
+            required_gates=("model_spec", "hf_cpu_oracle"),
+        )
+
+        self.assertEqual(reward["first_failed_gate"], "hf_cpu_oracle")
+        self.assertFalse(reward["gates"]["hf_cpu_oracle"]["passed"])
+
+    def test_incomplete_oracle_cannot_satisfy_oracle_gate(self) -> None:
+        reward = compute_reward(
+            gates_payload={"gates": {"model_spec": True}},
+            oracle_payload={
+                "record_kind": "hf_cpu_oracle_capture",
+                "source": {"oracle": "huggingface_transformers_pytorch_cpu"},
+            },
             required_gates=("model_spec", "hf_cpu_oracle"),
         )
 

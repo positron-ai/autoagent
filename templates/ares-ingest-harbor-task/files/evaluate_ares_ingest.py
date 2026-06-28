@@ -10,9 +10,9 @@ import sys
 from pathlib import Path
 from typing import Any
 
+from ares_ingest_autoagent.artifacts import ares_plan_gate, target_plan_gate
 from ares_ingest_autoagent.gates import (
     evaluate_command_gate,
-    file_gate,
     read_payload,
     run_command,
     write_json,
@@ -87,24 +87,20 @@ def main() -> int:
         oracle_summary = None
 
     if ares_plan := spec.get("ares_plan"):
-        gates["aresplan_valid"] = file_gate(
+        gates["aresplan_valid"] = ares_plan_gate(
             resolve_path(
                 ares_plan, task_files=task_files, ares_repo=ares_repo, work_dir=work_dir
-            ),
-            label="generated AresPlan",
-            require_json=True,
+            )
         )
 
     if target_plan := spec.get("target_plan"):
-        gates["targetplan_valid"] = file_gate(
+        gates["targetplan_valid"] = target_plan_gate(
             resolve_path(
                 target_plan,
                 task_files=task_files,
                 ares_repo=ares_repo,
                 work_dir=work_dir,
-            ),
-            label="Lean TargetPlan",
-            require_json=True,
+            )
         )
 
     for command_gate in spec.get("command_gates", []):

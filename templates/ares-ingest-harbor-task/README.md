@@ -53,5 +53,7 @@ For local development, mount or copy:
 - `performance_comparison`: optional measured/speed target files for
   `delta_inference`.
 
-Only enable hardware or C++ comparison gates on machines where the required
-cards, model artifacts, and comparison binaries are present.
+The default setup profile should require only CPU-side gates through
+`targetplan_valid`. Enable backend, C++ comparison, or performance gates only
+when the task environment supplies the corresponding generated artifacts,
+runtime backend, model checkpoint, and comparison binaries.

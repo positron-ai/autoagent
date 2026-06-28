@@ -21,6 +21,8 @@ from tron_ingest_autoagent.score import (
     score_token_results,
 )
 
+from ares_ingest_autoagent.artifacts import validate_hf_cpu_oracle_record
+
 
 STAGE_CAPS: dict[str, float] = {
     "not_started": 0.0,
@@ -39,19 +41,32 @@ STAGE_CAPS: dict[str, float] = {
     "complete": 1.00,
 }
 
-STANDARD_GATES: tuple[str, ...] = (
+CPU_ONLY_GATES: tuple[str, ...] = (
     "model_spec",
     "hf_cpu_oracle",
     "frontend_export",
     "lean_ingest",
     "aresplan_valid",
     "targetplan_valid",
+)
+
+BACKEND_GATES: tuple[str, ...] = (
+    *CPU_ONLY_GATES,
     "backend_open",
     "one_token_logits",
     "eight_token_greedy",
-    "cpp_tvd",
-    "depth_performance",
 )
+
+COMPARISON_GATES: tuple[str, ...] = (*BACKEND_GATES, "cpp_tvd")
+FULL_GATES: tuple[str, ...] = (*COMPARISON_GATES, "depth_performance")
+STANDARD_GATES: tuple[str, ...] = CPU_ONLY_GATES
+
+GATE_PROFILES: dict[str, tuple[str, ...]] = {
+    "cpu-only": CPU_ONLY_GATES,
+    "backend": BACKEND_GATES,
+    "comparison": COMPARISON_GATES,
+    "full": FULL_GATES,
+}
 
 ALPHA_EXECUTION_WEIGHTS: dict[str, float] = {
     "model_spec": 0.05,
@@ -126,14 +141,35 @@ def first_failed_gate(gates: dict[str, Gate], required: tuple[str, ...]) -> str:
     return "complete"
 
 
-def compute_alpha_execution(gates: dict[str, Gate]) -> tuple[float, dict[str, float]]:
+def required_gates_for_profile(profile: str) -> tuple[str, ...]:
+    try:
+        return GATE_PROFILES[profile]
+    except KeyError as exc:
+        known = ", ".join(sorted(GATE_PROFILES))
+        raise ValueError(
+            f"unknown gate profile {profile!r}; expected one of {known}"
+        ) from exc
+
+
+def compute_alpha_execution(
+    gates: dict[str, Gate],
+    required_gates: tuple[str, ...] = STANDARD_GATES,
+) -> tuple[float, dict[str, float]]:
     components: dict[str, float] = {}
-    for name in ALPHA_EXECUTION_WEIGHTS:
+    active_weights = {
+        name: weight
+        for name, weight in ALPHA_EXECUTION_WEIGHTS.items()
+        if name in required_gates
+    }
+    for name in active_weights:
         gate = gates.get(name)
         components[name] = gate.score if gate is not None else 0.0
-    alpha = sum(
-        ALPHA_EXECUTION_WEIGHTS[name] * components[name]
-        for name in ALPHA_EXECUTION_WEIGHTS
+    weight_total = sum(active_weights.values())
+    alpha = (
+        sum(active_weights[name] * components[name] for name in active_weights)
+        / weight_total
+        if weight_total
+        else 0.0
     )
     return clamp(alpha), components
 
@@ -168,21 +204,21 @@ def _score_oracle_records(payload: Any) -> Gate:
     if not records or not all(isinstance(record, dict) for record in records):
         return Gate(False, 0.0, {"error": "oracle payload must be object/list"})
 
-    valid = []
+    validations = []
     for record in records:
-        source = record.get("source")
-        oracle = source.get("oracle") if isinstance(source, dict) else None
-        valid.append(
-            record.get("record_kind") == "hf_cpu_oracle_capture"
-            and oracle == "huggingface_transformers_pytorch_cpu"
-        )
-    passed = all(valid)
+        validations.append(validate_hf_cpu_oracle_record(record))
+    passed = all(validation.passed for validation in validations)
     return Gate(
         passed=passed,
         score=1.0 if passed else 0.0,
         detail={
             "records": len(records),
-            "valid_records": sum(1 for item in valid if item),
+            "valid_records": sum(1 for validation in validations if validation.passed),
+            "errors": [
+                {"index": index, "errors": list(validation.errors)}
+                for index, validation in enumerate(validations)
+                if validation.errors
+            ],
         },
     )
 
@@ -207,7 +243,7 @@ def compute_reward(
     first_failed = first_failed_gate(gates, required_gates)
     stage_cap = STAGE_CAPS.get(first_failed, 0.0)
 
-    alpha_execution, alpha_components = compute_alpha_execution(gates)
+    alpha_execution, alpha_components = compute_alpha_execution(gates, required_gates)
     tau_tokens = score_token_results(token_payload)
     delta_inference = score_performance_results(performance_payload)
     if not is_scoring_workload(

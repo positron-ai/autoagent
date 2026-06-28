@@ -11,7 +11,11 @@ from pathlib import Path
 from typing import Any
 
 from ares_ingest_autoagent.gates import write_json
-from ares_ingest_autoagent.score import compute_reward
+from ares_ingest_autoagent.score import (
+    GATE_PROFILES,
+    compute_reward,
+    required_gates_for_profile,
+)
 
 
 DEFAULT_REFINER_COMMAND = (
@@ -30,6 +34,7 @@ class AresIngestConfig:
     target_score: float
     max_iterations: int | None
     refinement_command: str | None
+    gate_profile: str
 
 
 def utc_stamp() -> str:
@@ -55,19 +60,8 @@ def build_model_spec(cfg: AresIngestConfig) -> dict[str, Any]:
         "ares_repo": str(cfg.ares_repo),
         "frontend": "fx",
         "backend": "tron",
-        "required_gates": [
-            "model_spec",
-            "hf_cpu_oracle",
-            "frontend_export",
-            "lean_ingest",
-            "aresplan_valid",
-            "targetplan_valid",
-            "backend_open",
-            "one_token_logits",
-            "eight_token_greedy",
-            "cpp_tvd",
-            "depth_performance",
-        ],
+        "gate_profile": cfg.gate_profile,
+        "required_gates": list(required_gates_for_profile(cfg.gate_profile)),
         "explicit_gates": {
             "model_spec": {
                 "passed": True,
@@ -156,6 +150,7 @@ def config_from_args(args: argparse.Namespace) -> AresIngestConfig:
         target_score=args.target_score,
         max_iterations=args.max_iterations,
         refinement_command=None if args.no_refiner else args.refinement_command,
+        gate_profile=args.gate_profile,
     )
 
 
@@ -171,12 +166,14 @@ def initialize_run(cfg: AresIngestConfig) -> dict[str, Any]:
     write_json(cfg.run_dir / "reward.json", reward)
     (cfg.run_dir / "reward.txt").write_text(f"{reward['score']:.12g}\n")
     state = {
-        "status": "initialized",
+        "status": "initialized_setup_only",
         "model": cfg.model_slug,
         "safe_model": cfg.safe_model,
         "target_score": cfg.target_score,
         "max_iterations": cfg.max_iterations,
         "refinement_command": cfg.refinement_command,
+        "gate_profile": cfg.gate_profile,
+        "refinement_loop": "not_implemented",
         "reward": reward_fingerprint(reward),
     }
     write_json(cfg.run_dir / "state.json", state)
@@ -190,17 +187,31 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--ares-repo", default=".", help="Ares repository root")
     parser.add_argument("--run-dir", help="Explicit run directory")
     parser.add_argument("--target-score", type=float, default=1.0)
-    parser.add_argument("--max-iterations", type=int)
-    parser.add_argument("--no-refiner", action="store_true")
+    parser.add_argument(
+        "--max-iterations",
+        type=int,
+        help="Reserved for the future refinement loop; ignored in setup-only mode",
+    )
+    parser.add_argument(
+        "--no-refiner",
+        action="store_true",
+        help="Reserved for the future refinement loop; ignored in setup-only mode",
+    )
     parser.add_argument(
         "--refinement-command",
         default=DEFAULT_REFINER_COMMAND,
-        help="Command used between non-terminal verifier runs",
+        help="Reserved for the future refinement loop; ignored in setup-only mode",
+    )
+    parser.add_argument(
+        "--gate-profile",
+        choices=sorted(GATE_PROFILES),
+        default="cpu-only",
+        help="Gate profile for the generated model_spec.json",
     )
     parser.add_argument(
         "--setup-only",
         action="store_true",
-        help="Create run state and exit without invoking a refiner",
+        help="Create run state and exit; this scaffold has no refiner loop yet",
     )
     parser.add_argument("--print-json", action="store_true")
     return parser
@@ -209,6 +220,11 @@ def build_parser() -> argparse.ArgumentParser:
 def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
+    if not args.setup_only:
+        parser.error(
+            "the Ares ingest CLI currently only initializes setup state; "
+            "pass --setup-only"
+        )
     cfg = config_from_args(args)
     state = initialize_run(cfg)
     if args.print_json:
