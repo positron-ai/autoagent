@@ -253,6 +253,39 @@ class AresIngestCliTest(unittest.TestCase):
             state = json.loads((run_dir / "state.json").read_text())
             self.assertEqual(state["refinement_loop"], "setup_only")
 
+    def test_backend_profile_writes_command_wrapper_plan(self) -> None:
+        with TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            run_dir = root / "run"
+
+            rc = main(
+                [
+                    "--ares-repo",
+                    str(root),
+                    "--run-dir",
+                    str(run_dir),
+                    "--gate-profile",
+                    "backend",
+                    "--setup-only",
+                    "Provider/Model",
+                ]
+            )
+
+            self.assertEqual(rc, 0)
+            spec = json.loads((run_dir / "model_spec.json").read_text())
+            self.assertEqual(spec["command_wrapper_plan"], "command_wrappers.json")
+            plan = json.loads((run_dir / "command_wrappers.json").read_text())
+            self.assertEqual(plan["schema"], "ares.autoagent.command_wrappers.v1")
+            self.assertFalse(plan["execute_command_wrappers"])
+            self.assertEqual(plan["command_gates"], [])
+            self.assertEqual(
+                {wrapper["name"] for wrapper in plan["wrappers"]},
+                {"rinzler_chat_one_token", "rinzler_full_inference_smoke"},
+            )
+            self.assertTrue(
+                all(wrapper["missing_inputs"] for wrapper in plan["wrappers"])
+            )
+
 
 if __name__ == "__main__":
     unittest.main()

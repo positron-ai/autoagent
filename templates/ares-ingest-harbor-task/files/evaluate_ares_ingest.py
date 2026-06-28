@@ -18,6 +18,7 @@ from ares_ingest_autoagent.artifacts import (
     one_token_logits_gate,
     target_plan_gate,
 )
+from ares_ingest_autoagent.commands import build_command_wrapper_plan
 from ares_ingest_autoagent.gates import (
     evaluate_command_gate,
     read_payload,
@@ -170,7 +171,18 @@ def main() -> int:
         )
         gates["depth_performance"] = validated_gates["depth_performance"]
 
-    for command_gate in spec.get("command_gates", []):
+    command_wrapper_plan = build_command_wrapper_plan(
+        spec,
+        run_dir=work_dir,
+        ares_repo=ares_repo,
+    )
+    if command_wrapper_plan["wrappers"]:
+        write_json(work_dir / "command_wrappers.json", command_wrapper_plan)
+    command_gates = list(spec.get("command_gates", []))
+    if command_wrapper_plan["command_gates"]:
+        command_gates.extend(command_wrapper_plan["command_gates"])
+
+    for command_gate in command_gates:
         name = command_gate["name"]
         command = command_gate["command"]
         cwd = resolve_cwd(

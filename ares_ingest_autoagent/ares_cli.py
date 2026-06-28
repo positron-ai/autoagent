@@ -20,6 +20,7 @@ from ares_ingest_autoagent.artifacts import (
     one_token_logits_gate,
     target_plan_gate,
 )
+from ares_ingest_autoagent.commands import build_command_wrapper_plan
 from ares_ingest_autoagent.gates import shortcut_scan_gate, write_json
 from ares_ingest_autoagent.score import (
     GATE_PROFILES,
@@ -354,6 +355,17 @@ def evaluate_run(cfg: AresIngestConfig) -> tuple[dict[str, Any], dict[str, Any]]
         validated_gates["depth_performance"] = depth_performance_gate(
             resolve_run_path(str(depth_performance), cfg)
         )
+    command_wrapper_plan = build_command_wrapper_plan(
+        spec,
+        run_dir=cfg.run_dir,
+        ares_repo=cfg.ares_repo,
+    )
+    if command_wrapper_plan["wrappers"]:
+        command_wrapper_path = cfg.run_dir / "command_wrappers.json"
+        write_json(command_wrapper_path, command_wrapper_plan)
+        spec["command_wrapper_plan"] = command_wrapper_path.name
+    else:
+        spec.pop("command_wrapper_plan", None)
     spec["validated_gates"] = validated_gates
     spec["explicit_gates"].update(validated_gates)
 
@@ -407,6 +419,8 @@ def gate_guidance(
             common.append(
                 f"- `{field}` artifact: `{resolve_run_path(str(value), cfg)}`"
             )
+    if value := spec.get("command_wrapper_plan"):
+        common.append(f"- Command wrapper plan: `{resolve_run_path(str(value), cfg)}`")
     specific: dict[str, list[str]] = {
         "hf_cpu_oracle": [
             "- Capture or attach a real HF Transformers + PyTorch CPU oracle record.",

@@ -56,6 +56,10 @@ For local development, mount or copy:
   comparison/rollback evidence, not an oracle.
 - `depth_performance_evidence`: 8/64/512 depth-ladder performance evidence
   with correctness gates still green.
+- `command_wrapper_config`: optional settings for AutoAgent-generated runtime
+  and C++ comparison wrapper commands. Wrappers default to dry-run mode.
+- `execute_command_wrappers`: set to `true` only when the task should launch
+  generated wrapper commands as command gates.
 - `shortcut_scan`: optional boolean to run the shortcut/static-sidecar scan
   even when it is not listed in `required_gates`.
 - `command_gates`: optional command-backed gates.
@@ -68,3 +72,5 @@ The default setup profile should require only CPU-side gates through
 `targetplan_valid` plus `shortcut_scan`. Enable backend, C++ comparison, or
 performance gates only when the task environment supplies the corresponding
 generated artifacts, runtime backend, model checkpoint, and comparison binaries.
+Wrapper command output still must be transformed into validator-backed evidence
+files before the backend, token, C++ TVD, or depth/performance gates can pass.

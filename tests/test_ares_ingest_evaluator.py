@@ -523,6 +523,36 @@ class AresIngestEvaluatorTest(unittest.TestCase):
         self.assertEqual(reward["first_failed_gate"], "targetplan_valid")
         self.assertFalse(reward["gates"]["targetplan_valid"]["passed"])
 
+    def test_evaluator_writes_nonexecuted_command_wrapper_plan(self) -> None:
+        result = self.run_evaluator(
+            {
+                "required_gates": [
+                    "model_spec",
+                    "backend_open",
+                    "one_token_logits",
+                ],
+                "explicit_gates": {"model_spec": True},
+                "weights": "/weights/synthetic",
+                "ares_plan": "ares-plan.json",
+                "target_plan": "tron.target-plan.json",
+            },
+            {},
+        )
+
+        plan = json.loads((result["work_dir"] / "command_wrappers.json").read_text())
+        self.assertEqual(plan["schema"], "ares.autoagent.command_wrappers.v1")
+        self.assertFalse(plan["execute_command_wrappers"])
+        self.assertEqual(plan["command_gates"], [])
+        self.assertEqual(
+            {wrapper["name"] for wrapper in plan["wrappers"]},
+            {"rinzler_chat_one_token", "rinzler_full_inference_smoke"},
+        )
+        self.assertEqual(
+            sorted(path.name for path in result["logs_dir"].glob("rinzler*.log")),
+            [],
+            "wrapper commands should not run unless execute_command_wrappers is true",
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

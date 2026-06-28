@@ -98,3 +98,20 @@ Attach optional evidence files in `model_spec.json` when using profiles beyond
   This never replaces HF CPU oracle correctness evidence.
 - `depth_performance_evidence`: 8/64/512 depth-ladder evidence with token
   correctness still green before performance is scored.
+
+## Command Wrapper Plans
+
+For `backend`, `comparison`, and `full` profiles, the CLI writes
+`command_wrappers.json` in the run directory. The plan contains exact wrapper
+commands for:
+
+- `bin/ares-rinzler-chat` one-token/full-inference runtime artifacts;
+- `bin/ci/ci-ares-rinzler-full-inference-smoke.sh` runtime smoke artifacts;
+- `bin/ci/ci-rinzler-fpga-vs-tron-comparison.sh` C++ side-by-side comparison.
+
+Wrappers default to dry-run mode and do not execute unless `model_spec.json`
+sets `execute_command_wrappers` to `true`. Their outputs are launch artifacts,
+not scoring evidence by themselves. Attach post-processed
+`backend_open_evidence`, `one_token_logits_evidence`, `cpp_tvd_evidence`, or
+`depth_performance_evidence` files to close the corresponding validator-backed
+gates.
