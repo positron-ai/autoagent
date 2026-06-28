@@ -114,4 +114,6 @@ sets `execute_command_wrappers` to `true`. Their outputs are launch artifacts,
 not scoring evidence by themselves. Attach post-processed
 `backend_open_evidence`, `one_token_logits_evidence`, `cpp_tvd_evidence`, or
 `depth_performance_evidence` files to close the corresponding validator-backed
-gates.
+gates. The runtime launchers currently consume `ares_plan`; keep
+`target_plan` attached separately as validator evidence instead of treating the
+wrapper command itself as TargetPlan proof.

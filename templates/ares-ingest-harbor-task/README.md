@@ -74,3 +74,6 @@ performance gates only when the task environment supplies the corresponding
 generated artifacts, runtime backend, model checkpoint, and comparison binaries.
 Wrapper command output still must be transformed into validator-backed evidence
 files before the backend, token, C++ TVD, or depth/performance gates can pass.
+The runtime wrappers consume `ares_plan`; keep `target_plan` attached
+separately for TargetPlan validation rather than treating wrapper launch output
+as TargetPlan proof.

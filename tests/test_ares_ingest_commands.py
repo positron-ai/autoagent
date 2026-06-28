@@ -46,7 +46,7 @@ class AresIngestCommandWrapperTest(unittest.TestCase):
             self.assertFalse(wrapper.enabled)
             self.assertEqual(
                 wrapper.missing_inputs,
-                ("weights", "ares_plan", "target_plan"),
+                ("weights", "ares_plan"),
             )
 
     def test_full_inference_wrapper_uses_smoke_script_env(self) -> None:
@@ -126,6 +126,20 @@ class AresIngestCommandWrapperTest(unittest.TestCase):
             )
             self.assertFalse(string_false_plan["dry_run"])
             self.assertEqual(string_false_plan["command_gates"], [])
+
+            invalid_execute_plan = build_command_wrapper_plan(
+                {**spec, "execute_command_wrappers": "disabled"},
+                run_dir=Path(tmp) / "run",
+                ares_repo=Path(tmp) / "ares",
+            )
+            self.assertFalse(invalid_execute_plan["execute_command_wrappers"])
+            self.assertEqual(invalid_execute_plan["command_gates"], [])
+            self.assertEqual(
+                invalid_execute_plan["config_errors"],
+                [
+                    "execute_command_wrappers must be boolean-like true/false, got 'disabled'"
+                ],
+            )
 
             enabled_plan = build_command_wrapper_plan(
                 {**spec, "execute_command_wrappers": True},

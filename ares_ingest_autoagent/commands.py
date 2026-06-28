@@ -70,8 +70,21 @@ def build_command_wrapper_plan(
 
     required = {str(gate) for gate in spec.get("required_gates", [])}
     wrapper_cfg = _object(spec.get("command_wrapper_config"))
-    dry_run = _bool(wrapper_cfg.get("dry_run", True), default=True)
-    execute = _bool(spec.get("execute_command_wrappers", False), default=False)
+    config_errors: list[str] = []
+    dry_run = _bool(
+        wrapper_cfg.get("dry_run", True),
+        default=True,
+        name="command_wrapper_config.dry_run",
+        errors=config_errors,
+    )
+    execute = _bool(
+        spec.get("execute_command_wrappers", False),
+        default=False,
+        name="execute_command_wrappers",
+        errors=config_errors,
+    )
+    if config_errors:
+        execute = False
 
     wrappers: list[CommandWrapper] = []
     if required.intersection(BACKEND_GATES) or wrapper_cfg.get("backend"):
@@ -97,6 +110,7 @@ def build_command_wrapper_plan(
         "backend": spec.get("backend", "tron"),
         "dry_run": dry_run,
         "execute_command_wrappers": execute,
+        "config_errors": config_errors,
         "wrappers": [wrapper.as_dict() for wrapper in wrappers],
         "command_gates": [
             wrapper.as_command_gate()
@@ -116,7 +130,6 @@ def rinzler_chat_wrapper(
     backend = _string(spec.get("backend")) or "tron"
     weights = _string(_first(spec, "weights", "checkpoint", "model_weights"))
     ares_plan = _string(spec.get("ares_plan"))
-    target_plan = _string(spec.get("target_plan"))
     prompt = _prompt(spec)
     max_tokens = int(_first(spec, "max_tokens", "one_token_max_tokens") or 1)
     summary = run_dir / "artifacts" / "rinzler-chat-summary.json"
@@ -127,7 +140,6 @@ def rinzler_chat_wrapper(
             "model": model,
             "weights": weights,
             "ares_plan": ares_plan,
-            "target_plan": target_plan,
         }
     )
     args = [
@@ -160,6 +172,7 @@ def rinzler_chat_wrapper(
         "Produces Ares system-under-test runtime artifacts only.",
         "Post-process dense logits against HF CPU oracle before scoring one_token_logits.",
         "Summary output alone is not validator-backed backend_open_evidence.",
+        "This launcher does not consume target_plan directly; attach TargetPlan validator evidence separately before scoring backend gates.",
     ]
     if ares_plan:
         notes.append(
@@ -193,7 +206,6 @@ def full_inference_smoke_wrapper(
     backend = _string(spec.get("backend")) or "tron"
     weights = _string(_first(spec, "weights", "checkpoint", "model_weights"))
     ares_plan = _string(spec.get("ares_plan"))
-    target_plan = _string(spec.get("target_plan"))
     prompt = _prompt(spec)
     max_tokens = int(_first(spec, "max_tokens", "smoke_max_tokens") or 8)
     summary = run_dir / "artifacts" / "full-inference-summary.json"
@@ -204,7 +216,6 @@ def full_inference_smoke_wrapper(
             "model": model,
             "weights": weights,
             "ares_plan": ares_plan,
-            "target_plan": target_plan,
         }
     )
     env = {
@@ -242,6 +253,7 @@ def full_inference_smoke_wrapper(
         notes=(
             "Launches the same smoke wrapper used by bin/ares-rinzler-chat.",
             "Its summary must be transformed into validator-backed backend_open or token evidence before scoring.",
+            "This launcher does not consume target_plan directly; attach TargetPlan validator evidence separately before scoring backend gates.",
         ),
         pass_regexes=("rinzler full inference dry run",) if dry_run else (),
     )
@@ -371,7 +383,13 @@ def _missing(fields: Mapping[str, str | None]) -> tuple[str, ...]:
     return tuple(name for name, value in fields.items() if not value)
 
 
-def _bool(value: Any, *, default: bool) -> bool:
+def _bool(
+    value: Any,
+    *,
+    default: bool,
+    name: str,
+    errors: list[str],
+) -> bool:
     if isinstance(value, bool):
         return value
     if value is None:
@@ -382,7 +400,8 @@ def _bool(value: Any, *, default: bool) -> bool:
             return True
         if normalized in {"0", "false", "no", "off", ""}:
             return False
-    return bool(value)
+    errors.append(f"{name} must be boolean-like true/false, got {value!r}")
+    return default
 
 
 def _env_pairs(env: Mapping[str, str]) -> list[str]:
