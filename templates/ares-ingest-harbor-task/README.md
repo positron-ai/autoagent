@@ -47,6 +47,15 @@ For local development, mount or copy:
   `files/`, or `ARES_REPO`.
 - `ares_plan`: generated AresPlan JSON artifact.
 - `target_plan`: Lean-emitted backend TargetPlan JSON artifact.
+- `backend_open_evidence`: backend open JSON or JSONL event evidence that
+  names the backend, AresPlan/TargetPlan SHA-256 values, and proves no
+  runtime-generated plan sidecars participated.
+- `one_token_logits_evidence`: one-token Ares-vs-HF CPU logit/TVD evidence
+  with replay-context metadata.
+- `cpp_tvd_evidence`: C++ Tron/Rinzler comparison TVD evidence. This is
+  comparison/rollback evidence, not an oracle.
+- `depth_performance_evidence`: 8/64/512 depth-ladder performance evidence
+  with correctness gates still green.
 - `shortcut_scan`: optional boolean to run the shortcut/static-sidecar scan
   even when it is not listed in `required_gates`.
 - `command_gates`: optional command-backed gates.

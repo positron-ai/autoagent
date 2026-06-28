@@ -207,6 +207,87 @@ def valid_target_plan() -> dict[str, Any]:
     }
 
 
+def replay_context() -> dict[str, Any]:
+    return {
+        "context_tokens": [1, 2],
+        "context_tokens_role": "prompt",
+        "context_count": 2,
+        "new_count": 1,
+        "runtime_request_token_count": 2,
+        "context_prefix_token_count": 0,
+        "last_token": 2,
+    }
+
+
+def backend_open_evidence() -> dict[str, Any]:
+    return {
+        "schema": "ares.runtime.backend_open.v1",
+        "evidence_class": "system_under_test",
+        "status": "opened",
+        "backend_id": "tron",
+        "ares_plan": {"path": "ares-plan.json", "sha256": "a" * 64},
+        "target_plan": {
+            "path": "tron.target-plan.json",
+            "sha256": "b" * 64,
+            "backend_id": "tron",
+        },
+        "events": [{"event": "backend_open", "backend_id": "tron"}],
+        "runtime_generated_sidecars": False,
+    }
+
+
+def one_token_logits_evidence() -> dict[str, Any]:
+    return {
+        "schema": "ares.runtime.one_token_logits.v1",
+        "evidence_class": "system_under_test",
+        "oracle": "huggingface_transformers_pytorch_cpu",
+        "candidate": "ares",
+        "tvd": 0.001,
+        "tvd_threshold": 0.01,
+        "top1_agreement": 1.0,
+        "same_argmax": True,
+        "replay_context": replay_context(),
+    }
+
+
+def cpp_tvd_evidence() -> dict[str, Any]:
+    return {
+        "schema": "ares.comparison.cpp_tvd.v1",
+        "evidence_class": "comparison",
+        "comparison_source": "cpp_tron_rinzler",
+        "candidate": "ares",
+        "tvd": 0.001,
+        "tvd_threshold": 0.01,
+        "replay_context": replay_context(),
+    }
+
+
+def depth_performance_evidence() -> dict[str, Any]:
+    return {
+        "schema": "ares.performance.depth_ladder.v1",
+        "evidence_class": "system_under_test",
+        "workload": "independent_decode",
+        "correctness_gates_green": True,
+        "depths": [
+            {
+                "generated_tokens": 8,
+                "tokens_match": True,
+                "throughput_tokens_per_second": 80.0,
+            },
+            {
+                "generated_tokens": 64,
+                "tokens_match": True,
+                "throughput_tokens_per_second": 70.0,
+            },
+            {
+                "generated_tokens": 512,
+                "tokens_match": True,
+                "throughput_tokens_per_second": 60.0,
+            },
+        ],
+    }
+
+
 class AresIngestEvaluatorTest(unittest.TestCase):
     def run_evaluator(
         self, spec: dict[str, Any], task_file_texts: dict[str, str]
@@ -256,7 +337,7 @@ class AresIngestEvaluatorTest(unittest.TestCase):
             "reward": json.loads(reward_json.read_text()),
         }
 
-    def test_evaluator_scores_cpu_only_artifacts(self) -> None:
+    def test_evaluator_scores_full_artifact_backed_profile(self) -> None:
         result = self.run_evaluator(
             {
                 "required_gates": [
@@ -268,20 +349,24 @@ class AresIngestEvaluatorTest(unittest.TestCase):
                     "targetplan_valid",
                     "shortcut_scan",
                     "backend_open",
+                    "one_token_logits",
                     "eight_token_greedy",
+                    "cpp_tvd",
                     "depth_performance",
                 ],
                 "explicit_gates": {
                     "model_spec": True,
                     "frontend_export": True,
                     "lean_ingest": True,
-                    "backend_open": True,
                     "eight_token_greedy": True,
-                    "depth_performance": True,
                 },
                 "oracle_records": "oracle.jsonl",
                 "ares_plan": "ares-plan.json",
                 "target_plan": "tron.target-plan.json",
+                "backend_open_evidence": "backend-open.json",
+                "one_token_logits_evidence": "one-token.json",
+                "cpp_tvd_evidence": "cpp-tvd.json",
+                "depth_performance_evidence": "depth.json",
                 "token_comparison": {
                     "reference": "reference_tokens.json",
                     "candidate": "candidate_tokens.json",
@@ -296,6 +381,10 @@ class AresIngestEvaluatorTest(unittest.TestCase):
                 "oracle.jsonl": json.dumps(oracle_record()) + "\n",
                 "ares-plan.json": json.dumps(valid_ares_plan()) + "\n",
                 "tron.target-plan.json": json.dumps(valid_target_plan()) + "\n",
+                "backend-open.json": json.dumps(backend_open_evidence()) + "\n",
+                "one-token.json": json.dumps(one_token_logits_evidence()) + "\n",
+                "cpp-tvd.json": json.dumps(cpp_tvd_evidence()) + "\n",
+                "depth.json": json.dumps(depth_performance_evidence()) + "\n",
                 "reference_tokens.json": json.dumps([1, 2, 3]),
                 "candidate_tokens.json": json.dumps([1, 2, 3]),
                 "measured.log": "Throughput 80.0 tok/s\n",

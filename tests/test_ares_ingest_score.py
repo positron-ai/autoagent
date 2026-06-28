@@ -107,11 +107,11 @@ class AresIngestScoreTest(unittest.TestCase):
                     "aresplan_valid": artifact_gate("ares_plan"),
                     "targetplan_valid": artifact_gate("target_plan"),
                     "shortcut_scan": artifact_gate("shortcut_scan"),
-                    "backend_open": True,
-                    "one_token_logits": True,
+                    "backend_open": artifact_gate("backend_open"),
+                    "one_token_logits": artifact_gate("one_token_logits"),
                     "eight_token_greedy": True,
-                    "cpp_tvd": True,
-                    "depth_performance": True,
+                    "cpp_tvd": artifact_gate("cpp_tvd"),
+                    "depth_performance": artifact_gate("depth_performance"),
                 }
             },
             oracle_payload=oracle_record(),
@@ -261,6 +261,49 @@ class AresIngestScoreTest(unittest.TestCase):
 
         self.assertEqual(reward["first_failed_gate"], "shortcut_scan")
         self.assertFalse(reward["gates"]["shortcut_scan"]["passed"])
+
+    def test_explicit_runtime_gates_cannot_replace_artifact_validators(self) -> None:
+        reward = compute_reward(
+            gates_payload={
+                "gates": {
+                    "model_spec": True,
+                    "frontend_export": True,
+                    "lean_ingest": True,
+                    "aresplan_valid": artifact_gate("ares_plan"),
+                    "targetplan_valid": artifact_gate("target_plan"),
+                    "shortcut_scan": artifact_gate("shortcut_scan"),
+                    "backend_open": True,
+                    "one_token_logits": True,
+                    "eight_token_greedy": True,
+                    "cpp_tvd": True,
+                    "depth_performance": True,
+                }
+            },
+            oracle_payload=oracle_record(),
+            token_payload={"score": 1.0},
+            performance_payload={
+                "workload": "independent_decode",
+                "measured_tokens_per_second": 100.0,
+                "speed_of_light_tokens_per_second": 100.0,
+            },
+            required_gates=(
+                "model_spec",
+                "hf_cpu_oracle",
+                "frontend_export",
+                "lean_ingest",
+                "aresplan_valid",
+                "targetplan_valid",
+                "shortcut_scan",
+                "backend_open",
+                "one_token_logits",
+                "eight_token_greedy",
+                "cpp_tvd",
+                "depth_performance",
+            ),
+        )
+
+        self.assertEqual(reward["first_failed_gate"], "backend_open")
+        self.assertFalse(reward["gates"]["backend_open"]["passed"])
 
     def test_cli_writes_reward_files(self) -> None:
         with tempfile.TemporaryDirectory() as td:

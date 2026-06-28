@@ -18,6 +18,10 @@
   "oracle_records": null,
   "ares_plan": null,
   "target_plan": null,
+  "backend_open_evidence": null,
+  "one_token_logits_evidence": null,
+  "cpp_tvd_evidence": null,
+  "depth_performance_evidence": null,
   "command_gates": [],
   "token_comparison": null,
   "performance_comparison": null

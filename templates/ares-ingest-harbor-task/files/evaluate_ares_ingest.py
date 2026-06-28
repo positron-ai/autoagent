@@ -10,7 +10,14 @@ import sys
 from pathlib import Path
 from typing import Any
 
-from ares_ingest_autoagent.artifacts import ares_plan_gate, target_plan_gate
+from ares_ingest_autoagent.artifacts import (
+    ares_plan_gate,
+    backend_open_gate,
+    cpp_tvd_gate,
+    depth_performance_gate,
+    one_token_logits_gate,
+    target_plan_gate,
+)
 from ares_ingest_autoagent.gates import (
     evaluate_command_gate,
     read_payload,
@@ -109,6 +116,51 @@ def main() -> int:
             )
         )
 
+    if backend_open := spec.get("backend_open_evidence"):
+        gates["backend_open"] = backend_open_gate(
+            resolve_path(
+                backend_open,
+                task_files=task_files,
+                ares_repo=ares_repo,
+                work_dir=work_dir,
+            )
+        )
+
+    one_token_results_path = None
+    if one_token := spec.get("one_token_logits_evidence") or spec.get(
+        "one_token_results_json"
+    ):
+        gates["one_token_logits"] = one_token_logits_gate(
+            resolve_path(
+                one_token,
+                task_files=task_files,
+                ares_repo=ares_repo,
+                work_dir=work_dir,
+            )
+        )
+        one_token_results_path = work_dir / "one-token-logits.json"
+        write_json(one_token_results_path, gates["one_token_logits"])
+
+    if cpp_tvd := spec.get("cpp_tvd_evidence"):
+        gates["cpp_tvd"] = cpp_tvd_gate(
+            resolve_path(
+                cpp_tvd,
+                task_files=task_files,
+                ares_repo=ares_repo,
+                work_dir=work_dir,
+            )
+        )
+
+    if depth_performance := spec.get("depth_performance_evidence"):
+        gates["depth_performance"] = depth_performance_gate(
+            resolve_path(
+                depth_performance,
+                task_files=task_files,
+                ares_repo=ares_repo,
+                work_dir=work_dir,
+            )
+        )
+
     for command_gate in spec.get("command_gates", []):
         name = command_gate["name"]
         command = command_gate["command"]
@@ -200,18 +252,11 @@ def main() -> int:
     ]
     if oracle_summary is not None:
         args.extend(["--oracle", str(oracle_summary)])
-    if one_token := spec.get("one_token_results_json"):
+    if one_token_results_path is not None:
         args.extend(
             [
                 "--one-token",
-                str(
-                    resolve_path(
-                        one_token,
-                        task_files=task_files,
-                        ares_repo=ares_repo,
-                        work_dir=work_dir,
-                    )
-                ),
+                str(one_token_results_path),
             ]
         )
     if token_results_path is not None:

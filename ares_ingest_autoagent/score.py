@@ -87,6 +87,10 @@ ARTIFACT_GATE_VALIDATORS: dict[str, str] = {
     "aresplan_valid": "ares_plan",
     "targetplan_valid": "target_plan",
     "shortcut_scan": "shortcut_scan",
+    "backend_open": "backend_open",
+    "one_token_logits": "one_token_logits",
+    "cpp_tvd": "cpp_tvd",
+    "depth_performance": "depth_performance",
 }
 
 

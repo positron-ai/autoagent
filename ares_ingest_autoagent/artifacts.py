@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Iterable
@@ -11,6 +12,24 @@ from typing import Any, Iterable
 HF_CPU_SCHEMA_ID = "ares.oracles.hf_cpu.record.v1"
 HF_CPU_ORACLE_KIND = "huggingface_transformers_pytorch_cpu"
 LEAN_TARGET_PLAN_PRODUCER = {"language": "lean", "tool": "ingest-lean"}
+SHA256_RE = re.compile(r"^[0-9a-f]{64}$", re.I)
+REPLAY_CONTEXT_FIELDS = (
+    "context_tokens",
+    "context_tokens_role",
+    "context_count",
+    "new_count",
+    "runtime_request_token_count",
+    "context_prefix_token_count",
+    "last_token",
+)
+CPP_COMPARISON_SOURCES = {
+    "cpp_tron",
+    "cpp_tron_rinzler",
+    "cxx_tron",
+    "cxx_tron_rinzler",
+    "tron_rinzler_cpp",
+}
+SCORING_WORKLOADS = {"independent_decode", "long_prefill"}
 
 FLOATING_REVISION_NAMES = {
     "@",
@@ -98,6 +117,42 @@ def artifact_gate(
     )
 
 
+def evidence_gate(
+    path: Path,
+    *,
+    label: str,
+    validator_name: str,
+    validator: Any,
+) -> dict[str, Any]:
+    if not path.is_file():
+        return {
+            "label": label,
+            "artifact_validator": validator_name,
+            "path": str(path),
+            "exists": path.exists(),
+            "passed": False,
+            "score": 0.0,
+            "errors": ["evidence file is missing"],
+        }
+    try:
+        payload = _read_json_or_jsonl(path)
+    except ValueError as exc:
+        return {
+            "label": label,
+            "artifact_validator": validator_name,
+            "path": str(path),
+            "exists": True,
+            "passed": False,
+            "score": 0.0,
+            "errors": [str(exc)],
+        }
+    return validator(payload).as_gate(
+        label=label,
+        validator_name=validator_name,
+        path=path,
+    )
+
+
 def ares_plan_gate(path: Path, *, label: str = "generated AresPlan") -> dict[str, Any]:
     return artifact_gate(
         path,
@@ -113,6 +168,50 @@ def target_plan_gate(path: Path, *, label: str = "Lean TargetPlan") -> dict[str,
         label=label,
         validator_name="target_plan",
         validator=validate_target_plan,
+    )
+
+
+def backend_open_gate(
+    path: Path, *, label: str = "backend provider open evidence"
+) -> dict[str, Any]:
+    return evidence_gate(
+        path,
+        label=label,
+        validator_name="backend_open",
+        validator=validate_backend_open_evidence,
+    )
+
+
+def one_token_logits_gate(
+    path: Path, *, label: str = "one-token logits evidence"
+) -> dict[str, Any]:
+    return evidence_gate(
+        path,
+        label=label,
+        validator_name="one_token_logits",
+        validator=validate_one_token_logits_evidence,
+    )
+
+
+def cpp_tvd_gate(
+    path: Path, *, label: str = "C++ comparison TVD evidence"
+) -> dict[str, Any]:
+    return evidence_gate(
+        path,
+        label=label,
+        validator_name="cpp_tvd",
+        validator=validate_cpp_tvd_evidence,
+    )
+
+
+def depth_performance_gate(
+    path: Path, *, label: str = "depth ladder performance evidence"
+) -> dict[str, Any]:
+    return evidence_gate(
+        path,
+        label=label,
+        validator_name="depth_performance",
+        validator=validate_depth_performance_evidence,
     )
 
 
@@ -286,6 +385,198 @@ def validate_ares_plan(plan: Any) -> ArtifactValidation:
     return _validation(not errors, errors, detail)
 
 
+def validate_backend_open_evidence(payload: Any) -> ArtifactValidation:
+    errors: list[str] = []
+    root = _payload_root(payload, errors, "backend open evidence")
+    rows = _payload_rows(root)
+    if root is None:
+        return _validation(False, errors, {})
+
+    backend_id = _first_string(root, rows, ("backend_id", "backend"))
+    status = _first_string(root, rows, ("status", "state"))
+    if backend_id is None:
+        errors.append("backend evidence must name backend_id")
+    if status not in {"open", "opened", "ok", "passed", "ready"}:
+        errors.append("backend evidence status must be open/opened/ok/passed/ready")
+
+    ares_sha = _first_string(root, rows, ("ares_plan_sha256", "ares_plan_hash"))
+    target_sha = _first_string(root, rows, ("target_plan_sha256", "target_plan_hash"))
+    ares_obj = root.get("ares_plan") if isinstance(root, dict) else None
+    target_obj = root.get("target_plan") if isinstance(root, dict) else None
+    if ares_sha is None and isinstance(ares_obj, dict):
+        ares_sha = _first_string(ares_obj, [], ("sha256", "hash"))
+    if target_sha is None and isinstance(target_obj, dict):
+        target_sha = _first_string(target_obj, [], ("sha256", "hash"))
+    _require_sha256(errors, ares_sha, "AresPlan")
+    _require_sha256(errors, target_sha, "TargetPlan")
+
+    target_backend = _first_string(
+        root, rows, ("target_plan_backend", "target_backend", "backend_id")
+    )
+    if (
+        backend_id is not None
+        and target_backend is not None
+        and target_backend != backend_id
+    ):
+        errors.append("TargetPlan backend must match opened backend")
+
+    if _truthy_field(
+        root, rows, ("runtime_generated_sidecars", "runtime_generated_plan")
+    ):
+        errors.append("backend evidence must not use runtime-generated plan sidecars")
+
+    event_names = {_event_name(row) for row in rows}
+    event_names.discard(None)
+    if rows and not event_names.intersection(
+        {"backend_open", "provider_open", "session_open", "runtime_open"}
+    ):
+        errors.append("backend event evidence must include a backend-open event row")
+
+    detail = {
+        "backend_id": backend_id,
+        "status": status,
+        "event_count": len(rows),
+        "ares_plan_sha256": ares_sha,
+        "target_plan_sha256": target_sha,
+    }
+    return _validation(not errors, errors, detail)
+
+
+def validate_one_token_logits_evidence(payload: Any) -> ArtifactValidation:
+    errors: list[str] = []
+    root = _payload_root(payload, errors, "one-token logits evidence")
+    if root is None:
+        return _validation(False, errors, {})
+    if not isinstance(root, dict):
+        return _validation(
+            False,
+            [*errors, "one-token logits evidence must be a JSON object"],
+            {},
+        )
+
+    if _first_string(root, [], ("oracle", "oracle_source")) != HF_CPU_ORACLE_KIND:
+        errors.append(f"one-token oracle must be {HF_CPU_ORACLE_KIND}")
+    evidence_class = _first_string(root, [], ("evidence_class", "classification"))
+    if evidence_class not in {"system_under_test", "diagnostic", "promotion"}:
+        errors.append(
+            "one-token evidence_class must classify Ares as system under test"
+        )
+
+    tvd, threshold = _validate_tvd(errors, root, "one-token")
+    top1 = root.get("top1_agreement")
+    same_argmax = root.get("same_argmax")
+    if not isinstance(top1, int | float):
+        errors.append("one-token top1_agreement must be numeric")
+    elif float(top1) < 1.0:
+        errors.append("one-token top1_agreement must be 1.0")
+    if same_argmax is not True:
+        errors.append("one-token same_argmax must be true")
+    _validate_replay_context(errors, root.get("replay_context"), "one-token")
+
+    passed = (
+        not errors and tvd is not None and threshold is not None and tvd <= threshold
+    )
+    detail = {
+        "tvd": tvd,
+        "tvd_threshold": threshold,
+        "top1_agreement": float(top1) if isinstance(top1, int | float) else None,
+        "same_argmax": same_argmax,
+    }
+    return _validation(passed, errors, detail)
+
+
+def validate_cpp_tvd_evidence(payload: Any) -> ArtifactValidation:
+    errors: list[str] = []
+    root = _payload_root(payload, errors, "C++ comparison evidence")
+    if root is None:
+        return _validation(False, errors, {})
+    if not isinstance(root, dict):
+        return _validation(
+            False,
+            [*errors, "C++ comparison evidence must be a JSON object"],
+            {},
+        )
+
+    evidence_class = _first_string(root, [], ("evidence_class", "classification"))
+    if evidence_class != "comparison":
+        errors.append("C++ TVD evidence_class must be comparison")
+    source = _first_string(root, [], ("comparison_source", "source", "baseline"))
+    if source not in CPP_COMPARISON_SOURCES:
+        errors.append("comparison_source must identify C++ Tron/Rinzler")
+    tvd, threshold = _validate_tvd(errors, root, "C++ TVD")
+    _validate_replay_context(errors, root.get("replay_context"), "C++ TVD")
+    if root.get("oracle") == "cpp_tron":
+        errors.append("C++ Tron/Rinzler must not be labeled as correctness oracle")
+
+    passed = (
+        not errors and tvd is not None and threshold is not None and tvd <= threshold
+    )
+    detail = {
+        "comparison_source": source,
+        "tvd": tvd,
+        "tvd_threshold": threshold,
+    }
+    return _validation(passed, errors, detail)
+
+
+def validate_depth_performance_evidence(payload: Any) -> ArtifactValidation:
+    errors: list[str] = []
+    root = _payload_root(payload, errors, "depth performance evidence")
+    if root is None:
+        return _validation(False, errors, {})
+    if not isinstance(root, dict):
+        return _validation(
+            False,
+            [*errors, "depth performance evidence must be a JSON object"],
+            {},
+        )
+
+    evidence_class = _first_string(root, [], ("evidence_class", "classification"))
+    if evidence_class not in {"system_under_test", "promotion", "comparison"}:
+        errors.append("depth performance evidence_class must be explicit")
+    workload = _normalize_workload(root.get("workload"))
+    if workload not in SCORING_WORKLOADS:
+        errors.append(
+            "depth performance workload must be independent_decode or long_prefill"
+        )
+    if root.get("correctness_gates_green") is not True:
+        errors.append("depth performance requires correctness_gates_green=true")
+
+    depths = root.get("depths")
+    seen_depths: set[int] = set()
+    if not isinstance(depths, list) or not depths:
+        errors.append("depth performance depths must be a non-empty list")
+    else:
+        for index, entry in enumerate(depths):
+            if not isinstance(entry, dict):
+                errors.append("depth performance depth entries must be objects")
+                continue
+            depth = entry.get("generated_tokens", entry.get("depth"))
+            if not isinstance(depth, int):
+                errors.append(f"depths[{index}].generated_tokens must be an integer")
+                continue
+            seen_depths.add(depth)
+            if entry.get("tokens_match") is not True:
+                errors.append(f"depth {depth} must have tokens_match=true")
+            tps = entry.get(
+                "throughput_tokens_per_second", entry.get("tokens_per_second")
+            )
+            if not isinstance(tps, int | float) or tps <= 0:
+                errors.append(f"depth {depth} must record positive throughput")
+    missing = [depth for depth in (8, 64, 512) if depth not in seen_depths]
+    if missing:
+        errors.append(
+            "depth performance missing ladder depth(s): " + ", ".join(map(str, missing))
+        )
+
+    detail = {
+        "workload": workload,
+        "depths": sorted(seen_depths),
+        "depth_count": len(seen_depths),
+    }
+    return _validation(not errors, errors, detail)
+
+
 def validate_target_plan(plan: Any) -> ArtifactValidation:
     errors: list[str] = []
     if not isinstance(plan, dict):
@@ -407,6 +698,137 @@ def _validation(
     detail: dict[str, Any],
 ) -> ArtifactValidation:
     return ArtifactValidation(passed=passed, errors=tuple(errors), detail=detail)
+
+
+def _read_json_or_jsonl(path: Path) -> Any:
+    text = path.read_text()
+    if path.suffix == ".jsonl":
+        rows = []
+        for lineno, line in enumerate(text.splitlines(), start=1):
+            if not line.strip():
+                continue
+            try:
+                rows.append(json.loads(line))
+            except json.JSONDecodeError as exc:
+                raise ValueError(f"invalid JSONL at line {lineno}: {exc}") from exc
+        return rows
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError as exc:
+        raise ValueError(f"invalid JSON: {exc}") from exc
+
+
+def _payload_root(
+    payload: Any,
+    errors: list[str],
+    label: str,
+) -> dict[str, Any] | list[Any] | None:
+    if isinstance(payload, dict | list):
+        return payload
+    errors.append(f"{label} must be a JSON object or JSONL event list")
+    return None
+
+
+def _payload_rows(payload: Any) -> list[dict[str, Any]]:
+    if isinstance(payload, list):
+        return [item for item in payload if isinstance(item, dict)]
+    if isinstance(payload, dict) and isinstance(payload.get("events"), list):
+        return [item for item in payload["events"] if isinstance(item, dict)]
+    return []
+
+
+def _first_string(
+    payload: dict[str, Any] | list[Any],
+    rows: list[dict[str, Any]],
+    keys: tuple[str, ...],
+) -> str | None:
+    if isinstance(payload, dict):
+        for key in keys:
+            value = payload.get(key)
+            if isinstance(value, str) and value.strip():
+                return value.strip()
+    for row in rows:
+        for key in keys:
+            value = row.get(key)
+            if isinstance(value, str) and value.strip():
+                return value.strip()
+    return None
+
+
+def _truthy_field(
+    payload: dict[str, Any] | list[Any],
+    rows: list[dict[str, Any]],
+    keys: tuple[str, ...],
+) -> bool:
+    if isinstance(payload, dict):
+        for key in keys:
+            if payload.get(key) is True:
+                return True
+    return any(row.get(key) is True for row in rows for key in keys)
+
+
+def _event_name(row: dict[str, Any]) -> str | None:
+    for key in ("event", "event_name", "name", "phase"):
+        value = row.get(key)
+        if isinstance(value, str) and value.strip():
+            return value.strip()
+    return None
+
+
+def _require_sha256(errors: list[str], value: Any, label: str) -> None:
+    if not isinstance(value, str) or SHA256_RE.fullmatch(value) is None:
+        errors.append(f"{label} SHA-256 must be a 64-character hex string")
+
+
+def _validate_tvd(
+    errors: list[str],
+    payload: dict[str, Any],
+    label: str,
+) -> tuple[float | None, float | None]:
+    tvd = payload.get("tvd", payload.get("max_tvd"))
+    threshold = payload.get("tvd_threshold", 0.01)
+    if not isinstance(tvd, int | float) or tvd < 0:
+        errors.append(f"{label} tvd/max_tvd must be a non-negative number")
+        tvd_value = None
+    else:
+        tvd_value = float(tvd)
+    if not isinstance(threshold, int | float) or threshold <= 0:
+        errors.append(f"{label} tvd_threshold must be a positive number")
+        threshold_value = None
+    else:
+        threshold_value = float(threshold)
+    return tvd_value, threshold_value
+
+
+def _validate_replay_context(
+    errors: list[str],
+    value: Any,
+    label: str,
+) -> None:
+    if not isinstance(value, dict):
+        errors.append(f"{label} replay_context must be an object")
+        return
+    missing = [field for field in REPLAY_CONTEXT_FIELDS if field not in value]
+    if missing:
+        errors.append(
+            f"{label} replay_context missing required field(s): {', '.join(missing)}"
+        )
+    if not isinstance(value.get("context_tokens"), list):
+        errors.append(f"{label} replay_context.context_tokens must be a list")
+    for field in (
+        "context_count",
+        "new_count",
+        "runtime_request_token_count",
+        "context_prefix_token_count",
+    ):
+        if not isinstance(value.get(field), int):
+            errors.append(f"{label} replay_context.{field} must be an integer")
+
+
+def _normalize_workload(value: Any) -> str | None:
+    if not isinstance(value, str) or not value.strip():
+        return None
+    return re.sub(r"[^a-z0-9]+", "_", value.strip().lower()).strip("_")
 
 
 def _require_fields(

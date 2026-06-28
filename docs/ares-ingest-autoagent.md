@@ -1,7 +1,7 @@
 # Ares Ingest AutoAgent Runbook
 
-This is the Ares-specific scaffold for model-ingest AutoAgent runs. The current
-CLI initializes durable run state for the Ares generated pipeline:
+This is the Ares-specific scaffold for model-ingest AutoAgent runs. The CLI
+evaluates durable run state for the Ares generated pipeline:
 
 ```text
 frontend artifacts -> Lean ingest -> AresPlan -> TargetPlan -> backend provider
@@ -84,3 +84,17 @@ Optional profiles extend the required gate list:
 
 Use hardware or C++ comparison gates only when the machine has the required
 cards, checkpoints, generated artifacts, and comparison binaries.
+
+## Runtime Evidence Fields
+
+Attach optional evidence files in `model_spec.json` when using profiles beyond
+`cpu-only`:
+
+- `backend_open_evidence`: JSON or JSONL backend-open event evidence with
+  AresPlan and TargetPlan SHA-256 values and no runtime-generated sidecars.
+- `one_token_logits_evidence`: Ares system-under-test logits/TVD evidence
+  compared against HF CPU oracle rows, with replay context.
+- `cpp_tvd_evidence`: C++ Tron/Rinzler dense-logit TVD comparison evidence.
+  This never replaces HF CPU oracle correctness evidence.
+- `depth_performance_evidence`: 8/64/512 depth-ladder evidence with token
+  correctness still green before performance is scored.

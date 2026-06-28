@@ -12,7 +12,14 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Mapping
 
-from ares_ingest_autoagent.artifacts import ares_plan_gate, target_plan_gate
+from ares_ingest_autoagent.artifacts import (
+    ares_plan_gate,
+    backend_open_gate,
+    cpp_tvd_gate,
+    depth_performance_gate,
+    one_token_logits_gate,
+    target_plan_gate,
+)
 from ares_ingest_autoagent.gates import shortcut_scan_gate, write_json
 from ares_ingest_autoagent.score import (
     GATE_PROFILES,
@@ -329,6 +336,24 @@ def evaluate_run(cfg: AresIngestConfig) -> tuple[dict[str, Any], dict[str, Any]]
     if target_plan := spec.get("target_plan"):
         spec["explicit_gates"]["targetplan_valid"] = target_plan_gate(
             resolve_run_path(str(target_plan), cfg)
+        )
+    if backend_open := spec.get("backend_open_evidence"):
+        spec["explicit_gates"]["backend_open"] = backend_open_gate(
+            resolve_run_path(str(backend_open), cfg)
+        )
+    if one_token := spec.get("one_token_logits_evidence") or spec.get(
+        "one_token_results_json"
+    ):
+        spec["explicit_gates"]["one_token_logits"] = one_token_logits_gate(
+            resolve_run_path(str(one_token), cfg)
+        )
+    if cpp_tvd := spec.get("cpp_tvd_evidence"):
+        spec["explicit_gates"]["cpp_tvd"] = cpp_tvd_gate(
+            resolve_run_path(str(cpp_tvd), cfg)
+        )
+    if depth_performance := spec.get("depth_performance_evidence"):
+        spec["explicit_gates"]["depth_performance"] = depth_performance_gate(
+            resolve_run_path(str(depth_performance), cfg)
         )
 
     write_json(cfg.model_spec_path, spec)
