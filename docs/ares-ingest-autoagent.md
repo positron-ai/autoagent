@@ -1,11 +1,8 @@
 # Ares Ingest AutoAgent Notes
 
 The canonical Ares operator and developer guide lives in the parent Ares
-repository:
-
-```text
-doc/model-ingest-autoagent.md
-```
+repository at
+[`doc/model-ingest-autoagent.md`](../../../doc/model-ingest-autoagent.md).
 
 Keep Ares-facing usage documentation there, linked from the Ares README. This
 fork-local file is only a package breadcrumb for developers browsing the
