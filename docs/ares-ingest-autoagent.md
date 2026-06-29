@@ -1,205 +1,23 @@
-# Ares Ingest AutoAgent Runbook
+# Ares Ingest AutoAgent Notes
 
-The canonical Ares operator guide lives in the parent Ares repository at
-`doc/model-ingest-autoagent.md`. Keep this file as fork-local AutoAgent package
-notes only; Ares user and developer documentation belongs under Ares `doc/`.
-
-This is the Ares-specific scaffold for model-ingest AutoAgent runs. The CLI
-evaluates durable run state for the Ares generated pipeline:
+The canonical Ares operator and developer guide lives in the parent Ares
+repository:
 
 ```text
-frontend artifacts -> Lean ingest -> AresPlan -> TargetPlan -> backend provider
+doc/model-ingest-autoagent.md
 ```
 
-Do not use this tool to add hand-authored Rust model plugins or runtime-created
-execution sidecars.
+Keep Ares-facing usage documentation there, linked from the Ares README. This
+fork-local file is only a package breadcrumb for developers browsing the
+AutoAgent checkout directly.
 
-## Quick Start
-
-From an Ares checkout, create setup state without invoking the refiner:
+From an Ares checkout, use the dedicated ingest shell and command:
 
 ```bash
 nix develop .#ingest
-ares-ingest-agent PROVIDER/MODEL --ares-repo "$PWD" --setup-only
+ares-ingest-agent PROVIDER/MODEL --cockpit --max-iterations 2
 ```
 
-This creates:
-
-```text
-.autoagent/ares-ingest/<safe-model>/<timestamp>/
-  model_spec.json
-  reward.json
-  reward.txt
-  state.json
-  steering.json
-  steering.md
-  handoff.md
-```
-
-The first reward normally stops at `hf_cpu_oracle`, because setup only creates
-the model spec, the shortcut scan evidence, and the run handoff. The next agent
-should capture a real HF CPU oracle record, then work one failing gate at a
-time.
-
-To run the one-failing-gate loop, omit `--setup-only`:
-
-```bash
-ares-ingest-agent PROVIDER/MODEL --ares-repo "$PWD" --cockpit --max-iterations 2
-```
-
-Each verifier pass refreshes deterministic gates, writes `reward.json`,
-`reward.txt`, `state.json`, and `handoff.md`, then stops at target score,
-stall, max iterations, or `--no-refiner`. When a refiner is enabled, the CLI
-writes `prompts/refinement-NN.md` with the current first failing gate, Ares
-evidence rules, selected workflow skills, allowed write scope, and verification
-requirements, then runs the configured shell command with `REFINEMENT_PROMPT`,
-`ARES_REPO`, `AUTOAGENT_REPO`, `RUN_DIR`, `MODEL_SPEC`, `REWARD_JSON`, and
-`FIRST_FAILED_GATE` in its environment.
-
-Use `--no-refiner` for evaluation-only runs; below target, it exits with
-`blocked_no_refiner` recorded in `state.json`.
-
-## Visibility And Steering
-
-The current Ares interface is a CLI cockpit plus durable run artifacts. It
-prints iteration dashboards, records `cockpit.jsonl`, streams refiner output to
-the terminal and `logs/NN-refiner.log`, and accepts operator steering between
-iterations when stdin is a TTY.
-
-Use the CLI in bounded steps when you want tight control:
-
-```bash
-ares-ingest-agent PROVIDER/MODEL --ares-repo "$PWD" \
-  --run-dir /tmp/ares-autoagent-row --setup-only --print-json
-ares-ingest-agent PROVIDER/MODEL --ares-repo "$PWD" \
-  --run-dir /tmp/ares-autoagent-row --no-refiner --print-json
-ares-ingest-agent PROVIDER/MODEL --ares-repo "$PWD" \
-  --run-dir /tmp/ares-autoagent-row --cockpit --max-iterations 2 --print-json
-```
-
-The first command initializes `model_spec.json`, `reward.json`, `state.json`,
-`steering.json`, `steering.md`, and `handoff.md` without invoking another
-agent. The second command refreshes the verifier state without refinement. The
-third command allows at most one refiner pass before returning control:
-iteration 1 evaluates and runs the driver, then iteration 2 evaluates the
-result and stops.
-
-For active monitoring, use the cockpit and inspect or tail the run directory:
-
-- `handoff.md`: human-readable current gate, selected workflow skills, allowed
-  write scope, and next action.
-- `reward.txt` and `reward.json`: current score, component scores, and first
-  failing gate.
-- `state.json`: machine-readable run status, history, workflow skills, and
-  generated prompt references.
-- `cockpit.jsonl`: append-only cockpit event log.
-- `steering.json` and `steering.md`: operator notes, resources, and driver
-  overrides.
-- `prompts/refinement-NN.md`: the exact prompt handed to the refiner for that
-  pass.
-- `logs/NN-refiner.log`: stdout and stderr from the refiner subprocess.
-
-The refiner command runs with a long timeout and writes stdout/stderr to the
-corresponding log file. In cockpit mode it also streams that output to the
-terminal. If a pass is taking too long, interrupt the CLI, inspect the log and
-run artifacts, edit `model_spec.json` or add cockpit steering notes/resources,
-then rerun with `--no-refiner`, `--setup-only`, or a small `--cockpit
---max-iterations` value. Do not start an unbounded refiner loop when you need
-continuous human review.
-
-## Workflow Skills
-
-Every verifier pass records `workflow_skills` in `state.json` and mirrors the
-same list in `handoff.md`. The list names the skill or workflow expected for
-the next gate, why it was selected, which files or artifacts it may touch, and
-the verification command that should prove the result. `command-wiggum` and
-`ares-evidence` are always present; the current failing gate adds the relevant
-Ares language, profiling, or gate-specific evidence context, and unfinished
-gates include `command-fess` for conditional post-commit claim audits.
-The `targetplan_valid` gate uses `ares-targetplan` because it crosses Lean
-lowering, Rust validation, and runtime provider handoff.
-The `model_spec` gate uses `ares-model-port` because it owns the initial model
-row inventory and gate plan. For unfamiliar model families, that inventory
-includes HuggingFace Transformers plus resolved or cloned vLLM, llama.cpp, and
-MLX checkouts. Prefer explicit checkout paths recorded in `model_spec.json` or
-the run handoff; otherwise create/use `${ARES_PRIOR_ART_ROOT:-$HOME/db}` as the
-cache root and clone any missing official upstream repositories there:
-`https://github.com/vllm-project/vllm.git`,
-`https://github.com/ggml-org/llama.cpp.git`, and
-`https://github.com/ml-explore/mlx.git`.
-
-## Evidence Rules
-
-- HuggingFace Transformers on PyTorch CPU is the correctness oracle.
-- C++ Tron/Rinzler is comparison, compliance, performance, and rollback
-  evidence only.
-- Ares/Rust output is system-under-test evidence.
-- Performance does not compensate for missing correctness gates.
-
-## Default Gate Order
-
-1. `model_spec`
-2. `hf_cpu_oracle`
-3. `frontend_export`
-4. `lean_ingest`
-5. `aresplan_valid`
-6. `targetplan_valid`
-7. `artifact_consistency`
-8. `shortcut_scan`
-
-The default `cpu-only` profile stops after generated artifact validation and a
-source-tree shortcut scan. `artifact_consistency` requires the HF CPU oracle and
-TargetPlan model ids to match the expected row, or an explicit
-`expected_model_ids` alias list in `model_spec.json`. The scan rejects
-hand-authored Rust model-family plugin paths and runtime-generated
-AresPlan/TargetPlan sidecars as promotion evidence.
-
-Optional profiles extend the required gate list:
-
-- `backend`: adds `backend_open`, `one_token_logits`, and
-  `eight_token_greedy`.
-- `comparison`: adds `cpp_tvd` on top of `backend`.
-- `full`: adds `depth_performance` on top of `comparison`.
-
-Use hardware or C++ comparison gates only when the machine has the required
-cards, checkpoints, generated artifacts, and comparison binaries.
-
-## Runtime Evidence Fields
-
-Attach optional evidence files in `model_spec.json` when using profiles beyond
-`cpu-only`:
-
-- `backend_open_evidence`: JSON or JSONL backend-open event evidence with
-  AresPlan and TargetPlan SHA-256 values and no runtime-generated sidecars.
-- `one_token_logits_evidence`: Ares system-under-test logits/TVD evidence
-  compared against HF CPU oracle rows, with replay context.
-- `eight_token_greedy_evidence`: Ares system-under-test greedy token evidence
-  with at least eight generated tokens, HF CPU oracle provenance, source
-  digests, and exact token identity.
-- `cpp_tvd_evidence`: C++ Tron/Rinzler dense-logit TVD comparison evidence.
-  This never replaces HF CPU oracle correctness evidence.
-- `depth_performance_evidence`: 8/64/512 depth-ladder evidence with token
-  correctness still green before performance is scored.
-
-## Command Wrapper Plans
-
-For `backend`, `comparison`, and `full` profiles, the CLI writes
-`command_wrappers.json` in the run directory. The plan contains exact wrapper
-commands for:
-
-- `bin/ares-rinzler-chat` one-token/full-inference runtime artifacts;
-- `bin/ci/ci-ares-rinzler-full-inference-smoke.sh` runtime smoke artifacts;
-- `bin/ci/ci-rinzler-fpga-vs-tron-comparison.sh` C++ side-by-side comparison.
-
-Wrappers default to dry-run mode and do not execute unless `model_spec.json`
-sets `execute_command_wrappers` to `true`. Their outputs are launch artifacts,
-not scoring evidence by themselves. Attach post-processed
-`backend_open_evidence`, `one_token_logits_evidence`, `cpp_tvd_evidence`, or
-`depth_performance_evidence` files to close the corresponding validator-backed
-gates. A `token_comparison` block also writes `tokens.json` as
-`ares.runtime.greedy_token_agreement.v1` evidence and validates it as
-`eight_token_greedy` when that gate is required; its reference and candidate
-files must expose generated-only token ids as `generated_token_ids` or
-`generation.generated_token_ids`. The runtime launchers currently consume
-`ares_plan`; keep `target_plan` attached separately as validator evidence
-instead of treating the wrapper command itself as TargetPlan proof.
+The Ares guide documents the cockpit UI, driver selection, steering files, run
+directory layout, gate discipline, prior-art checkout policy, and evidence
+rules.
