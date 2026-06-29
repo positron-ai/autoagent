@@ -13,7 +13,7 @@ DEFAULT_TIMEOUT_SEC = 3600
 COMPARISON_TIMEOUT_SEC = 24 * 3600
 MMLU_PRO_TIMEOUT_SEC = 24 * 3600
 BACKEND_GATES = {"backend_open", "one_token_logits", "eight_token_greedy"}
-COMPARISON_GATES = {"cpp_tvd", "depth_performance"}
+COMPARISON_GATES = {"cpp_tvd"}
 MMLU_PRO_GATES = {"mmlu_pro"}
 
 
@@ -337,6 +337,7 @@ def side_by_side_comparison_wrapper(
         notes=(
             "C++ Tron/Rinzler output is comparison and rollback evidence only.",
             "This wrapper never supplies HF CPU oracle correctness evidence.",
+            "Do not run this slow lane in the normal debug loop; attach it only after HF-backed Ares backend quality and performance are competitive enough to justify milestone comparison.",
         ),
         pass_regexes=("dry-run",) if dry_run else (),
     )

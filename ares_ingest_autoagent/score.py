@@ -41,8 +41,8 @@ STAGE_CAPS: dict[str, float] = {
     "backend_open": 0.58,
     "one_token_logits": 0.70,
     "eight_token_greedy": 0.80,
-    "cpp_tvd": 0.88,
     "depth_performance": 0.95,
+    "cpp_tvd": 0.97,
     "mmlu_pro": 0.98,
     "complete": 1.00,
 }
@@ -65,15 +65,17 @@ BACKEND_GATES: tuple[str, ...] = (
     "eight_token_greedy",
 )
 
-COMPARISON_GATES: tuple[str, ...] = (*BACKEND_GATES, "cpp_tvd")
-FULL_GATES: tuple[str, ...] = (*COMPARISON_GATES, "depth_performance", "mmlu_pro")
+FULL_GATES: tuple[str, ...] = (*BACKEND_GATES, "depth_performance", "mmlu_pro")
+COMPARISON_GATES: tuple[str, ...] = (*FULL_GATES, "cpp_tvd")
 STANDARD_GATES: tuple[str, ...] = CPU_ONLY_GATES
 
 GATE_PROFILES: dict[str, tuple[str, ...]] = {
     "cpu-only": CPU_ONLY_GATES,
     "backend": BACKEND_GATES,
-    "comparison": COMPARISON_GATES,
+    # The fast production-candidate loop stays on HF CPU oracle artifacts and
+    # the selected Ares backend. C++ comparison is an explicit late checkpoint.
     "full": FULL_GATES,
+    "comparison": COMPARISON_GATES,
 }
 
 ALPHA_EXECUTION_WEIGHTS: dict[str, float] = {

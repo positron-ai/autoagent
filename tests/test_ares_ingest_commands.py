@@ -209,6 +209,35 @@ class AresIngestCommandWrapperTest(unittest.TestCase):
             self.assertIn("systems_test_mmlu_pro", wrappers)
             self.assertTrue(wrappers["systems_test_mmlu_pro"]["enabled"])
 
+    def test_depth_performance_does_not_add_cpp_wrapper(self) -> None:
+        with TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            plan = build_command_wrapper_plan(
+                {
+                    "model": "synthetic/model",
+                    "backend": "fpga",
+                    "weights": "/weights/synthetic",
+                    "ares_plan": "artifacts/ares-plan.json",
+                    "required_gates": [
+                        "backend_open",
+                        "one_token_logits",
+                        "eight_token_greedy",
+                        "depth_performance",
+                    ],
+                    "comparison": {
+                        "cpp_rinzler_bin": "/tron/gen/rinzler",
+                        "rust_model_path": "/weights/synthetic-with-plans",
+                    },
+                },
+                run_dir=root / "run",
+                ares_repo=root / "ares",
+            )
+
+            wrappers = {wrapper["name"]: wrapper for wrapper in plan["wrappers"]}
+            self.assertIn("rinzler_chat_one_token", wrappers)
+            self.assertIn("rinzler_full_inference_smoke", wrappers)
+            self.assertNotIn("cpp_rinzler_side_by_side", wrappers)
+
 
 if __name__ == "__main__":
     unittest.main()
