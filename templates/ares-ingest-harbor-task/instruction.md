@@ -9,5 +9,6 @@ capture them once for the exact model/checkpoint, tokenizer, prompt-token
 context, decode depth, dtype/quantization policy, deterministic generation
 settings, and oracle/exporter code tuple, then reuse them until that tuple
 changes. Do not spend the normal debug loop on C++ Tron/Rinzler comparison; use
-that slow lane only as a late comparison/rollback checkpoint after the selected
-Ares backend is HF-correct and plausibly competitive.
+that slow lane only as a late comparison, compliance, performance, or rollback
+checkpoint after the selected Ares backend is HF-correct and plausibly
+competitive.

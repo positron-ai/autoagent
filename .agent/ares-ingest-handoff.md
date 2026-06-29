@@ -1,6 +1,6 @@
 # Ares Ingest AutoAgent Handoff
 
-Last updated: 2026-06-28
+Last updated: 2026-06-29
 
 ## Objective
 
@@ -42,7 +42,8 @@ as `third_party/autoagent` from the Ares repository.
 - HF Transformers on PyTorch CPU is the correctness oracle.
 - HF CPU token/logit captures should be produced once for the exact captured
   tuple and reused as goldens until that tuple changes.
-- C++ Tron/Rinzler is comparison and rollback evidence only.
+- C++ Tron/Rinzler is comparison, compliance, performance, and rollback
+  evidence only.
 - Ares runtime execution must flow through frontend artifacts, Lean ingest,
   generated AresPlan, Lean TargetPlan, and a backend provider.
 - Do not restore hand-authored Rust model plugins.

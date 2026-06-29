@@ -25,5 +25,5 @@ prompt-token context, decode depth, dtype/quantization policy, deterministic
 generation settings, and oracle/exporter code tuple, then reuse those artifacts
 as goldens for backend development. Keep the slow C++ Tron/Rinzler lane out of
 the normal AutoAgent debug loop; run it only as an explicit late
-comparison/rollback checkpoint after the selected Ares backend has HF-backed
-quality and competitive performance.
+comparison, compliance, performance, or rollback checkpoint after the selected
+Ares backend has HF-backed quality and competitive performance.
