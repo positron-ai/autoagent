@@ -67,8 +67,11 @@ The `model_spec` gate uses `ares-model-port` because it owns the initial model
 row inventory and gate plan. For unfamiliar model families, that inventory
 includes HuggingFace Transformers plus resolved or cloned vLLM, llama.cpp, and
 MLX checkouts. Prefer explicit checkout paths recorded in `model_spec.json` or
-the run handoff; otherwise use `${ARES_PRIOR_ART_ROOT:-$HOME/db}` as the cache
-root and clone missing official upstream repositories there.
+the run handoff; otherwise create/use `${ARES_PRIOR_ART_ROOT:-$HOME/db}` as the
+cache root and clone any missing official upstream repositories there:
+`https://github.com/vllm-project/vllm.git`,
+`https://github.com/ggml-org/llama.cpp.git`, and
+`https://github.com/ml-explore/mlx.git`.
 
 ## Evidence Rules
 

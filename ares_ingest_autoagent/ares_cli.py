@@ -175,9 +175,12 @@ def selected_workflow_skills(
                 "Build or repair the model row inventory before artifact gates run, "
                 "including prior-art inspection across HuggingFace Transformers plus "
                 "resolved or cloned vLLM, llama.cpp, and MLX checkouts. Use explicit "
-                "checkout paths when supplied; otherwise use "
-                "${ARES_PRIOR_ART_ROOT:-$HOME/db} as the cache root and clone missing "
-                "official upstream repos there."
+                "checkout paths when supplied; otherwise create/use "
+                "${ARES_PRIOR_ART_ROOT:-$HOME/db} as the cache root and clone any "
+                "missing official upstream repos there: "
+                "https://github.com/vllm-project/vllm.git, "
+                "https://github.com/ggml-org/llama.cpp.git, and "
+                "https://github.com/ml-explore/mlx.git."
             ),
             "allowed_scope": [
                 str(cfg.run_dir),
@@ -802,7 +805,7 @@ def allowed_write_scope_lines(first_failed_gate: str) -> list[str]:
     if first_failed_gate == "model_spec":
         return [
             "- Keep Ares source and run-state changes inside the Ares repo and this run directory.",
-            "- For model prior-art inspection, use explicit checkout paths recorded in `model_spec.json` or `handoff.md`; otherwise read or clone official vLLM, llama.cpp, and MLX checkouts under `${ARES_PRIOR_ART_ROOT:-$HOME/db}`.",
+            "- For model prior-art inspection, use explicit checkout paths recorded in `model_spec.json` or `handoff.md`; otherwise create/use `${ARES_PRIOR_ART_ROOT:-$HOME/db}` and read or clone official vLLM, llama.cpp, and MLX checkouts from `https://github.com/vllm-project/vllm.git`, `https://github.com/ggml-org/llama.cpp.git`, and `https://github.com/ml-explore/mlx.git`.",
             "- Do not vendor those prior-art repositories into Ares or add them as submodules unless the user explicitly asks.",
             "- Keep AutoAgent source changes out of model-ingest refinement unless the failing gate is an AutoAgent tool bug.",
             "- Keep changes focused on the first failing gate; leave later gates for later iterations.",

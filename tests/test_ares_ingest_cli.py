@@ -200,7 +200,17 @@ class AresIngestCliTest(unittest.TestCase):
             self.assertIn("llama.cpp", model_skill["why"])
             self.assertIn("MLX", model_skill["why"])
             self.assertIn("${ARES_PRIOR_ART_ROOT:-$HOME/db}", model_skill["why"])
-            self.assertIn("clone missing official upstream repos", model_skill["why"])
+            self.assertIn(
+                "clone any missing official upstream repos", model_skill["why"]
+            )
+            self.assertIn(
+                "https://github.com/vllm-project/vllm.git", model_skill["why"]
+            )
+            self.assertIn(
+                "https://github.com/ggml-org/llama.cpp.git",
+                model_skill["why"],
+            )
+            self.assertIn("https://github.com/ml-explore/mlx.git", model_skill["why"])
             self.assertEqual(
                 model_skill["allowed_scope"],
                 [
@@ -219,6 +229,7 @@ class AresIngestCliTest(unittest.TestCase):
             self.assertIn("`ares-model-port` for `model_spec`", handoff)
             self.assertIn("vLLM, llama.cpp, and MLX", handoff)
             self.assertIn("${ARES_PRIOR_ART_ROOT:-$HOME/db}/vllm", handoff)
+            self.assertIn("https://github.com/vllm-project/vllm.git", handoff)
             prompt = write_refinement_prompt(
                 cfg,
                 iteration=1,
@@ -227,6 +238,7 @@ class AresIngestCliTest(unittest.TestCase):
             ).read_text()
             self.assertIn("vLLM, llama.cpp, and MLX", prompt)
             self.assertIn("${ARES_PRIOR_ART_ROOT:-$HOME/db}/llama.cpp", prompt)
+            self.assertIn("https://github.com/ggml-org/llama.cpp.git", prompt)
             self.assertIn(
                 "read or clone official vLLM, llama.cpp, and MLX checkouts",
                 prompt,

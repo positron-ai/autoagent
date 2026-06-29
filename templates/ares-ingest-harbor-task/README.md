@@ -47,8 +47,11 @@ For local development, mount or copy:
   registry row, local checkpoint path, and HF model id are legitimate aliases.
 - `prior_art_checkouts`: optional explicit paths for vLLM, llama.cpp, and MLX
   checkouts. If absent, the `ares-model-port` workflow uses
-  `${ARES_PRIOR_ART_ROOT:-$HOME/db}` as the cache root and clones missing
-  official upstream repositories there for prior-art inspection.
+  `${ARES_PRIOR_ART_ROOT:-$HOME/db}` as the cache root and clones any missing
+  official upstream repositories there for prior-art inspection:
+  `https://github.com/vllm-project/vllm.git`,
+  `https://github.com/ggml-org/llama.cpp.git`, and
+  `https://github.com/ml-explore/mlx.git`.
 - `oracle_records`: HF CPU oracle JSONL file, relative to `work_dir`,
   `files/`, or `ARES_REPO`.
 - `ares_plan`: generated AresPlan JSON artifact.
