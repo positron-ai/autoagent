@@ -227,6 +227,14 @@ class AresIngestCliTest(unittest.TestCase):
             ).read_text()
             self.assertIn("vLLM, llama.cpp, and MLX", prompt)
             self.assertIn("${ARES_PRIOR_ART_ROOT:-$HOME/db}/llama.cpp", prompt)
+            self.assertIn(
+                "read or clone official vLLM, llama.cpp, and MLX checkouts",
+                prompt,
+            )
+            self.assertNotIn(
+                "- Work inside the Ares repo and this run directory only.",
+                prompt,
+            )
 
     def test_cpp_tvd_selects_comparison_evidence_context(self) -> None:
         with TemporaryDirectory() as tmp:

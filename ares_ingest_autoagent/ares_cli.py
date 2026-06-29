@@ -798,6 +798,22 @@ def gate_guidance(
     return common + specific.get(first_failed_gate, [])
 
 
+def allowed_write_scope_lines(first_failed_gate: str) -> list[str]:
+    if first_failed_gate == "model_spec":
+        return [
+            "- Keep Ares source and run-state changes inside the Ares repo and this run directory.",
+            "- For model prior-art inspection, use explicit checkout paths recorded in `model_spec.json` or `handoff.md`; otherwise read or clone official vLLM, llama.cpp, and MLX checkouts under `${ARES_PRIOR_ART_ROOT:-$HOME/db}`.",
+            "- Do not vendor those prior-art repositories into Ares or add them as submodules unless the user explicitly asks.",
+            "- Keep AutoAgent source changes out of model-ingest refinement unless the failing gate is an AutoAgent tool bug.",
+            "- Keep changes focused on the first failing gate; leave later gates for later iterations.",
+        ]
+    return [
+        "- Work inside the Ares repo and this run directory only.",
+        "- Keep AutoAgent source changes out of model-ingest refinement unless the failing gate is an AutoAgent tool bug.",
+        "- Keep changes focused on the first failing gate; leave later gates for later iterations.",
+    ]
+
+
 def write_refinement_prompt(
     cfg: AresIngestConfig,
     *,
@@ -866,9 +882,7 @@ def write_refinement_prompt(
             "",
             "## Allowed Write Scope",
             "",
-            "- Work inside the Ares repo and this run directory only.",
-            "- Keep AutoAgent source changes out of model-ingest refinement unless the failing gate is an AutoAgent tool bug.",
-            "- Keep changes focused on the first failing gate; leave later gates for later iterations.",
+            *allowed_write_scope_lines(first_failed_gate),
             "",
             "## Required Verification Before Returning",
             "",
