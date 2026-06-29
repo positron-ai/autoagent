@@ -33,10 +33,15 @@ as `third_party/autoagent` from the Ares repository.
   using it as promotion evidence.
 - Escalate to real backend/comparison/performance rows only when generated
   artifacts, checkpoints, and hardware are available.
+- Keep the default refinement loop on cached HF CPU goldens and the selected
+  Ares backend. Do not launch slow C++ Tron/Rinzler comparison until HF-backed
+  backend quality and performance show a competitive candidate worth comparing.
 
 ## Ares Rules
 
 - HF Transformers on PyTorch CPU is the correctness oracle.
+- HF CPU token/logit captures should be produced once for the exact captured
+  tuple and reused as goldens until that tuple changes.
 - C++ Tron/Rinzler is comparison and rollback evidence only.
 - Ares runtime execution must flow through frontend artifacts, Lean ingest,
   generated AresPlan, Lean TargetPlan, and a backend provider.
