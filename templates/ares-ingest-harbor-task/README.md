@@ -73,6 +73,12 @@ For local development, mount or copy:
   the selected Ares model/backend endpoint. Verify `/v1/models` first and use
   the exact API-facing model id as `MMLU_MODEL`; that id must also have a
   matching `scripts/mmlu_pro.py` config entry in `third_party/systems_test`.
+  The evidence must include hashed `/v1/models` and selected config-row
+  artifacts and must meet the model spec's required coverage.
+- `mmlu_model` and `mmlu_pro`: optional MMLU Pro run configuration. Use
+  `mmlu_model` when the API-facing model id differs from `model`, and set
+  `mmlu_pro.openai_host` plus `mmlu_pro.required_coverage_percent` for full
+  profile runs.
 - `command_wrapper_config`: optional settings for AutoAgent-generated runtime
   and C++ comparison wrapper commands. Wrappers default to dry-run mode.
 - `execute_command_wrappers`: set to `true` only when the task should launch

@@ -26,6 +26,12 @@
   "cpp_tvd_evidence": null,
   "depth_performance_evidence": null,
   "mmlu_pro_evidence": null,
+  "mmlu_model": null,
+  "mmlu_pro": {
+    "openai_host": null,
+    "coverage_percent": null,
+    "required_coverage_percent": null
+  },
   "command_wrapper_config": {
     "dry_run": true
   },

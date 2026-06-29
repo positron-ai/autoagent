@@ -236,7 +236,12 @@ def depth_performance_gate(
 
 
 def mmlu_pro_gate(
-    path: Path, *, label: str = "MMLU Pro benchmark evidence"
+    path: Path,
+    *,
+    label: str = "MMLU Pro benchmark evidence",
+    expected_model: str | None = None,
+    expected_backend: str | None = None,
+    required_coverage_percent: float | None = None,
 ) -> dict[str, Any]:
     if not path.is_file():
         return {
@@ -263,6 +268,9 @@ def mmlu_pro_gate(
     return validate_mmlu_pro_evidence(
         payload,
         base_dir=path.parent,
+        expected_model=expected_model,
+        expected_backend=expected_backend,
+        required_coverage_percent=required_coverage_percent,
     ).as_gate(
         label=label,
         validator_name="mmlu_pro",
@@ -739,6 +747,9 @@ def validate_mmlu_pro_evidence(
     payload: Any,
     *,
     base_dir: Path | None = None,
+    expected_model: str | None = None,
+    expected_backend: str | None = None,
+    required_coverage_percent: float | None = None,
 ) -> ArtifactValidation:
     errors: list[str] = []
     root = _payload_root(payload, errors, "MMLU Pro evidence")
@@ -764,8 +775,12 @@ def validate_mmlu_pro_evidence(
     openai_host = _first_string(root, [], ("openai_host", "endpoint"))
     if model is None:
         errors.append("MMLU Pro evidence must name model")
+    elif expected_model is not None and model != expected_model:
+        errors.append("MMLU Pro model must match model_spec mmlu_model/model")
     if backend is None:
         errors.append("MMLU Pro evidence must name backend")
+    elif expected_backend is not None and backend != expected_backend:
+        errors.append("MMLU Pro backend must match model_spec backend")
     if openai_host is None:
         errors.append("MMLU Pro evidence must name openai_host")
 
@@ -775,6 +790,12 @@ def validate_mmlu_pro_evidence(
         coverage_value = None
     else:
         coverage_value = float(coverage)
+    if (
+        coverage_value is not None
+        and required_coverage_percent is not None
+        and coverage_value < required_coverage_percent
+    ):
+        errors.append("MMLU Pro coverage_percent must meet required coverage")
 
     score = root.get("score_percent", root.get("score"))
     required = root.get(
@@ -798,6 +819,42 @@ def validate_mmlu_pro_evidence(
     ):
         errors.append("MMLU Pro score_percent must meet required_score_percent")
 
+    endpoint_models = _expect_object(
+        errors, root.get("endpoint_models"), "endpoint_models"
+    )
+    endpoint_model_count = None
+    if endpoint_models is not None:
+        _require_non_empty_string(
+            errors,
+            endpoint_models.get("path"),
+            "endpoint_models.path",
+        )
+        _require_sha256(errors, endpoint_models.get("sha256"), "endpoint_models")
+        _validate_referenced_sha256(
+            errors,
+            endpoint_models,
+            base_dir,
+            "endpoint_models",
+        )
+        endpoint_host = _first_string(
+            endpoint_models,
+            [],
+            ("openai_host", "endpoint"),
+        )
+        if endpoint_host is None:
+            errors.append("endpoint_models.openai_host must name the probed endpoint")
+        elif openai_host is not None and endpoint_host != openai_host:
+            errors.append("endpoint_models.openai_host must match top-level openai_host")
+        served_models = _expect_string_list(
+            errors,
+            endpoint_models.get("models"),
+            "endpoint_models.models",
+        )
+        if served_models is not None:
+            endpoint_model_count = len(served_models)
+            if model is not None and model not in served_models:
+                errors.append("endpoint_models.models must include top-level model")
+
     systems_test = _expect_object(errors, root.get("systems_test"), "systems_test")
     systems_test_config_model = None
     if systems_test is not None:
@@ -816,6 +873,45 @@ def validate_mmlu_pro_evidence(
             )
         elif model is not None and systems_test_config_model != model:
             errors.append("systems_test.config_model must match top-level model")
+        config = _expect_object(
+            errors,
+            systems_test.get("config"),
+            "systems_test.config",
+        )
+        if config is not None:
+            _require_non_empty_string(
+                errors,
+                config.get("path"),
+                "systems_test.config.path",
+            )
+            _require_sha256(errors, config.get("sha256"), "systems_test.config")
+            _validate_referenced_sha256(
+                errors,
+                config,
+                base_dir,
+                "systems_test.config",
+            )
+            _require_non_empty_string(
+                errors,
+                config.get("source_path"),
+                "systems_test.config.source_path",
+            )
+            if "scripts/mmlu_pro.py" not in str(config.get("source_path", "")):
+                errors.append(
+                    "systems_test.config.source_path must reference scripts/mmlu_pro.py"
+                )
+            config_model = _first_string(
+                config,
+                [],
+                ("model", "config_model", "mmlu_model"),
+            )
+            if config_model is None:
+                errors.append("systems_test.config.model must name the config row model")
+            elif model is not None and config_model != model:
+                errors.append("systems_test.config.model must match top-level model")
+            nominal_users = config.get("nominal_users")
+            if not isinstance(nominal_users, int | float) or nominal_users <= 0:
+                errors.append("systems_test.config.nominal_users must be positive")
         _require_non_empty_string(
             errors,
             systems_test.get("command"),
@@ -823,6 +919,8 @@ def validate_mmlu_pro_evidence(
         )
         if "uv run mmlu_pro" not in str(systems_test.get("command", "")):
             errors.append("systems_test.command must run uv run mmlu_pro")
+        if "SKIP_PROVISION=1" not in str(systems_test.get("command", "")):
+            errors.append("systems_test.command must set SKIP_PROVISION=1")
 
     ares = _expect_object(errors, root.get("ares"), "ares")
     if ares is not None:
@@ -892,6 +990,8 @@ def validate_mmlu_pro_evidence(
         "coverage_percent": coverage_value,
         "score_percent": score_value,
         "required_score_percent": required_value,
+        "required_coverage_percent": required_coverage_percent,
+        "endpoint_model_count": endpoint_model_count,
         "systems_test_config_model": systems_test_config_model,
         "subject_count": len(subjects) if isinstance(subjects, list) else None,
         "artifact_count": len(artifacts) if isinstance(artifacts, list) else None,

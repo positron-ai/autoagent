@@ -631,6 +631,28 @@ def read_json_or_jsonl(path: Path) -> Any:
         raise AresIngestError(f"invalid JSON in {path}: {exc}") from exc
 
 
+def mmlu_pro_expectations(spec: Mapping[str, Any]) -> dict[str, Any]:
+    mmlu_cfg = spec.get("mmlu_pro")
+    mmlu_cfg = mmlu_cfg if isinstance(mmlu_cfg, Mapping) else {}
+    expected_model = mmlu_cfg.get("model") or spec.get("mmlu_model") or spec.get("model")
+    coverage = (
+        mmlu_cfg.get("required_coverage_percent")
+        or mmlu_cfg.get("coverage_percent")
+        or mmlu_cfg.get("coverage")
+        or spec.get("mmlu_required_coverage_percent")
+        or spec.get("mmlu_coverage")
+    )
+    return {
+        "expected_model": expected_model if isinstance(expected_model, str) else None,
+        "expected_backend": spec.get("backend")
+        if isinstance(spec.get("backend"), str)
+        else None,
+        "required_coverage_percent": float(coverage)
+        if isinstance(coverage, int | float)
+        else None,
+    }
+
+
 def generated_payload(payload: Any) -> Any:
     if not isinstance(payload, Mapping):
         return payload
@@ -927,7 +949,10 @@ def evaluate_run(cfg: AresIngestConfig) -> tuple[dict[str, Any], dict[str, Any]]
             resolve_run_path(str(depth_performance), cfg)
         )
     if mmlu_pro := spec.get("mmlu_pro_evidence"):
-        validated_gates["mmlu_pro"] = mmlu_pro_gate(resolve_run_path(str(mmlu_pro), cfg))
+        validated_gates["mmlu_pro"] = mmlu_pro_gate(
+            resolve_run_path(str(mmlu_pro), cfg),
+            **mmlu_pro_expectations(spec),
+        )
     command_wrapper_plan = build_command_wrapper_plan(
         spec,
         run_dir=cfg.run_dir,

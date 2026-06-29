@@ -8,7 +8,7 @@ import os
 import subprocess
 import sys
 from pathlib import Path
-from typing import Any
+from typing import Any, Mapping
 
 from ares_ingest_autoagent.artifacts import (
     ares_plan_gate,
@@ -71,6 +71,28 @@ def read_json_or_jsonl(path: Path) -> Any:
     if path.suffix == ".jsonl":
         return [json.loads(line) for line in text.splitlines() if line.strip()]
     return json.loads(text)
+
+
+def mmlu_pro_expectations(spec: Mapping[str, Any]) -> dict[str, Any]:
+    mmlu_cfg = spec.get("mmlu_pro")
+    mmlu_cfg = mmlu_cfg if isinstance(mmlu_cfg, Mapping) else {}
+    expected_model = mmlu_cfg.get("model") or spec.get("mmlu_model") or spec.get("model")
+    coverage = (
+        mmlu_cfg.get("required_coverage_percent")
+        or mmlu_cfg.get("coverage_percent")
+        or mmlu_cfg.get("coverage")
+        or spec.get("mmlu_required_coverage_percent")
+        or spec.get("mmlu_coverage")
+    )
+    return {
+        "expected_model": expected_model if isinstance(expected_model, str) else None,
+        "expected_backend": spec.get("backend")
+        if isinstance(spec.get("backend"), str)
+        else None,
+        "required_coverage_percent": float(coverage)
+        if isinstance(coverage, int | float)
+        else None,
+    }
 
 
 def generated_payload(payload: Any) -> Any:
@@ -203,7 +225,8 @@ def main() -> int:
                 task_files=task_files,
                 ares_repo=ares_repo,
                 work_dir=work_dir,
-            )
+            ),
+            **mmlu_pro_expectations(spec),
         )
         gates["mmlu_pro"] = validated_gates["mmlu_pro"]
 

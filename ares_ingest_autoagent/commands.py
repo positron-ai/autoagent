@@ -415,7 +415,6 @@ def mmlu_pro_wrapper(
         evidence_outputs={
             "eval_results": str(output_dir / "eval_results"),
             "mmlu_output": str(output_dir / "mmlu_output"),
-            "evidence_json": str(output_dir / "mmlu-pro-evidence.json"),
         },
         enabled=not missing,
         missing_inputs=missing,

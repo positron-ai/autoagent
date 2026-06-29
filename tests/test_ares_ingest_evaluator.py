@@ -289,18 +289,35 @@ def depth_performance_evidence() -> dict[str, Any]:
     }
 
 
-def mmlu_pro_evidence(report_text: str) -> dict[str, Any]:
+def mmlu_pro_evidence(
+    report_text: str,
+    endpoint_models_text: str,
+    systems_test_config_text: str,
+    *,
+    model: str = "synthetic/model",
+    backend: str = "tron",
+) -> dict[str, Any]:
     report_sha = hashlib.sha256(report_text.encode()).hexdigest()
+    endpoint_models_sha = hashlib.sha256(endpoint_models_text.encode()).hexdigest()
+    systems_test_config_sha = hashlib.sha256(
+        systems_test_config_text.encode()
+    ).hexdigest()
     return {
         "schema": "ares.benchmark.mmlu_pro.v1",
         "evidence_class": "system_under_test",
         "status": "passed",
-        "model": "synthetic/model",
-        "backend": "tron",
+        "model": model,
+        "backend": backend,
         "openai_host": "http://127.0.0.1:8000/v1",
         "coverage_percent": 10,
         "score_percent": 72.0,
         "required_score_percent": 70.0,
+        "endpoint_models": {
+            "path": "endpoint-models.json",
+            "sha256": endpoint_models_sha,
+            "openai_host": "http://127.0.0.1:8000/v1",
+            "models": [model],
+        },
         "subjects": [
             {
                 "subject": "total",
@@ -313,13 +330,20 @@ def mmlu_pro_evidence(report_text: str) -> dict[str, Any]:
             "path": "third_party/systems_test",
             "commit": "1" * 40,
             "dirty": False,
-            "config_model": "synthetic/model",
-            "command": "OPENAI_HOST=http://127.0.0.1:8000/v1 uv run mmlu_pro",
+            "config_model": model,
+            "config": {
+                "path": "systems-test-config-row.json",
+                "sha256": systems_test_config_sha,
+                "source_path": "scripts/mmlu_pro.py",
+                "model": model,
+                "nominal_users": 1,
+            },
+            "command": "OPENAI_HOST=http://127.0.0.1:8000/v1 SKIP_PROVISION=1 uv run mmlu_pro",
         },
         "ares": {
             "commit": "2" * 40,
             "dirty": False,
-            "backend": "tron",
+            "backend": backend,
             "runtime_generated_sidecars": False,
             "ares_plan_sha256": "a" * 64,
             "target_plan_sha256": "b" * 64,
@@ -379,6 +403,21 @@ class AresIngestEvaluatorTest(unittest.TestCase):
 
     def test_evaluator_scores_full_artifact_backed_profile(self) -> None:
         mmlu_report = "Total, 72/100, 72.00%\n"
+        endpoint_models = (
+            json.dumps({"data": [{"id": "synthetic/model", "object": "model"}]}) + "\n"
+        )
+        systems_test_config = (
+            json.dumps(
+                {
+                    "name": "synthetic_model",
+                    "sample_name": "synthetic_model",
+                    "model": "synthetic/model",
+                    "nominal_users": 1,
+                    "user_sets": [],
+                }
+            )
+            + "\n"
+        )
         result = self.run_evaluator(
             {
                 "required_gates": [
@@ -429,8 +468,17 @@ class AresIngestEvaluatorTest(unittest.TestCase):
                 "one-token.json": json.dumps(one_token_logits_evidence()) + "\n",
                 "cpp-tvd.json": json.dumps(cpp_tvd_evidence()) + "\n",
                 "depth.json": json.dumps(depth_performance_evidence()) + "\n",
-                "mmlu-pro.json": json.dumps(mmlu_pro_evidence(mmlu_report)) + "\n",
+                "mmlu-pro.json": json.dumps(
+                    mmlu_pro_evidence(
+                        mmlu_report,
+                        endpoint_models,
+                        systems_test_config,
+                    )
+                )
+                + "\n",
                 "mmlu-report.txt": mmlu_report,
+                "endpoint-models.json": endpoint_models,
+                "systems-test-config-row.json": systems_test_config,
                 "reference_tokens.json": json.dumps(
                     {
                         "token_ids": [99, 98],
@@ -464,6 +512,50 @@ class AresIngestEvaluatorTest(unittest.TestCase):
         self.assertTrue((result["work_dir"] / "tokens.json").exists())
         self.assertTrue(reward["gates"]["eight_token_greedy"]["passed"])
         self.assertTrue((result["work_dir"] / "performance.json").exists())
+
+    def test_evaluator_rejects_mmlu_pro_for_wrong_model(self) -> None:
+        mmlu_report = "Total, 72/100, 72.00%\n"
+        endpoint_models = (
+            json.dumps({"data": [{"id": "wrong/model", "object": "model"}]}) + "\n"
+        )
+        systems_test_config = (
+            json.dumps(
+                {
+                    "name": "wrong_model",
+                    "sample_name": "wrong_model",
+                    "model": "wrong/model",
+                    "nominal_users": 1,
+                    "user_sets": [],
+                }
+            )
+            + "\n"
+        )
+        result = self.run_evaluator(
+            {
+                "required_gates": ["model_spec", "mmlu_pro"],
+                "explicit_gates": {"model_spec": True},
+                "backend": "tron",
+                "mmlu_pro_evidence": "mmlu-pro.json",
+            },
+            {
+                "mmlu-pro.json": json.dumps(
+                    mmlu_pro_evidence(
+                        mmlu_report,
+                        endpoint_models,
+                        systems_test_config,
+                        model="wrong/model",
+                    )
+                )
+                + "\n",
+                "mmlu-report.txt": mmlu_report,
+                "endpoint-models.json": endpoint_models,
+                "systems-test-config-row.json": systems_test_config,
+            },
+        )
+
+        reward = result["reward"]
+        self.assertEqual(reward["first_failed_gate"], "mmlu_pro")
+        self.assertFalse(reward["gates"]["mmlu_pro"]["passed"])
 
     def test_evaluator_rejects_target_plan_model_mismatch(self) -> None:
         target_plan = valid_target_plan()

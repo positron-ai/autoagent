@@ -29,6 +29,93 @@ def sha256_file(path: Path) -> str:
     return digest.hexdigest()
 
 
+def write_json_artifact(path: Path, payload: dict) -> dict[str, str]:
+    path.write_text(json.dumps(payload, sort_keys=True) + "\n")
+    return {"path": path.name, "sha256": sha256_file(path)}
+
+
+def mmlu_pro_payload(
+    root: Path,
+    *,
+    model: str = "synthetic/model",
+    backend: str = "fpga",
+    openai_host: str = "http://127.0.0.1:8000/v1",
+    coverage_percent: float = 10,
+    score_percent: float = 72.0,
+    required_score_percent: float = 70.0,
+    systems_test_dirty: bool = False,
+    include_endpoint_models: bool = True,
+    include_systems_test_config: bool = True,
+) -> dict:
+    report = root / "report.txt"
+    report.write_text(f"Total, {score_percent:.0f}/100, {score_percent:.2f}%\n")
+    systems_test: dict[str, object] = {
+        "path": "third_party/systems_test",
+        "commit": "1" * 40,
+        "dirty": systems_test_dirty,
+        "config_model": model,
+        "command": (
+            f"OPENAI_HOST={openai_host} SKIP_PROVISION=1 "
+            f"MMLU_MODEL={model} uv run mmlu_pro"
+        ),
+    }
+    if include_systems_test_config:
+        systems_test["config"] = {
+            **write_json_artifact(
+                root / "systems-test-config-row.json",
+                {
+                    "name": "synthetic_model",
+                    "sample_name": "synthetic_model",
+                    "model": model,
+                    "nominal_users": 1,
+                    "user_sets": [],
+                },
+            ),
+            "source_path": "scripts/mmlu_pro.py",
+            "model": model,
+            "nominal_users": 1,
+        }
+    payload = {
+        "schema": "ares.benchmark.mmlu_pro.v1",
+        "evidence_class": "system_under_test",
+        "status": "passed",
+        "model": model,
+        "backend": backend,
+        "openai_host": openai_host,
+        "coverage_percent": coverage_percent,
+        "score_percent": score_percent,
+        "required_score_percent": required_score_percent,
+        "subjects": [
+            {
+                "subject": "total",
+                "correct": score_percent,
+                "wrong": 100 - score_percent,
+                "score_percent": score_percent,
+            }
+        ],
+        "systems_test": systems_test,
+        "ares": {
+            "commit": "2" * 40,
+            "dirty": False,
+            "backend": backend,
+            "runtime_generated_sidecars": False,
+            "ares_plan_sha256": SHA_A,
+            "target_plan_sha256": SHA_B,
+        },
+        "artifacts": [{"path": "report.txt", "sha256": sha256_file(report)}],
+    }
+    if include_endpoint_models:
+        payload["endpoint_models"] = {
+            **write_json_artifact(
+                root / "endpoint-models.json",
+                {"data": [{"id": model, "object": "model"}]},
+            ),
+            "openai_host": openai_host,
+            "models": [model],
+        }
+    return payload
+
+
 def replay_context() -> dict:
     return {
         "context_tokens": [1, 2],
@@ -508,52 +595,15 @@ class AresIngestArtifactTest(unittest.TestCase):
     def test_mmlu_pro_gate_accepts_threshold_passing_evidence(self) -> None:
         with TemporaryDirectory() as tmp:
             root = Path(tmp)
-            report = root / "report.txt"
-            report.write_text("Total, 72/100, 72.00%\n")
             path = root / "mmlu-pro.json"
-            path.write_text(
-                json.dumps(
-                    {
-                        "schema": "ares.benchmark.mmlu_pro.v1",
-                        "evidence_class": "system_under_test",
-                        "status": "passed",
-                        "model": "synthetic/model",
-                        "backend": "fpga",
-                        "openai_host": "http://127.0.0.1:8000/v1",
-                        "coverage_percent": 10,
-                        "score_percent": 72.0,
-                        "required_score_percent": 70.0,
-                        "subjects": [
-                            {
-                                "subject": "total",
-                                "correct": 72,
-                                "wrong": 28,
-                                "score_percent": 72.0,
-                            }
-                        ],
-                        "systems_test": {
-                            "path": "third_party/systems_test",
-                            "commit": "1" * 40,
-                            "dirty": False,
-                            "config_model": "synthetic/model",
-                            "command": "OPENAI_HOST=http://127.0.0.1:8000/v1 uv run mmlu_pro",
-                        },
-                        "ares": {
-                            "commit": "2" * 40,
-                            "dirty": False,
-                            "backend": "fpga",
-                            "runtime_generated_sidecars": False,
-                            "ares_plan_sha256": SHA_A,
-                            "target_plan_sha256": SHA_B,
-                        },
-                        "artifacts": [
-                            {"path": "report.txt", "sha256": sha256_file(report)}
-                        ],
-                    }
-                )
-            )
+            path.write_text(json.dumps(mmlu_pro_payload(root)))
 
-            gate = mmlu_pro_gate(path)
+            gate = mmlu_pro_gate(
+                path,
+                expected_model="synthetic/model",
+                expected_backend="fpga",
+                required_coverage_percent=10,
+            )
 
             self.assertTrue(gate["passed"], gate.get("errors"))
             self.assertEqual(gate["artifact_validator"], "mmlu_pro")
@@ -562,48 +612,14 @@ class AresIngestArtifactTest(unittest.TestCase):
     def test_mmlu_pro_gate_rejects_low_score_and_dirty_sources(self) -> None:
         with TemporaryDirectory() as tmp:
             root = Path(tmp)
-            report = root / "report.txt"
-            report.write_text("Total, 60/100, 60.00%\n")
             path = root / "mmlu-pro.json"
             path.write_text(
                 json.dumps(
-                    {
-                        "schema": "ares.benchmark.mmlu_pro.v1",
-                        "evidence_class": "system_under_test",
-                        "status": "passed",
-                        "model": "synthetic/model",
-                        "backend": "fpga",
-                        "openai_host": "http://127.0.0.1:8000/v1",
-                        "coverage_percent": 10,
-                        "score_percent": 60.0,
-                        "required_score_percent": 70.0,
-                        "subjects": [
-                            {
-                                "subject": "total",
-                                "correct": 60,
-                                "wrong": 40,
-                                "score_percent": 60.0,
-                            }
-                        ],
-                        "systems_test": {
-                            "path": "third_party/systems_test",
-                            "commit": "1" * 40,
-                            "dirty": True,
-                            "config_model": "synthetic/model",
-                            "command": "OPENAI_HOST=http://127.0.0.1:8000/v1 uv run mmlu_pro",
-                        },
-                        "ares": {
-                            "commit": "2" * 40,
-                            "dirty": False,
-                            "backend": "fpga",
-                            "runtime_generated_sidecars": False,
-                            "ares_plan_sha256": SHA_A,
-                            "target_plan_sha256": SHA_B,
-                        },
-                        "artifacts": [
-                            {"path": "report.txt", "sha256": sha256_file(report)}
-                        ],
-                    }
+                    mmlu_pro_payload(
+                        root,
+                        score_percent=60.0,
+                        systems_test_dirty=True,
+                    )
                 )
             )
 
@@ -612,6 +628,63 @@ class AresIngestArtifactTest(unittest.TestCase):
             self.assertFalse(gate["passed"])
             self.assertIn("score_percent must meet", " ".join(gate["errors"]))
             self.assertIn("systems_test.dirty must be false", " ".join(gate["errors"]))
+
+    def test_mmlu_pro_gate_rejects_wrong_model_or_backend_for_spec(self) -> None:
+        with TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            path = root / "mmlu-pro.json"
+            path.write_text(
+                json.dumps(
+                    mmlu_pro_payload(
+                        root,
+                        model="wrong/model",
+                        backend="wrong-backend",
+                    )
+                )
+            )
+
+            gate = mmlu_pro_gate(
+                path,
+                expected_model="synthetic/model",
+                expected_backend="fpga",
+            )
+
+            self.assertFalse(gate["passed"])
+            self.assertIn("model must match model_spec", " ".join(gate["errors"]))
+            self.assertIn("backend must match model_spec", " ".join(gate["errors"]))
+
+    def test_mmlu_pro_gate_rejects_missing_endpoint_and_config_proofs(self) -> None:
+        with TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            path = root / "mmlu-pro.json"
+            path.write_text(
+                json.dumps(
+                    mmlu_pro_payload(
+                        root,
+                        include_endpoint_models=False,
+                        include_systems_test_config=False,
+                    )
+                )
+            )
+
+            gate = mmlu_pro_gate(path)
+
+            self.assertFalse(gate["passed"])
+            self.assertIn("endpoint_models must be an object", " ".join(gate["errors"]))
+            self.assertIn("systems_test.config must be an object", " ".join(gate["errors"]))
+
+    def test_mmlu_pro_gate_rejects_undercoverage_for_spec(self) -> None:
+        with TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            path = root / "mmlu-pro.json"
+            path.write_text(
+                json.dumps(mmlu_pro_payload(root, coverage_percent=1))
+            )
+
+            gate = mmlu_pro_gate(path, required_coverage_percent=10)
+
+            self.assertFalse(gate["passed"])
+            self.assertIn("coverage_percent must meet", " ".join(gate["errors"]))
 
 
 if __name__ == "__main__":
