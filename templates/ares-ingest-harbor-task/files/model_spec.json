@@ -25,6 +25,7 @@
   "eight_token_greedy_evidence": null,
   "cpp_tvd_evidence": null,
   "depth_performance_evidence": null,
+  "mmlu_pro_evidence": null,
   "command_wrapper_config": {
     "dry_run": true
   },

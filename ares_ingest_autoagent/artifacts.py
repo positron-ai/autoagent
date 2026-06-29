@@ -14,6 +14,7 @@ HF_CPU_SCHEMA_ID = "ares.oracles.hf_cpu.record.v1"
 HF_CPU_ORACLE_KIND = "huggingface_transformers_pytorch_cpu"
 LEAN_TARGET_PLAN_PRODUCER = {"language": "lean", "tool": "ingest-lean"}
 SHA256_RE = re.compile(r"^[0-9a-f]{64}$", re.I)
+GIT_COMMIT_RE = re.compile(r"^[0-9a-f]{40}$", re.I)
 REPLAY_CONTEXT_FIELDS = (
     "context_tokens",
     "context_tokens_role",
@@ -231,6 +232,41 @@ def depth_performance_gate(
         label=label,
         validator_name="depth_performance",
         validator=validate_depth_performance_evidence,
+    )
+
+
+def mmlu_pro_gate(
+    path: Path, *, label: str = "MMLU Pro benchmark evidence"
+) -> dict[str, Any]:
+    if not path.is_file():
+        return {
+            "label": label,
+            "artifact_validator": "mmlu_pro",
+            "path": str(path),
+            "exists": path.exists(),
+            "passed": False,
+            "score": 0.0,
+            "errors": ["evidence file is missing"],
+        }
+    try:
+        payload = _read_json_or_jsonl(path)
+    except ValueError as exc:
+        return {
+            "label": label,
+            "artifact_validator": "mmlu_pro",
+            "path": str(path),
+            "exists": True,
+            "passed": False,
+            "score": 0.0,
+            "errors": [str(exc)],
+        }
+    return validate_mmlu_pro_evidence(
+        payload,
+        base_dir=path.parent,
+    ).as_gate(
+        label=label,
+        validator_name="mmlu_pro",
+        path=path,
     )
 
 
@@ -695,6 +731,170 @@ def validate_depth_performance_evidence(payload: Any) -> ArtifactValidation:
         "depths": sorted(seen_depths),
         "depth_order": ordered_depths,
         "depth_count": len(seen_depths),
+    }
+    return _validation(not errors, errors, detail)
+
+
+def validate_mmlu_pro_evidence(
+    payload: Any,
+    *,
+    base_dir: Path | None = None,
+) -> ArtifactValidation:
+    errors: list[str] = []
+    root = _payload_root(payload, errors, "MMLU Pro evidence")
+    if root is None:
+        return _validation(False, errors, {})
+    if not isinstance(root, dict):
+        return _validation(
+            False,
+            [*errors, "MMLU Pro evidence must be a JSON object"],
+            {},
+        )
+
+    if root.get("schema") != "ares.benchmark.mmlu_pro.v1":
+        errors.append("MMLU Pro schema must be ares.benchmark.mmlu_pro.v1")
+    evidence_class = _first_string(root, [], ("evidence_class", "classification"))
+    if evidence_class not in {"system_under_test", "promotion"}:
+        errors.append("MMLU Pro evidence_class must be system_under_test or promotion")
+    if root.get("status") != "passed":
+        errors.append("MMLU Pro status must be passed")
+
+    model = _first_string(root, [], ("model", "model_id", "mmlu_model"))
+    backend = _first_string(root, [], ("backend", "backend_id"))
+    openai_host = _first_string(root, [], ("openai_host", "endpoint"))
+    if model is None:
+        errors.append("MMLU Pro evidence must name model")
+    if backend is None:
+        errors.append("MMLU Pro evidence must name backend")
+    if openai_host is None:
+        errors.append("MMLU Pro evidence must name openai_host")
+
+    coverage = root.get("coverage_percent", root.get("coverage"))
+    if not isinstance(coverage, int | float) or float(coverage) <= 0:
+        errors.append("MMLU Pro coverage_percent must be positive")
+        coverage_value = None
+    else:
+        coverage_value = float(coverage)
+
+    score = root.get("score_percent", root.get("score"))
+    required = root.get(
+        "required_score_percent",
+        root.get("minimum_score_percent", root.get("threshold_percent")),
+    )
+    if not isinstance(score, int | float):
+        errors.append("MMLU Pro score_percent must be numeric")
+        score_value = None
+    else:
+        score_value = float(score)
+    if not isinstance(required, int | float):
+        errors.append("MMLU Pro required_score_percent must be numeric")
+        required_value = None
+    else:
+        required_value = float(required)
+    if (
+        score_value is not None
+        and required_value is not None
+        and score_value < required_value
+    ):
+        errors.append("MMLU Pro score_percent must meet required_score_percent")
+
+    systems_test = _expect_object(errors, root.get("systems_test"), "systems_test")
+    systems_test_config_model = None
+    if systems_test is not None:
+        _require_non_empty_string(errors, systems_test.get("path"), "systems_test.path")
+        _require_git_sha(errors, systems_test.get("commit"), "systems_test.commit")
+        if systems_test.get("dirty") is not False:
+            errors.append("systems_test.dirty must be false for promotion evidence")
+        systems_test_config_model = _first_string(
+            systems_test,
+            [],
+            ("config_model", "mmlu_model", "model"),
+        )
+        if systems_test_config_model is None:
+            errors.append(
+                "systems_test.config_model must record the scripts/mmlu_pro.py config model"
+            )
+        elif model is not None and systems_test_config_model != model:
+            errors.append("systems_test.config_model must match top-level model")
+        _require_non_empty_string(
+            errors,
+            systems_test.get("command"),
+            "systems_test.command",
+        )
+        if "uv run mmlu_pro" not in str(systems_test.get("command", "")):
+            errors.append("systems_test.command must run uv run mmlu_pro")
+
+    ares = _expect_object(errors, root.get("ares"), "ares")
+    if ares is not None:
+        _require_git_sha(errors, ares.get("commit"), "ares.commit")
+        if ares.get("dirty") is not False:
+            errors.append("ares.dirty must be false for promotion evidence")
+        ares_backend = _first_string(ares, [], ("backend", "backend_id"))
+        if ares_backend is None:
+            errors.append("ares.backend must name the selected backend")
+        elif backend is not None and ares_backend != backend:
+            errors.append("ares.backend must match top-level backend")
+        if ares.get("runtime_generated_sidecars") is not False:
+            errors.append("ares.runtime_generated_sidecars must be false")
+        _require_sha256(
+            errors,
+            ares.get("ares_plan_sha256", ares.get("ares_plan_hash")),
+            "AresPlan",
+        )
+        _require_sha256(
+            errors,
+            ares.get("target_plan_sha256", ares.get("target_plan_hash")),
+            "TargetPlan",
+        )
+
+    subjects = root.get("subjects")
+    if not isinstance(subjects, list) or not subjects:
+        errors.append("MMLU Pro subjects must be a non-empty list")
+    else:
+        for index, subject in enumerate(subjects):
+            if not isinstance(subject, dict):
+                errors.append(f"subjects[{index}] must be an object")
+                continue
+            _require_non_empty_string(
+                errors,
+                subject.get("subject"),
+                f"subjects[{index}].subject",
+            )
+            for field in ("correct", "wrong", "score_percent"):
+                value = subject.get(field)
+                if not isinstance(value, int | float) or float(value) < 0:
+                    errors.append(f"subjects[{index}].{field} must be non-negative")
+
+    artifacts = root.get("artifacts")
+    if not isinstance(artifacts, list) or not artifacts:
+        errors.append("MMLU Pro artifacts must be a non-empty list")
+    else:
+        for index, artifact in enumerate(artifacts):
+            if not isinstance(artifact, dict):
+                errors.append(f"artifacts[{index}] must be an object")
+                continue
+            _require_non_empty_string(
+                errors,
+                artifact.get("path"),
+                f"artifacts[{index}].path",
+            )
+            _require_sha256(errors, artifact.get("sha256"), f"artifacts[{index}]")
+            _validate_referenced_sha256(
+                errors,
+                artifact,
+                base_dir,
+                f"artifacts[{index}]",
+            )
+
+    detail = {
+        "model": model,
+        "backend": backend,
+        "coverage_percent": coverage_value,
+        "score_percent": score_value,
+        "required_score_percent": required_value,
+        "systems_test_config_model": systems_test_config_model,
+        "subject_count": len(subjects) if isinstance(subjects, list) else None,
+        "artifact_count": len(artifacts) if isinstance(artifacts, list) else None,
     }
     return _validation(not errors, errors, detail)
 
@@ -1177,6 +1377,11 @@ def _event_name(row: dict[str, Any]) -> str | None:
 def _require_sha256(errors: list[str], value: Any, label: str) -> None:
     if not isinstance(value, str) or SHA256_RE.fullmatch(value) is None:
         errors.append(f"{label} SHA-256 must be a 64-character hex string")
+
+
+def _require_git_sha(errors: list[str], value: Any, label: str) -> None:
+    if not isinstance(value, str) or GIT_COMMIT_RE.fullmatch(value) is None:
+        errors.append(f"{label} must be a 40-character hex git commit")
 
 
 def _validate_tvd(

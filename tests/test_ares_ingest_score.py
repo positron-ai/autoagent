@@ -9,6 +9,7 @@ from ares_ingest_autoagent.artifacts import build_greedy_token_evidence
 from ares_ingest_autoagent.score import (
     BACKEND_GATES,
     CPU_ONLY_GATES,
+    FULL_GATES,
     compute_reward,
     main,
 )
@@ -203,6 +204,42 @@ class AresIngestScoreTest(unittest.TestCase):
             self.assertIn(gate, reward["gates"])
         self.assertEqual(reward["first_failed_gate"], "complete")
         self.assertNotIn("cpp_tvd", reward["gates"])
+
+    def test_full_profile_requires_mmlu_pro_after_depth_performance(self) -> None:
+        reward = compute_reward(
+            gates_payload={
+                "gates": {
+                    "model_spec": True,
+                    "frontend_export": True,
+                    "lean_ingest": True,
+                }
+            },
+            validated_gates_payload={
+                "gates": {
+                    "aresplan_valid": artifact_gate("ares_plan"),
+                    "targetplan_valid": artifact_gate("target_plan"),
+                    "artifact_consistency": artifact_gate("artifact_consistency"),
+                    "shortcut_scan": artifact_gate("shortcut_scan"),
+                    "backend_open": artifact_gate("backend_open"),
+                    "one_token_logits": artifact_gate("one_token_logits"),
+                    "eight_token_greedy": artifact_gate("eight_token_greedy"),
+                    "cpp_tvd": artifact_gate("cpp_tvd"),
+                    "depth_performance": artifact_gate("depth_performance"),
+                }
+            },
+            oracle_payload=oracle_record(),
+            token_payload=token_evidence(),
+            performance_payload={
+                "workload": "independent_decode",
+                "measured_tokens_per_second": 100.0,
+                "speed_of_light_tokens_per_second": 100.0,
+            },
+            required_gates=FULL_GATES,
+        )
+
+        self.assertEqual(reward["first_failed_gate"], "mmlu_pro")
+        self.assertEqual(reward["stage_cap"], 0.98)
+        self.assertLess(reward["score"], 1.0)
 
     def test_missing_targetplan_caps_fast_token_match(self) -> None:
         reward = compute_reward(
@@ -399,6 +436,42 @@ class AresIngestScoreTest(unittest.TestCase):
 
         self.assertEqual(reward["first_failed_gate"], "backend_open")
         self.assertFalse(reward["gates"]["backend_open"]["passed"])
+
+    def test_explicit_mmlu_pro_gate_cannot_replace_validator(self) -> None:
+        reward = compute_reward(
+            gates_payload={
+                "gates": {
+                    "model_spec": True,
+                    "frontend_export": True,
+                    "lean_ingest": True,
+                    "mmlu_pro": True,
+                }
+            },
+            validated_gates_payload={
+                "gates": {
+                    "aresplan_valid": artifact_gate("ares_plan"),
+                    "targetplan_valid": artifact_gate("target_plan"),
+                    "artifact_consistency": artifact_gate("artifact_consistency"),
+                    "shortcut_scan": artifact_gate("shortcut_scan"),
+                    "backend_open": artifact_gate("backend_open"),
+                    "one_token_logits": artifact_gate("one_token_logits"),
+                    "eight_token_greedy": artifact_gate("eight_token_greedy"),
+                    "cpp_tvd": artifact_gate("cpp_tvd"),
+                    "depth_performance": artifact_gate("depth_performance"),
+                }
+            },
+            oracle_payload=oracle_record(),
+            token_payload=token_evidence(),
+            performance_payload={
+                "workload": "independent_decode",
+                "measured_tokens_per_second": 100.0,
+                "speed_of_light_tokens_per_second": 100.0,
+            },
+            required_gates=FULL_GATES,
+        )
+
+        self.assertEqual(reward["first_failed_gate"], "mmlu_pro")
+        self.assertFalse(reward["gates"]["mmlu_pro"]["passed"])
 
     def test_explicit_eight_token_gate_cannot_replace_token_evidence(self) -> None:
         reward = compute_reward(

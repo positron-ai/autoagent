@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import hashlib
 import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -11,6 +12,7 @@ from ares_ingest_autoagent.artifacts import (
     build_greedy_token_evidence,
     cpp_tvd_gate,
     depth_performance_gate,
+    mmlu_pro_gate,
     one_token_logits_gate,
     token_agreement_gate,
     validate_cpp_tvd_evidence,
@@ -19,6 +21,12 @@ from ares_ingest_autoagent.artifacts import (
 
 SHA_A = "a" * 64
 SHA_B = "b" * 64
+
+
+def sha256_file(path: Path) -> str:
+    digest = hashlib.sha256()
+    digest.update(path.read_bytes())
+    return digest.hexdigest()
 
 
 def replay_context() -> dict:
@@ -496,6 +504,114 @@ class AresIngestArtifactTest(unittest.TestCase):
 
             self.assertFalse(gate["passed"])
             self.assertIn("ordered 8 -> 64 -> 512", " ".join(gate["errors"]))
+
+    def test_mmlu_pro_gate_accepts_threshold_passing_evidence(self) -> None:
+        with TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            report = root / "report.txt"
+            report.write_text("Total, 72/100, 72.00%\n")
+            path = root / "mmlu-pro.json"
+            path.write_text(
+                json.dumps(
+                    {
+                        "schema": "ares.benchmark.mmlu_pro.v1",
+                        "evidence_class": "system_under_test",
+                        "status": "passed",
+                        "model": "synthetic/model",
+                        "backend": "fpga",
+                        "openai_host": "http://127.0.0.1:8000/v1",
+                        "coverage_percent": 10,
+                        "score_percent": 72.0,
+                        "required_score_percent": 70.0,
+                        "subjects": [
+                            {
+                                "subject": "total",
+                                "correct": 72,
+                                "wrong": 28,
+                                "score_percent": 72.0,
+                            }
+                        ],
+                        "systems_test": {
+                            "path": "third_party/systems_test",
+                            "commit": "1" * 40,
+                            "dirty": False,
+                            "config_model": "synthetic/model",
+                            "command": "OPENAI_HOST=http://127.0.0.1:8000/v1 uv run mmlu_pro",
+                        },
+                        "ares": {
+                            "commit": "2" * 40,
+                            "dirty": False,
+                            "backend": "fpga",
+                            "runtime_generated_sidecars": False,
+                            "ares_plan_sha256": SHA_A,
+                            "target_plan_sha256": SHA_B,
+                        },
+                        "artifacts": [
+                            {"path": "report.txt", "sha256": sha256_file(report)}
+                        ],
+                    }
+                )
+            )
+
+            gate = mmlu_pro_gate(path)
+
+            self.assertTrue(gate["passed"], gate.get("errors"))
+            self.assertEqual(gate["artifact_validator"], "mmlu_pro")
+            self.assertEqual(gate["detail"]["score_percent"], 72.0)
+
+    def test_mmlu_pro_gate_rejects_low_score_and_dirty_sources(self) -> None:
+        with TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            report = root / "report.txt"
+            report.write_text("Total, 60/100, 60.00%\n")
+            path = root / "mmlu-pro.json"
+            path.write_text(
+                json.dumps(
+                    {
+                        "schema": "ares.benchmark.mmlu_pro.v1",
+                        "evidence_class": "system_under_test",
+                        "status": "passed",
+                        "model": "synthetic/model",
+                        "backend": "fpga",
+                        "openai_host": "http://127.0.0.1:8000/v1",
+                        "coverage_percent": 10,
+                        "score_percent": 60.0,
+                        "required_score_percent": 70.0,
+                        "subjects": [
+                            {
+                                "subject": "total",
+                                "correct": 60,
+                                "wrong": 40,
+                                "score_percent": 60.0,
+                            }
+                        ],
+                        "systems_test": {
+                            "path": "third_party/systems_test",
+                            "commit": "1" * 40,
+                            "dirty": True,
+                            "config_model": "synthetic/model",
+                            "command": "OPENAI_HOST=http://127.0.0.1:8000/v1 uv run mmlu_pro",
+                        },
+                        "ares": {
+                            "commit": "2" * 40,
+                            "dirty": False,
+                            "backend": "fpga",
+                            "runtime_generated_sidecars": False,
+                            "ares_plan_sha256": SHA_A,
+                            "target_plan_sha256": SHA_B,
+                        },
+                        "artifacts": [
+                            {"path": "report.txt", "sha256": sha256_file(report)}
+                        ],
+                    }
+                )
+            )
+
+            gate = mmlu_pro_gate(path)
+
+            self.assertFalse(gate["passed"])
+            self.assertIn("score_percent must meet", " ".join(gate["errors"]))
+            self.assertIn("systems_test.dirty must be false", " ".join(gate["errors"]))
 
 
 if __name__ == "__main__":

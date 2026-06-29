@@ -22,6 +22,7 @@ from ares_ingest_autoagent.artifacts import (
     build_greedy_token_evidence,
     cpp_tvd_gate,
     depth_performance_gate,
+    mmlu_pro_gate,
     one_token_logits_gate,
     target_plan_gate,
     token_agreement_gate,
@@ -506,6 +507,21 @@ def selected_workflow_skills(
             ],
             "verification_commands": [verify],
         },
+        "mmlu_pro": {
+            "name": "ares-mmlu-pro",
+            "gate": "mmlu_pro",
+            "why": "Run and classify MMLU Pro benchmark evidence for the selected Ares model/backend before production readiness.",
+            "allowed_scope": [
+                "third_party/systems_test/",
+                str(cfg.run_dir / "artifacts"),
+                str(cfg.model_spec_path),
+            ],
+            "verification_commands": [
+                "curl $OPENAI_HOST/models",
+                "cd third_party/systems_test && uv run mmlu_pro",
+                verify,
+            ],
+        },
     }
     gate_skill = gate_skills.get(first_failed_gate)
     if gate_skill:
@@ -910,6 +926,8 @@ def evaluate_run(cfg: AresIngestConfig) -> tuple[dict[str, Any], dict[str, Any]]
         validated_gates["depth_performance"] = depth_performance_gate(
             resolve_run_path(str(depth_performance), cfg)
         )
+    if mmlu_pro := spec.get("mmlu_pro_evidence"):
+        validated_gates["mmlu_pro"] = mmlu_pro_gate(resolve_run_path(str(mmlu_pro), cfg))
     command_wrapper_plan = build_command_wrapper_plan(
         spec,
         run_dir=cfg.run_dir,
@@ -1039,6 +1057,12 @@ def gate_guidance(
         "depth_performance": [
             "- Follow the 8 -> 64 -> 512 ladder and keep correctness gates green before speed claims.",
             "- Record throughput, latency, TTFT, memory, and artifact hashes.",
+        ],
+        "mmlu_pro": [
+            "- Run MMLU Pro through `third_party/systems_test` against an OpenAI-compatible Ares endpoint for the selected backend.",
+            "- Verify `/v1/models` first; set `MMLU_MODEL` to the exact API-facing model id, and add a matching `scripts/mmlu_pro.py` config entry if the id is new.",
+            "- Attach `mmlu_pro_evidence` with schema `ares.benchmark.mmlu_pro.v1`, score, threshold, coverage, model/backend binding, systems_test commit, AresPlan/TargetPlan hashes, and raw artifact hashes.",
+            "- Treat the benchmark as Ares system-under-test evidence, not an HF CPU oracle or C++ comparison substitute.",
         ],
     }
     return common + specific.get(first_failed_gate, [])

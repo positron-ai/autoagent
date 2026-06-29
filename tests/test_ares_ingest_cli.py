@@ -368,6 +368,30 @@ class AresIngestCliTest(unittest.TestCase):
             self.assertEqual(cpp_skill["name"], "ares-evidence")
             self.assertIn("comparison and rollback evidence", cpp_skill["why"])
 
+    def test_mmlu_pro_gate_selects_mmlu_skill_context(self) -> None:
+        with TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            cfg = config_from_args(
+                build_parser().parse_args(
+                    [
+                        "--ares-repo",
+                        str(root),
+                        "--run-dir",
+                        str(root / "run"),
+                        "Provider/Model",
+                    ]
+                )
+            )
+
+            skills = selected_workflow_skills(cfg, first_failed_gate="mmlu_pro")
+            mmlu_skill = next(
+                skill for skill in skills if skill.get("gate") == "mmlu_pro"
+            )
+
+            self.assertEqual(mmlu_skill["name"], "ares-mmlu-pro")
+            self.assertIn("MMLU Pro benchmark evidence", mmlu_skill["why"])
+            self.assertIn("third_party/systems_test/", mmlu_skill["allowed_scope"])
+
     def test_targetplan_gate_selects_targetplan_skill_context(self) -> None:
         with TemporaryDirectory() as tmp:
             root = Path(tmp)

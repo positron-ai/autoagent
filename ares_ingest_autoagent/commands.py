@@ -11,8 +11,10 @@ from typing import Any, Mapping
 DEFAULT_PROMPT = "In one sentence, explain why attention caches matter."
 DEFAULT_TIMEOUT_SEC = 3600
 COMPARISON_TIMEOUT_SEC = 24 * 3600
+MMLU_PRO_TIMEOUT_SEC = 24 * 3600
 BACKEND_GATES = {"backend_open", "one_token_logits", "eight_token_greedy"}
 COMPARISON_GATES = {"cpp_tvd", "depth_performance"}
+MMLU_PRO_GATES = {"mmlu_pro"}
 
 
 @dataclass(frozen=True)
@@ -97,6 +99,15 @@ def build_command_wrapper_plan(
     if required.intersection(COMPARISON_GATES) or wrapper_cfg.get("comparison"):
         wrappers.append(
             side_by_side_comparison_wrapper(
+                spec,
+                run_dir=run_dir,
+                ares_repo=ares_repo,
+                dry_run=dry_run,
+            )
+        )
+    if required.intersection(MMLU_PRO_GATES) or wrapper_cfg.get("mmlu_pro"):
+        wrappers.append(
+            mmlu_pro_wrapper(
                 spec,
                 run_dir=run_dir,
                 ares_repo=ares_repo,
@@ -328,6 +339,99 @@ def side_by_side_comparison_wrapper(
             "This wrapper never supplies HF CPU oracle correctness evidence.",
         ),
         pass_regexes=("dry-run",) if dry_run else (),
+    )
+
+
+def mmlu_pro_wrapper(
+    spec: Mapping[str, Any],
+    *,
+    run_dir: Path,
+    ares_repo: Path,
+    dry_run: bool = True,
+) -> CommandWrapper:
+    model = _string(_first(spec, "mmlu_model", "model"))
+    backend = _string(spec.get("backend")) or "tron"
+    mmlu_cfg = _object(spec.get("mmlu_pro"))
+    openai_host = _string(
+        _first(mmlu_cfg, "openai_host", "endpoint")
+        or _first(spec, "openai_host", "endpoint")
+    )
+    coverage = _first(
+        mmlu_cfg,
+        "coverage_percent",
+        "coverage",
+        "mmlu_coverage",
+    ) or _first(spec, "mmlu_coverage", "coverage_percent")
+    max_retries = _first(mmlu_cfg, "max_retries", "mmlu_max_retries") or 10
+    output_dir = run_dir / "artifacts" / "mmlu-pro"
+
+    missing = _missing(
+        {
+            "model": model,
+            "openai_host": openai_host,
+            "coverage": str(coverage) if coverage is not None else None,
+        }
+    )
+    env = {
+        "OPENAI_HOST": openai_host or "<openai_host>",
+        "SKIP_PROVISION": "1",
+        "MMLU_MODEL": model or "<model>",
+        "MMLU_COVERAGE": str(coverage) if coverage is not None else "<coverage>",
+        "MMLU_MAX_RETRIES": str(max_retries),
+    }
+
+    run_mmlu = shlex.join(["env", *_env_pairs(env), "uv", "run", "mmlu_pro"])
+    if dry_run:
+        command = shlex.join(["printf", "%s\n", f"MMLU Pro dry run: {run_mmlu}"])
+    else:
+        command = " && ".join(
+            [
+                shlex.join(["mkdir", "-p", str(output_dir)]),
+                shlex.join(["rm", "-rf", "eval_results", "mmlu_output"]),
+                run_mmlu,
+                shlex.join(
+                    [
+                        "rm",
+                        "-rf",
+                        str(output_dir / "eval_results"),
+                        str(output_dir / "mmlu_output"),
+                    ]
+                ),
+                shlex.join(
+                    ["cp", "-R", "eval_results", str(output_dir / "eval_results")]
+                ),
+                shlex.join(
+                    ["cp", "-R", "mmlu_output", str(output_dir / "mmlu_output")]
+                ),
+            ]
+        )
+    return CommandWrapper(
+        name="systems_test_mmlu_pro",
+        gate="mmlu_pro",
+        command=command,
+        cwd=str(ares_repo / "third_party" / "systems_test"),
+        timeout_sec=MMLU_PRO_TIMEOUT_SEC,
+        evidence_class="system_under_test",
+        evidence_outputs={
+            "eval_results": str(output_dir / "eval_results"),
+            "mmlu_output": str(output_dir / "mmlu_output"),
+            "evidence_json": str(output_dir / "mmlu-pro-evidence.json"),
+        },
+        enabled=not missing,
+        missing_inputs=missing,
+        notes=(
+            f"Runs MMLU Pro against the selected Ares {backend} endpoint.",
+            "Wrapper command is dry-run unless command_wrapper_config.dry_run is false.",
+            "Verify /v1/models first and use the exact served model id.",
+            "MMLU_MODEL must match a hardcoded scripts/mmlu_pro.py config entry; otherwise systems_test skips the run.",
+            "Add and commit a systems_test config entry for new model ids before using promotion evidence.",
+            "Use SKIP_PROVISION=1 for Ares-owned endpoints.",
+            "OPENAI_TOKEN is inherited from the caller environment when the endpoint requires it.",
+            "For provisioned DUT mode, keep the -tpN suffix in the model id.",
+            "Retain eval_results and mmlu_output under the run artifacts directory.",
+            "Post-process outputs into validator-backed mmlu_pro_evidence before scoring.",
+        ),
+        pass_regexes=("MMLU Pro dry run",) if dry_run else ("MMLU",),
     )
 
 

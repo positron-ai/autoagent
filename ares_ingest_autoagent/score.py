@@ -43,6 +43,7 @@ STAGE_CAPS: dict[str, float] = {
     "eight_token_greedy": 0.80,
     "cpp_tvd": 0.88,
     "depth_performance": 0.95,
+    "mmlu_pro": 0.98,
     "complete": 1.00,
 }
 
@@ -65,7 +66,7 @@ BACKEND_GATES: tuple[str, ...] = (
 )
 
 COMPARISON_GATES: tuple[str, ...] = (*BACKEND_GATES, "cpp_tvd")
-FULL_GATES: tuple[str, ...] = (*COMPARISON_GATES, "depth_performance")
+FULL_GATES: tuple[str, ...] = (*COMPARISON_GATES, "depth_performance", "mmlu_pro")
 STANDARD_GATES: tuple[str, ...] = CPU_ONLY_GATES
 
 GATE_PROFILES: dict[str, tuple[str, ...]] = {
@@ -86,6 +87,7 @@ ALPHA_EXECUTION_WEIGHTS: dict[str, float] = {
     "shortcut_scan": 0.05,
     "backend_open": 0.10,
     "one_token_logits": 0.20,
+    "mmlu_pro": 0.05,
 }
 
 ARTIFACT_GATE_VALIDATORS: dict[str, str] = {
@@ -99,6 +101,7 @@ ARTIFACT_GATE_VALIDATORS: dict[str, str] = {
     "eight_token_greedy": "eight_token_greedy",
     "cpp_tvd": "cpp_tvd",
     "depth_performance": "depth_performance",
+    "mmlu_pro": "mmlu_pro",
 }
 
 

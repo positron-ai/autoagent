@@ -8,6 +8,7 @@ from ares_ingest_autoagent.commands import (
     build_command_wrapper_plan,
     command_gates_from_plan,
     full_inference_smoke_wrapper,
+    mmlu_pro_wrapper,
     rinzler_chat_wrapper,
     side_by_side_comparison_wrapper,
 )
@@ -95,6 +96,37 @@ class AresIngestCommandWrapperTest(unittest.TestCase):
             self.assertIn("ARES_RINZLER_COMPARE_REQUIRE_TVD=1", wrapper.command)
             self.assertIn("CPP_RINZLER_BIN=/tron/gen/rinzler", wrapper.command)
 
+    def test_mmlu_pro_wrapper_runs_systems_test_harness(self) -> None:
+        with TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            wrapper = mmlu_pro_wrapper(
+                {
+                    "model": "row-slug",
+                    "mmlu_model": "ingested-qwen-qwen3-6-35b-a3b-tp4",
+                    "backend": "tron",
+                    "mmlu_pro": {
+                        "openai_host": "http://localhost:3000/v1",
+                        "coverage_percent": 1,
+                        "max_retries": 1,
+                    },
+                },
+                run_dir=root / "run",
+                ares_repo=root / "ares",
+            )
+
+            self.assertTrue(wrapper.enabled)
+            self.assertEqual(wrapper.gate, "mmlu_pro")
+            self.assertEqual(wrapper.evidence_class, "system_under_test")
+            self.assertEqual(wrapper.cwd, str(root / "ares" / "third_party" / "systems_test"))
+            self.assertIn("uv run mmlu_pro", wrapper.command)
+            self.assertIn("MMLU_MODEL=ingested-qwen-qwen3-6-35b-a3b-tp4", wrapper.command)
+            self.assertIn("OPENAI_HOST=http://localhost:3000/v1", wrapper.command)
+            self.assertIn("MMLU_COVERAGE=1", wrapper.command)
+            self.assertIn(
+                "must match a hardcoded scripts/mmlu_pro.py config entry",
+                " ".join(wrapper.notes),
+            )
+
     def test_plan_materializes_command_gates_only_when_explicitly_enabled(
         self,
     ) -> None:
@@ -153,6 +185,29 @@ class AresIngestCommandWrapperTest(unittest.TestCase):
                 command_gates_from_plan(enabled_plan),
                 enabled_plan["command_gates"],
             )
+
+    def test_full_profile_adds_mmlu_pro_wrapper(self) -> None:
+        with TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            plan = build_command_wrapper_plan(
+                {
+                    "model": "synthetic/model",
+                    "backend": "fpga",
+                    "weights": "/weights/synthetic",
+                    "ares_plan": "artifacts/ares-plan.json",
+                    "required_gates": ["mmlu_pro"],
+                    "mmlu_pro": {
+                        "openai_host": "http://127.0.0.1:8000/v1",
+                        "coverage_percent": 10,
+                    },
+                },
+                run_dir=root / "run",
+                ares_repo=root / "ares",
+            )
+
+            wrappers = {wrapper["name"]: wrapper for wrapper in plan["wrappers"]}
+            self.assertIn("systems_test_mmlu_pro", wrappers)
+            self.assertTrue(wrappers["systems_test_mmlu_pro"]["enabled"])
 
 
 if __name__ == "__main__":

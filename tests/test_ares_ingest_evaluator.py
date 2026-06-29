@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import hashlib
 import os
 import shutil
 import subprocess
@@ -288,6 +289,45 @@ def depth_performance_evidence() -> dict[str, Any]:
     }
 
 
+def mmlu_pro_evidence(report_text: str) -> dict[str, Any]:
+    report_sha = hashlib.sha256(report_text.encode()).hexdigest()
+    return {
+        "schema": "ares.benchmark.mmlu_pro.v1",
+        "evidence_class": "system_under_test",
+        "status": "passed",
+        "model": "synthetic/model",
+        "backend": "tron",
+        "openai_host": "http://127.0.0.1:8000/v1",
+        "coverage_percent": 10,
+        "score_percent": 72.0,
+        "required_score_percent": 70.0,
+        "subjects": [
+            {
+                "subject": "total",
+                "correct": 72,
+                "wrong": 28,
+                "score_percent": 72.0,
+            }
+        ],
+        "systems_test": {
+            "path": "third_party/systems_test",
+            "commit": "1" * 40,
+            "dirty": False,
+            "config_model": "synthetic/model",
+            "command": "OPENAI_HOST=http://127.0.0.1:8000/v1 uv run mmlu_pro",
+        },
+        "ares": {
+            "commit": "2" * 40,
+            "dirty": False,
+            "backend": "tron",
+            "runtime_generated_sidecars": False,
+            "ares_plan_sha256": "a" * 64,
+            "target_plan_sha256": "b" * 64,
+        },
+        "artifacts": [{"path": "mmlu-report.txt", "sha256": report_sha}],
+    }
+
+
 class AresIngestEvaluatorTest(unittest.TestCase):
     def run_evaluator(
         self, spec: dict[str, Any], task_file_texts: dict[str, str]
@@ -338,6 +378,7 @@ class AresIngestEvaluatorTest(unittest.TestCase):
         }
 
     def test_evaluator_scores_full_artifact_backed_profile(self) -> None:
+        mmlu_report = "Total, 72/100, 72.00%\n"
         result = self.run_evaluator(
             {
                 "required_gates": [
@@ -354,6 +395,7 @@ class AresIngestEvaluatorTest(unittest.TestCase):
                     "eight_token_greedy",
                     "cpp_tvd",
                     "depth_performance",
+                    "mmlu_pro",
                 ],
                 "explicit_gates": {
                     "model_spec": True,
@@ -367,6 +409,7 @@ class AresIngestEvaluatorTest(unittest.TestCase):
                 "one_token_logits_evidence": "one-token.json",
                 "cpp_tvd_evidence": "cpp-tvd.json",
                 "depth_performance_evidence": "depth.json",
+                "mmlu_pro_evidence": "mmlu-pro.json",
                 "token_comparison": {
                     "reference": "reference_tokens.json",
                     "candidate": "candidate_tokens.json",
@@ -386,6 +429,8 @@ class AresIngestEvaluatorTest(unittest.TestCase):
                 "one-token.json": json.dumps(one_token_logits_evidence()) + "\n",
                 "cpp-tvd.json": json.dumps(cpp_tvd_evidence()) + "\n",
                 "depth.json": json.dumps(depth_performance_evidence()) + "\n",
+                "mmlu-pro.json": json.dumps(mmlu_pro_evidence(mmlu_report)) + "\n",
+                "mmlu-report.txt": mmlu_report,
                 "reference_tokens.json": json.dumps(
                     {
                         "token_ids": [99, 98],

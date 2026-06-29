@@ -17,6 +17,7 @@ from ares_ingest_autoagent.artifacts import (
     build_greedy_token_evidence,
     cpp_tvd_gate,
     depth_performance_gate,
+    mmlu_pro_gate,
     one_token_logits_gate,
     target_plan_gate,
     token_agreement_gate,
@@ -194,6 +195,17 @@ def main() -> int:
             )
         )
         gates["depth_performance"] = validated_gates["depth_performance"]
+
+    if mmlu_pro := spec.get("mmlu_pro_evidence"):
+        validated_gates["mmlu_pro"] = mmlu_pro_gate(
+            resolve_path(
+                mmlu_pro,
+                task_files=task_files,
+                ares_repo=ares_repo,
+                work_dir=work_dir,
+            )
+        )
+        gates["mmlu_pro"] = validated_gates["mmlu_pro"]
 
     token_results_path = None
     if eight_token := spec.get("eight_token_greedy_evidence") or spec.get(

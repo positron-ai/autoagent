@@ -68,6 +68,11 @@ For local development, mount or copy:
   comparison/rollback evidence, not an oracle.
 - `depth_performance_evidence`: 8/64/512 depth-ladder performance evidence
   with correctness gates still green.
+- `mmlu_pro_evidence`: MMLU Pro evidence with schema
+  `ares.benchmark.mmlu_pro.v1`, produced from `third_party/systems_test` against
+  the selected Ares model/backend endpoint. Verify `/v1/models` first and use
+  the exact API-facing model id as `MMLU_MODEL`; that id must also have a
+  matching `scripts/mmlu_pro.py` config entry in `third_party/systems_test`.
 - `command_wrapper_config`: optional settings for AutoAgent-generated runtime
   and C++ comparison wrapper commands. Wrappers default to dry-run mode.
 - `execute_command_wrappers`: set to `true` only when the task should launch
@@ -86,10 +91,11 @@ For local development, mount or copy:
 
 The default setup profile should require only CPU-side gates through
 `targetplan_valid`, `artifact_consistency`, and `shortcut_scan`. Enable backend,
-C++ comparison, or performance gates only when the task environment supplies the
-corresponding generated artifacts, runtime backend, model checkpoint, and
-comparison binaries. Wrapper command output still must be transformed into
-validator-backed evidence files before the backend, token, C++ TVD, or
-depth/performance gates can pass. The runtime wrappers consume `ares_plan`;
-keep `target_plan` attached separately for TargetPlan validation rather than
-treating wrapper launch output as TargetPlan proof.
+C++ comparison, performance, or MMLU Pro gates only when the task environment
+supplies the corresponding generated artifacts, runtime backend, model
+checkpoint, comparison binaries, OpenAI-compatible endpoint, and systems_test
+outputs. Wrapper command output still must be transformed into validator-backed
+evidence files before the backend, token, C++ TVD, depth/performance, or
+MMLU Pro gates can pass. The runtime wrappers consume `ares_plan`; keep
+`target_plan` attached separately for TargetPlan validation rather than treating
+wrapper launch output as TargetPlan proof.
