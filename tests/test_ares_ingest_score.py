@@ -11,6 +11,8 @@ from ares_ingest_autoagent.score import (
     COMPARISON_GATES,
     CPU_ONLY_GATES,
     FULL_GATES,
+    GATE_PROFILES,
+    STAGE_CAPS,
     compute_reward,
     main,
 )
@@ -249,6 +251,12 @@ class AresIngestScoreTest(unittest.TestCase):
             COMPARISON_GATES.index("depth_performance"),
             COMPARISON_GATES.index("cpp_tvd"),
         )
+
+    def test_profile_stage_caps_are_monotonic(self) -> None:
+        for profile, gates in GATE_PROFILES.items():
+            with self.subTest(profile=profile):
+                caps = [STAGE_CAPS[gate] for gate in gates]
+                self.assertEqual(caps, sorted(caps))
 
     def test_missing_targetplan_caps_fast_token_match(self) -> None:
         reward = compute_reward(

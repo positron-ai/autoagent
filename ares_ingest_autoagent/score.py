@@ -42,8 +42,8 @@ STAGE_CAPS: dict[str, float] = {
     "one_token_logits": 0.70,
     "eight_token_greedy": 0.80,
     "depth_performance": 0.95,
-    "cpp_tvd": 0.97,
     "mmlu_pro": 0.98,
+    "cpp_tvd": 0.99,
     "complete": 1.00,
 }
 

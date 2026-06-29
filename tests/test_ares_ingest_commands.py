@@ -37,6 +37,26 @@ class AresIngestCommandWrapperTest(unittest.TestCase):
             self.assertEqual(wrapper.evidence_class, "system_under_test")
             self.assertFalse(wrapper.promotion_eligible)
 
+    def test_wrapper_plan_defaults_missing_backend_to_fpga(self) -> None:
+        with TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            plan = build_command_wrapper_plan(
+                {
+                    "model": "synthetic/model",
+                    "weights": "/weights/synthetic",
+                    "ares_plan": "artifacts/ares-plan.json",
+                    "required_gates": ["backend_open"],
+                },
+                run_dir=root / "run",
+                ares_repo=root / "ares",
+            )
+
+            self.assertEqual(plan["backend"], "fpga")
+            self.assertIn(
+                "ARES_RINZLER_FULL_INFERENCE_BACKEND=fpga",
+                plan["wrappers"][1]["command"],
+            )
+
     def test_backend_wrapper_requires_generated_artifact_inputs(self) -> None:
         with TemporaryDirectory() as tmp:
             wrapper = rinzler_chat_wrapper(
