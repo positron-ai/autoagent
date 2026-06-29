@@ -4,11 +4,17 @@ import json
 import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
+from unittest.mock import patch
 
 from ares_ingest_autoagent.ares_cli import (
+    CLAUDE_REFINER_COMMAND,
     DEFAULT_REFINER_COMMAND,
+    AresIngestError,
+    append_steering_note,
+    append_steering_resource,
     build_parser,
     config_from_args,
+    cockpit_checkpoint,
     initialize_run,
     main,
     selected_workflow_skills,
@@ -30,6 +36,42 @@ class AresIngestCliTest(unittest.TestCase):
         cfg = config_from_args(args)
 
         self.assertEqual(cfg.refinement_command, DEFAULT_REFINER_COMMAND)
+        self.assertEqual(cfg.driver, "codex")
+
+    def test_driver_selection_supports_claude_and_custom_commands(self) -> None:
+        claude_cfg = config_from_args(
+            build_parser().parse_args(["--driver", "claude", "Provider/Model"])
+        )
+        self.assertEqual(claude_cfg.refinement_command, CLAUDE_REFINER_COMMAND)
+
+        custom_cfg = config_from_args(
+            build_parser().parse_args(
+                [
+                    "--driver",
+                    "custom",
+                    "--driver-command",
+                    'printf "%s\\n" "$FIRST_FAILED_GATE"',
+                    "Provider/Model",
+                ]
+            )
+        )
+        self.assertEqual(custom_cfg.driver, "custom")
+        self.assertEqual(
+            custom_cfg.refinement_command,
+            'printf "%s\\n" "$FIRST_FAILED_GATE"',
+        )
+
+        alias_cfg = config_from_args(
+            build_parser().parse_args(
+                ["--refinement-command", "echo old-alias", "Provider/Model"]
+            )
+        )
+        self.assertEqual(alias_cfg.refinement_command, "echo old-alias")
+
+        with self.assertRaises(AresIngestError):
+            config_from_args(
+                build_parser().parse_args(["--driver", "custom", "Provider/Model"])
+            )
 
     def test_no_refiner_disables_refinement_command(self) -> None:
         args = build_parser().parse_args(["--no-refiner", "Provider/Model"])
@@ -61,6 +103,8 @@ class AresIngestCliTest(unittest.TestCase):
             self.assertTrue((run_dir / "reward.json").exists())
             self.assertTrue((run_dir / "reward.txt").exists())
             self.assertTrue((run_dir / "handoff.md").exists())
+            self.assertTrue((run_dir / "steering.json").exists())
+            self.assertTrue((run_dir / "steering.md").exists())
             spec = json.loads((run_dir / "model_spec.json").read_text())
             self.assertEqual(spec["safe_model"], "provider-model")
             self.assertEqual(spec["gate_profile"], "cpu-only")
@@ -248,6 +292,59 @@ class AresIngestCliTest(unittest.TestCase):
                 prompt,
             )
 
+    def test_operator_steering_is_written_to_prompt_and_handoff(self) -> None:
+        with TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            run_dir = root / "run"
+            run_dir.mkdir()
+            cfg = config_from_args(
+                build_parser().parse_args(
+                    [
+                        "--ares-repo",
+                        str(root),
+                        "--run-dir",
+                        str(run_dir),
+                        "Provider/Model",
+                    ]
+                )
+            )
+            append_steering_note(
+                cfg,
+                iteration=2,
+                text="Prefer HF-export evidence from the local snapshot.",
+            )
+            append_steering_resource(
+                cfg,
+                iteration=2,
+                value="/tmp/local-hf-export",
+                note="candidate bundle",
+            )
+            reward = {
+                "score": 0.1,
+                "alpha_execution": 0.2,
+                "tau_tokens": 0.0,
+                "delta_inference": 0.0,
+                "stage_cap": 0.18,
+                "first_failed_gate": "frontend_export",
+                "gates": {},
+            }
+
+            write_handoff(cfg, reward, state={"history": []})
+            handoff = (run_dir / "handoff.md").read_text()
+            self.assertIn("## Operator Steering", handoff)
+            self.assertIn("Prefer HF-export evidence", handoff)
+            self.assertIn("/tmp/local-hf-export", handoff)
+
+            prompt = write_refinement_prompt(
+                cfg,
+                iteration=2,
+                spec={},
+                reward=reward,
+            ).read_text()
+            self.assertIn("## Operator Steering", prompt)
+            self.assertIn("Prefer HF-export evidence", prompt)
+            self.assertIn("candidate bundle", prompt)
+
     def test_cpp_tvd_selects_comparison_evidence_context(self) -> None:
         with TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -408,6 +505,112 @@ class AresIngestCliTest(unittest.TestCase):
                 ["refiner_ran", "max_iterations"],
             )
             self.assertEqual(Path(state["latest_refinement_prompt"]), prompt.resolve())
+
+    def test_cockpit_loop_records_events_and_streaming_state(self) -> None:
+        with TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            run_dir = root / "run"
+
+            rc = main(
+                [
+                    "--ares-repo",
+                    str(root),
+                    "--run-dir",
+                    str(run_dir),
+                    "--cockpit",
+                    "--max-iterations",
+                    "2",
+                    "--stall-patience",
+                    "5",
+                    "--refinement-command",
+                    "printf 'cockpit %s\\n' \"$FIRST_FAILED_GATE\"",
+                    "Provider/Model",
+                ]
+            )
+
+            self.assertEqual(rc, 2)
+            state = json.loads((run_dir / "state.json").read_text())
+            self.assertEqual(state["cockpit"]["enabled"], True)
+            self.assertEqual(state["cockpit"]["stream_refiner_output"], True)
+            self.assertEqual(state["driver"], "codex")
+            self.assertTrue((run_dir / "cockpit.jsonl").exists())
+            events = [
+                json.loads(line)
+                for line in (run_dir / "cockpit.jsonl").read_text().splitlines()
+            ]
+            self.assertTrue(any(event["status"] == "evaluated" for event in events))
+            self.assertTrue(
+                any(event["status"] == "continue_noninteractive" for event in events)
+            )
+            self.assertIn(
+                "cockpit hf_cpu_oracle", (run_dir / "logs/01-refiner.log").read_text()
+            )
+
+    def test_cockpit_interactive_commands_record_steering_and_driver(self) -> None:
+        with TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            run_dir = root / "run"
+            run_dir.mkdir()
+            cfg = config_from_args(
+                build_parser().parse_args(
+                    [
+                        "--ares-repo",
+                        str(root),
+                        "--run-dir",
+                        str(run_dir),
+                        "--cockpit",
+                        "--refinement-command",
+                        "echo old-driver",
+                        "Provider/Model",
+                    ]
+                )
+            )
+            reward = {
+                "score": 0.075,
+                "alpha_execution": 0.125,
+                "tau_tokens": 0.0,
+                "delta_inference": 0.0,
+                "stage_cap": 0.1,
+                "first_failed_gate": "hf_cpu_oracle",
+                "gates": {},
+            }
+            commands = iter(
+                [
+                    "note use the local HF snapshot",
+                    "resource /tmp/hf-export -- candidate bundle",
+                    "driver echo new-driver",
+                    "continue",
+                ]
+            )
+
+            with (
+                patch("sys.stdin.isatty", return_value=True),
+                patch("builtins.input", side_effect=lambda _prompt: next(commands)),
+            ):
+                should_continue = cockpit_checkpoint(
+                    cfg,
+                    iteration=3,
+                    reward=reward,
+                    state={"history": []},
+                    best_score=0.075,
+                    stall_count=0,
+                )
+
+            self.assertTrue(should_continue)
+            self.assertEqual(cfg.refinement_command, "echo new-driver")
+            steering = json.loads((run_dir / "steering.json").read_text())
+            self.assertEqual(steering["notes"][0]["text"], "use the local HF snapshot")
+            self.assertEqual(steering["resources"][0]["value"], "/tmp/hf-export")
+            self.assertEqual(steering["resources"][0]["note"], "candidate bundle")
+            self.assertEqual(
+                steering["driver_commands"][0]["command"],
+                "echo new-driver",
+            )
+            events = [
+                json.loads(line)
+                for line in (run_dir / "cockpit.jsonl").read_text().splitlines()
+            ]
+            self.assertEqual(events[-1]["decision"], "continue")
 
     def test_missing_oracle_records_writes_failure_state_over_corrupt_state(
         self,

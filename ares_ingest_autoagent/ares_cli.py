@@ -6,7 +6,10 @@ import argparse
 import json
 import os
 import re
+import selectors
 import subprocess
+import sys
+import time
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -37,6 +40,12 @@ DEFAULT_REFINER_COMMAND = (
     "codex exec --dangerously-bypass-approvals-and-sandbox "
     '-C "$ARES_REPO" --add-dir "$AUTOAGENT_REPO" - < "$REFINEMENT_PROMPT"'
 )
+CLAUDE_REFINER_COMMAND = 'claude -p "$(cat "$REFINEMENT_PROMPT")"'
+DRIVER_COMMANDS = {
+    "codex": DEFAULT_REFINER_COMMAND,
+    "claude": CLAUDE_REFINER_COMMAND,
+    "custom": None,
+}
 
 
 @dataclass
@@ -54,8 +63,11 @@ class AresIngestConfig:
     stall_patience: int
     min_improvement: float
     refinement_command: str | None
+    driver: str
     gate_profile: str
     setup_only: bool
+    cockpit: bool
+    stream_refiner_output: bool
 
 
 class AresIngestError(RuntimeError):
@@ -125,6 +137,169 @@ def reward_fingerprint(reward: dict[str, Any]) -> dict[str, Any]:
             if isinstance(detail, dict)
         },
     }
+
+
+def empty_steering() -> dict[str, Any]:
+    return {
+        "schema": "ares.autoagent.operator_steering.v1",
+        "notes": [],
+        "resources": [],
+        "driver_commands": [],
+    }
+
+
+def steering_json_path(cfg: AresIngestConfig) -> Path:
+    return cfg.run_dir / "steering.json"
+
+
+def steering_markdown_path(cfg: AresIngestConfig) -> Path:
+    return cfg.run_dir / "steering.md"
+
+
+def load_steering(cfg: AresIngestConfig) -> dict[str, Any]:
+    path = steering_json_path(cfg)
+    if not path.exists():
+        return empty_steering()
+    payload = load_json(path)
+    steering = empty_steering()
+    for key in ("notes", "resources", "driver_commands"):
+        if isinstance(payload.get(key), list):
+            steering[key] = payload[key]
+    return steering
+
+
+def write_steering(cfg: AresIngestConfig, steering: Mapping[str, Any]) -> None:
+    cfg.run_dir.mkdir(parents=True, exist_ok=True)
+    write_json(steering_json_path(cfg), dict(steering))
+    steering_markdown_path(cfg).write_text(render_steering_markdown(steering))
+
+
+def ensure_steering_files(cfg: AresIngestConfig) -> None:
+    if not steering_json_path(cfg).exists() or not steering_markdown_path(cfg).exists():
+        write_steering(cfg, load_steering(cfg))
+
+
+def render_steering_markdown(steering: Mapping[str, Any]) -> str:
+    lines = ["# Ares AutoAgent Operator Steering", ""]
+    notes = steering.get("notes", [])
+    resources = steering.get("resources", [])
+    drivers = steering.get("driver_commands", [])
+    lines.append("## Notes")
+    if isinstance(notes, list) and notes:
+        for note in notes:
+            lines.append(
+                f"- iteration `{note.get('iteration', 'unknown')}` "
+                f"{note.get('created_at', '')}: {note.get('text', '')}"
+            )
+    else:
+        lines.append("- none")
+    lines.extend(["", "## Resources"])
+    if isinstance(resources, list) and resources:
+        for resource in resources:
+            label = resource.get("value", "")
+            note = resource.get("note", "")
+            suffix = f" - {note}" if note else ""
+            lines.append(
+                f"- iteration `{resource.get('iteration', 'unknown')}` "
+                f"{resource.get('created_at', '')}: `{label}`{suffix}"
+            )
+    else:
+        lines.append("- none")
+    lines.extend(["", "## Driver Commands"])
+    if isinstance(drivers, list) and drivers:
+        for driver in drivers:
+            lines.append(
+                f"- iteration `{driver.get('iteration', 'unknown')}` "
+                f"{driver.get('created_at', '')}: `{driver.get('command', '')}`"
+            )
+    else:
+        lines.append("- none")
+    lines.append("")
+    return "\n".join(lines)
+
+
+def append_steering_note(
+    cfg: AresIngestConfig, *, iteration: int, text: str
+) -> dict[str, Any]:
+    steering = load_steering(cfg)
+    steering.setdefault("notes", [])
+    steering["notes"].append(
+        {
+            "iteration": iteration,
+            "created_at": datetime.now(timezone.utc).isoformat(),
+            "text": text,
+        }
+    )
+    write_steering(cfg, steering)
+    return steering
+
+
+def append_steering_resource(
+    cfg: AresIngestConfig,
+    *,
+    iteration: int,
+    value: str,
+    note: str = "",
+) -> dict[str, Any]:
+    steering = load_steering(cfg)
+    steering.setdefault("resources", [])
+    steering["resources"].append(
+        {
+            "iteration": iteration,
+            "created_at": datetime.now(timezone.utc).isoformat(),
+            "value": value,
+            "note": note,
+        }
+    )
+    write_steering(cfg, steering)
+    return steering
+
+
+def append_driver_command(
+    cfg: AresIngestConfig, *, iteration: int, command: str
+) -> dict[str, Any]:
+    steering = load_steering(cfg)
+    steering.setdefault("driver_commands", [])
+    steering["driver_commands"].append(
+        {
+            "iteration": iteration,
+            "created_at": datetime.now(timezone.utc).isoformat(),
+            "driver": cfg.driver,
+            "command": command,
+        }
+    )
+    write_steering(cfg, steering)
+    return steering
+
+
+def steering_prompt_lines(cfg: AresIngestConfig) -> list[str]:
+    steering = load_steering(cfg)
+    lines = [
+        f"- Steering JSON: `{steering_json_path(cfg)}`",
+        f"- Steering notes: `{steering_markdown_path(cfg)}`",
+    ]
+    notes = steering.get("notes", [])
+    resources = steering.get("resources", [])
+    drivers = steering.get("driver_commands", [])
+    if isinstance(notes, list) and notes:
+        lines.append("- Operator notes:")
+        for note in notes[-5:]:
+            lines.append(
+                f"  - iteration `{note.get('iteration', 'unknown')}`: "
+                f"{note.get('text', '')}"
+            )
+    else:
+        lines.append("- Operator notes: none recorded.")
+    if isinstance(resources, list) and resources:
+        lines.append("- Operator resources:")
+        for resource in resources[-5:]:
+            suffix = f" - {resource.get('note', '')}" if resource.get("note") else ""
+            lines.append(f"  - `{resource.get('value', '')}`{suffix}")
+    else:
+        lines.append("- Operator resources: none recorded.")
+    if isinstance(drivers, list) and drivers:
+        lines.append(f"- Latest driver override: `{drivers[-1].get('command', '')}`")
+    return lines
 
 
 def verifier_command(cfg: AresIngestConfig) -> str:
@@ -498,6 +673,10 @@ Latest refinement prompt: `{latest_prompt or "none"}`
 
 {skill_text}
 
+## Operator Steering
+
+{chr(10).join(steering_prompt_lines(cfg))}
+
 ## Rules
 
 - HF Transformers on PyTorch CPU is the model-correctness oracle.
@@ -523,6 +702,7 @@ def run_command(
     env: Mapping[str, str],
     log: Path,
     timeout: int | None = None,
+    stream_output: bool = False,
 ) -> int:
     log.parent.mkdir(parents=True, exist_ok=True)
     merged_env = os.environ.copy()
@@ -530,6 +710,45 @@ def run_command(
     with log.open("w", encoding="utf-8") as out:
         out.write("+ " + command + "\n")
         out.flush()
+        if stream_output:
+            print(f"ares-ingest-agent driver log: {log}", flush=True)
+            proc = subprocess.Popen(
+                ["bash", "-lc", command],
+                cwd=cfg.ares_repo,
+                env=merged_env,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True,
+                bufsize=1,
+            )
+            start = time.monotonic()
+            assert proc.stdout is not None
+            selector = selectors.DefaultSelector()
+            selector.register(proc.stdout, selectors.EVENT_READ)
+            while True:
+                if timeout is not None and time.monotonic() - start > timeout:
+                    proc.kill()
+                    proc.wait()
+                    out.write(f"\nTIMEOUT after {timeout} seconds\n")
+                    selector.close()
+                    proc.stdout.close()
+                    raise AresIngestError(f"refiner timed out; see {log}")
+                events = selector.select(timeout=0.1)
+                for key, _ in events:
+                    line = key.fileobj.readline()
+                    if line:
+                        out.write(line)
+                        out.flush()
+                        print(line, end="", flush=True)
+                if proc.poll() is not None:
+                    break
+            for line in proc.stdout:
+                out.write(line)
+                out.flush()
+                print(line, end="", flush=True)
+            selector.close()
+            proc.stdout.close()
+            return int(proc.returncode or 0)
         try:
             proc = subprocess.run(
                 ["bash", "-lc", command],
@@ -544,6 +763,18 @@ def run_command(
             out.write(f"\nTIMEOUT after {timeout} seconds\n")
             raise AresIngestError(f"refiner timed out; see {log}") from exc
     return proc.returncode
+
+
+def resolve_refinement_command(args: argparse.Namespace) -> str | None:
+    if args.no_refiner:
+        return None
+    command = args.refinement_command or args.driver_command
+    if command:
+        return str(command)
+    driver_command = DRIVER_COMMANDS[args.driver]
+    if driver_command is None:
+        raise AresIngestError("--driver custom requires --driver-command")
+    return driver_command
 
 
 def config_from_args(args: argparse.Namespace) -> AresIngestConfig:
@@ -569,15 +800,19 @@ def config_from_args(args: argparse.Namespace) -> AresIngestConfig:
         else args.max_iterations,
         stall_patience=max(1, args.stall_patience),
         min_improvement=max(0.0, args.min_improvement),
-        refinement_command=None if args.no_refiner else args.refinement_command,
+        refinement_command=resolve_refinement_command(args),
+        driver=args.driver,
         gate_profile=args.gate_profile,
         setup_only=args.setup_only,
+        cockpit=args.cockpit,
+        stream_refiner_output=args.stream_refiner_output or args.cockpit,
     )
 
 
 def evaluate_run(cfg: AresIngestConfig) -> tuple[dict[str, Any], dict[str, Any]]:
     cfg.run_dir.mkdir(parents=True, exist_ok=True)
     cfg.logs_dir.mkdir(parents=True, exist_ok=True)
+    ensure_steering_files(cfg)
     spec = (
         load_json(cfg.model_spec_path)
         if cfg.model_spec_path.exists()
@@ -714,9 +949,17 @@ def initialize_run(cfg: AresIngestConfig) -> dict[str, Any]:
         "safe_model": cfg.safe_model,
         "target_score": cfg.target_score,
         "max_iterations": cfg.max_iterations,
+        "driver": cfg.driver,
         "refinement_command": cfg.refinement_command,
         "gate_profile": cfg.gate_profile,
         "refinement_loop": "setup_only",
+        "cockpit": {
+            "enabled": cfg.cockpit,
+            "stream_refiner_output": cfg.stream_refiner_output,
+            "event_log": str(cfg.run_dir / "cockpit.jsonl"),
+            "steering_json": str(steering_json_path(cfg)),
+            "steering_md": str(steering_markdown_path(cfg)),
+        },
         "workflow_skills": workflow_skills,
         "reward": reward_fingerprint(reward),
         "history": [],
@@ -861,6 +1104,10 @@ def write_refinement_prompt(
             f"- Handoff: `{cfg.run_dir / 'handoff.md'}`",
             f"- Logs: `{cfg.logs_dir}`",
             "",
+            "## Operator Steering",
+            "",
+            *steering_prompt_lines(cfg),
+            "",
             "## Expected Workflow Skills",
             "",
             *workflow_skill_lines(workflow_skills),
@@ -925,18 +1172,200 @@ def run_refiner(
         "ITERATION": str(iteration),
         "MODEL_SLUG": cfg.model_slug,
         "MODEL_SAFE": cfg.safe_model,
+        "STEERING_JSON": str(steering_json_path(cfg)),
+        "STEERING_MD": str(steering_markdown_path(cfg)),
+        "DRIVER": cfg.driver,
+        "DRIVER_COMMAND": cfg.refinement_command or "",
     }
     log = cfg.logs_dir / f"{iteration:02d}-refiner.log"
+    if cfg.cockpit:
+        print(
+            "ares-ingest-agent cockpit "
+            f"iteration={iteration} driver={cfg.driver} log={log}",
+            flush=True,
+        )
     rc = run_command(
         cfg.refinement_command,
         cfg=cfg,
         env=env,
         log=log,
         timeout=24 * 3600,
+        stream_output=cfg.stream_refiner_output,
     )
     if rc != 0:
         raise AresIngestError(f"refiner failed with exit {rc}; see {log}")
     return prompt_path
+
+
+def previous_score(state: Mapping[str, Any]) -> float | None:
+    history = state.get("history", [])
+    if not isinstance(history, list) or not history:
+        return None
+    score = history[-1].get("score")
+    return float(score) if isinstance(score, (int, float)) else None
+
+
+def write_cockpit_event(
+    cfg: AresIngestConfig,
+    *,
+    iteration: int,
+    reward: Mapping[str, Any],
+    status: str,
+    decision: str | None = None,
+) -> None:
+    cfg.run_dir.mkdir(parents=True, exist_ok=True)
+    event = {
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "iteration": iteration,
+        "status": status,
+        "decision": decision,
+        "driver": cfg.driver,
+        "refinement_command": cfg.refinement_command,
+        "reward": reward_fingerprint(dict(reward)),
+        "run_dir": str(cfg.run_dir),
+        "steering_json": str(steering_json_path(cfg)),
+        "steering_md": str(steering_markdown_path(cfg)),
+    }
+    with (cfg.run_dir / "cockpit.jsonl").open("a", encoding="utf-8") as out:
+        out.write(json.dumps(event, sort_keys=True) + "\n")
+
+
+def print_cockpit_dashboard(
+    cfg: AresIngestConfig,
+    *,
+    iteration: int,
+    reward: Mapping[str, Any],
+    state: Mapping[str, Any],
+    best_score: float,
+    stall_count: int,
+) -> None:
+    score = float(reward.get("score", 0.0) or 0.0)
+    prior = previous_score(state)
+    delta = "n/a" if prior is None else f"{score - prior:+.6f}"
+    print("", flush=True)
+    print("Ares ingest cockpit", flush=True)
+    print(f"  iteration: {iteration}", flush=True)
+    print(
+        "  quality: "
+        f"score={score:.6f} "
+        f"alpha={float(reward.get('alpha_execution', 0.0) or 0.0):.6f} "
+        f"tau={float(reward.get('tau_tokens', 0.0) or 0.0):.6f} "
+        f"delta={float(reward.get('delta_inference', 0.0) or 0.0):.6f} "
+        f"change={delta}",
+        flush=True,
+    )
+    print(
+        "  control: "
+        f"target={cfg.target_score:.6f} best={best_score:.6f} "
+        f"stall={stall_count}/{cfg.stall_patience}",
+        flush=True,
+    )
+    print(
+        "  gate: "
+        f"{reward.get('first_failed_gate')} "
+        f"stage_cap={reward.get('stage_cap')}",
+        flush=True,
+    )
+    print(f"  driver: {cfg.driver}", flush=True)
+    print(f"  run_dir: {cfg.run_dir}", flush=True)
+    print(f"  handoff: {cfg.run_dir / 'handoff.md'}", flush=True)
+    print(f"  steering: {steering_markdown_path(cfg)}", flush=True)
+
+
+def print_cockpit_help() -> None:
+    print(
+        "cockpit commands: continue | stop | note TEXT | "
+        "resource PATH_OR_URL [-- NOTE] | driver SHELL_COMMAND | show | help",
+        flush=True,
+    )
+
+
+def cockpit_checkpoint(
+    cfg: AresIngestConfig,
+    *,
+    iteration: int,
+    reward: Mapping[str, Any],
+    state: Mapping[str, Any],
+    best_score: float,
+    stall_count: int,
+) -> bool:
+    if not cfg.cockpit:
+        return True
+    if not sys.stdin.isatty():
+        print(
+            "ares-ingest-agent cockpit: stdin is not a TTY; continuing "
+            "without interactive steering.",
+            flush=True,
+        )
+        write_cockpit_event(
+            cfg,
+            iteration=iteration,
+            reward=reward,
+            status="continue_noninteractive",
+            decision="continue",
+        )
+        return True
+
+    print_cockpit_help()
+    while True:
+        try:
+            line = input("cockpit> ").strip()
+        except EOFError:
+            line = "continue"
+        if not line or line in {"c", "continue"}:
+            write_cockpit_event(
+                cfg,
+                iteration=iteration,
+                reward=reward,
+                status="continue",
+                decision="continue",
+            )
+            return True
+        if line in {"s", "stop", "q", "quit"}:
+            write_cockpit_event(
+                cfg,
+                iteration=iteration,
+                reward=reward,
+                status="stopped_by_operator",
+                decision="stop",
+            )
+            return False
+        if line in {"h", "help", "?"}:
+            print_cockpit_help()
+            continue
+        if line == "show":
+            print(f"run_dir={cfg.run_dir}", flush=True)
+            print(f"state={cfg.state_path}", flush=True)
+            print(f"reward={cfg.run_dir / 'reward.json'}", flush=True)
+            print(f"handoff={cfg.run_dir / 'handoff.md'}", flush=True)
+            print(f"steering={steering_markdown_path(cfg)}", flush=True)
+            continue
+        if line.startswith("note "):
+            append_steering_note(cfg, iteration=iteration, text=line[5:].strip())
+            print(f"recorded note in {steering_markdown_path(cfg)}", flush=True)
+            continue
+        if line.startswith("resource "):
+            value_note = line[len("resource ") :].strip()
+            value, sep, note = value_note.partition(" -- ")
+            append_steering_resource(
+                cfg,
+                iteration=iteration,
+                value=value.strip(),
+                note=note.strip() if sep else "",
+            )
+            print(f"recorded resource in {steering_markdown_path(cfg)}", flush=True)
+            continue
+        if line.startswith("driver "):
+            command = line[len("driver ") :].strip()
+            if not command:
+                print("driver command cannot be empty", flush=True)
+                continue
+            cfg.refinement_command = command
+            append_driver_command(cfg, iteration=iteration, command=command)
+            print("driver command updated for this run", flush=True)
+            continue
+        print(f"unknown cockpit command: {line}", flush=True)
+        print_cockpit_help()
 
 
 def append_history(
@@ -957,9 +1386,17 @@ def append_history(
     state["status"] = status
     state["target_score"] = cfg.target_score
     state["max_iterations"] = cfg.max_iterations
+    state["driver"] = cfg.driver
     state["refinement_command"] = cfg.refinement_command
     state["gate_profile"] = cfg.gate_profile
     state["refinement_loop"] = "one_failing_gate"
+    state["cockpit"] = {
+        "enabled": cfg.cockpit,
+        "stream_refiner_output": cfg.stream_refiner_output,
+        "event_log": str(cfg.run_dir / "cockpit.jsonl"),
+        "steering_json": str(steering_json_path(cfg)),
+        "steering_md": str(steering_markdown_path(cfg)),
+    }
     state["workflow_skills"] = selected_workflow_skills(
         cfg,
         first_failed_gate=str(reward.get("first_failed_gate", "unknown")),
@@ -992,6 +1429,17 @@ def write_failure_state(cfg: AresIngestConfig, error: BaseException) -> None:
     state.setdefault("run_dir", str(cfg.run_dir))
     state.setdefault("gate_profile", cfg.gate_profile)
     state.setdefault("refinement_loop", "one_failing_gate")
+    state.setdefault("driver", cfg.driver)
+    state.setdefault(
+        "cockpit",
+        {
+            "enabled": cfg.cockpit,
+            "stream_refiner_output": cfg.stream_refiner_output,
+            "event_log": str(cfg.run_dir / "cockpit.jsonl"),
+            "steering_json": str(steering_json_path(cfg)),
+            "steering_md": str(steering_markdown_path(cfg)),
+        },
+    )
     reward_path = cfg.run_dir / "reward.json"
     reward_payload = load_json(reward_path) if reward_path.exists() else None
     first_failed_gate = (
@@ -1031,6 +1479,21 @@ def run_loop(cfg: AresIngestConfig) -> int:
         fingerprint = reward_fingerprint(reward)
 
         if score >= cfg.target_score:
+            if cfg.cockpit:
+                write_cockpit_event(
+                    cfg,
+                    iteration=iteration,
+                    reward=reward,
+                    status="complete",
+                )
+                print_cockpit_dashboard(
+                    cfg,
+                    iteration=iteration,
+                    reward=reward,
+                    state=state,
+                    best_score=max(best_score, score),
+                    stall_count=stall_count,
+                )
             append_history(
                 state,
                 cfg=cfg,
@@ -1049,6 +1512,22 @@ def run_loop(cfg: AresIngestConfig) -> int:
         if previous_fingerprint == fingerprint:
             stall_count += 1
         previous_fingerprint = fingerprint
+
+        if cfg.cockpit:
+            write_cockpit_event(
+                cfg,
+                iteration=iteration,
+                reward=reward,
+                status="evaluated",
+            )
+            print_cockpit_dashboard(
+                cfg,
+                iteration=iteration,
+                reward=reward,
+                state=state,
+                best_score=best_score,
+                stall_count=stall_count,
+            )
 
         if not cfg.refinement_command:
             append_history(
@@ -1082,6 +1561,24 @@ def run_loop(cfg: AresIngestConfig) -> int:
             )
             print_summary(cfg, reward, status="max_iterations")
             return 2
+
+        if not cockpit_checkpoint(
+            cfg,
+            iteration=iteration,
+            reward=reward,
+            state=state,
+            best_score=best_score,
+            stall_count=stall_count,
+        ):
+            append_history(
+                state,
+                cfg=cfg,
+                iteration=iteration,
+                reward=reward,
+                status="stopped_by_operator",
+            )
+            print_summary(cfg, reward, status="stopped_by_operator")
+            return 4
 
         prompt_path = run_refiner(cfg, iteration=iteration, spec=spec, reward=reward)
         append_history(
@@ -1149,9 +1646,18 @@ def build_parser() -> argparse.ArgumentParser:
         help="Run evaluation only; stop below target with blocked_no_refiner",
     )
     parser.add_argument(
+        "--driver",
+        choices=sorted(DRIVER_COMMANDS),
+        default="codex",
+        help="Agentic CLI driver used for refinement when no explicit command is supplied",
+    )
+    parser.add_argument(
+        "--driver-command",
+        help="Arbitrary shell command to run as the refinement driver",
+    )
+    parser.add_argument(
         "--refinement-command",
-        default=DEFAULT_REFINER_COMMAND,
-        help="Shell command to run between non-terminal verifier iterations",
+        help="Backward-compatible alias for --driver-command",
     )
     parser.add_argument(
         "--gate-profile",
@@ -1163,6 +1669,16 @@ def build_parser() -> argparse.ArgumentParser:
         "--setup-only",
         action="store_true",
         help="Create run state and exit without invoking the refiner loop",
+    )
+    parser.add_argument(
+        "--cockpit",
+        action="store_true",
+        help="Show iteration score dashboards and prompt for steering between refiner passes",
+    )
+    parser.add_argument(
+        "--stream-refiner-output",
+        action="store_true",
+        help="Tee refiner stdout/stderr to the terminal while preserving logs",
     )
     parser.add_argument("--print-json", action="store_true")
     return parser

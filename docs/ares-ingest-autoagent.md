@@ -1,5 +1,9 @@
 # Ares Ingest AutoAgent Runbook
 
+The canonical Ares operator guide lives in the parent Ares repository at
+`doc/model-ingest-autoagent.md`. Keep this file as fork-local AutoAgent package
+notes only; Ares user and developer documentation belongs under Ares `doc/`.
+
 This is the Ares-specific scaffold for model-ingest AutoAgent runs. The CLI
 evaluates durable run state for the Ares generated pipeline:
 
@@ -15,6 +19,7 @@ execution sidecars.
 From an Ares checkout, create setup state without invoking the refiner:
 
 ```bash
+nix develop .#ingest
 ares-ingest-agent PROVIDER/MODEL --ares-repo "$PWD" --setup-only
 ```
 
@@ -37,7 +42,7 @@ time.
 To run the one-failing-gate loop, omit `--setup-only`:
 
 ```bash
-ares-ingest-agent PROVIDER/MODEL --ares-repo "$PWD" --max-iterations 2
+ares-ingest-agent PROVIDER/MODEL --ares-repo "$PWD" --cockpit --max-iterations 2
 ```
 
 Each verifier pass refreshes deterministic gates, writes `reward.json`,
@@ -51,6 +56,52 @@ requirements, then runs the configured shell command with `REFINEMENT_PROMPT`,
 
 Use `--no-refiner` for evaluation-only runs; below target, it exits with
 `blocked_no_refiner` recorded in `state.json`.
+
+## Visibility And Steering
+
+The current Ares interface is a CLI cockpit plus durable run artifacts. It
+prints iteration dashboards, records `cockpit.jsonl`, streams refiner output to
+the terminal and `logs/NN-refiner.log`, and accepts operator steering between
+iterations when stdin is a TTY.
+
+Use the CLI in bounded steps when you want tight control:
+
+```bash
+ares-ingest-agent PROVIDER/MODEL --ares-repo "$PWD" \
+  --run-dir /tmp/ares-autoagent-row --setup-only --print-json
+ares-ingest-agent PROVIDER/MODEL --ares-repo "$PWD" \
+  --run-dir /tmp/ares-autoagent-row --no-refiner --print-json
+ares-ingest-agent PROVIDER/MODEL --ares-repo "$PWD" \
+  --run-dir /tmp/ares-autoagent-row --cockpit --max-iterations 1 --print-json
+```
+
+The first command initializes `model_spec.json`, `reward.json`, `state.json`,
+and `handoff.md` without invoking another agent. The second command refreshes
+the verifier state without refinement. The third command allows at most one
+refiner pass before returning control.
+
+For active monitoring, use the cockpit and inspect or tail the run directory:
+
+- `handoff.md`: human-readable current gate, selected workflow skills, allowed
+  write scope, and next action.
+- `reward.txt` and `reward.json`: current score, component scores, and first
+  failing gate.
+- `state.json`: machine-readable run status, history, workflow skills, and
+  generated prompt references.
+- `cockpit.jsonl`: append-only cockpit event log.
+- `steering.json` and `steering.md`: operator notes, resources, and driver
+  overrides.
+- `prompts/refinement-NN.md`: the exact prompt handed to the refiner for that
+  pass.
+- `logs/NN-refiner.log`: stdout and stderr from the refiner subprocess.
+
+The refiner command runs with a long timeout and writes stdout/stderr to the
+corresponding log file. In cockpit mode it also streams that output to the
+terminal. If a pass is taking too long, interrupt the CLI, inspect the log and
+run artifacts, edit `model_spec.json` or add cockpit steering notes/resources,
+then rerun with `--no-refiner`, `--setup-only`, or a small `--cockpit
+--max-iterations` value. Do not start an unbounded refiner loop when you need
+continuous human review.
 
 ## Workflow Skills
 
