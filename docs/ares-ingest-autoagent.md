@@ -31,6 +31,8 @@ This creates:
   reward.json
   reward.txt
   state.json
+  steering.json
+  steering.md
   handoff.md
 ```
 
@@ -72,13 +74,15 @@ ares-ingest-agent PROVIDER/MODEL --ares-repo "$PWD" \
 ares-ingest-agent PROVIDER/MODEL --ares-repo "$PWD" \
   --run-dir /tmp/ares-autoagent-row --no-refiner --print-json
 ares-ingest-agent PROVIDER/MODEL --ares-repo "$PWD" \
-  --run-dir /tmp/ares-autoagent-row --cockpit --max-iterations 1 --print-json
+  --run-dir /tmp/ares-autoagent-row --cockpit --max-iterations 2 --print-json
 ```
 
 The first command initializes `model_spec.json`, `reward.json`, `state.json`,
-and `handoff.md` without invoking another agent. The second command refreshes
-the verifier state without refinement. The third command allows at most one
-refiner pass before returning control.
+`steering.json`, `steering.md`, and `handoff.md` without invoking another
+agent. The second command refreshes the verifier state without refinement. The
+third command allows at most one refiner pass before returning control:
+iteration 1 evaluates and runs the driver, then iteration 2 evaluates the
+result and stops.
 
 For active monitoring, use the cockpit and inspect or tail the run directory:
 
