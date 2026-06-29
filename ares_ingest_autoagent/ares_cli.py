@@ -171,11 +171,22 @@ def selected_workflow_skills(
         "model_spec": {
             "name": "ares-model-port",
             "gate": "model_spec",
-            "why": "Build or repair the model row inventory before artifact gates run.",
+            "why": (
+                "Build or repair the model row inventory before artifact gates run, "
+                "including prior-art inspection across HuggingFace Transformers plus "
+                "resolved or cloned vLLM, llama.cpp, and MLX checkouts. Use explicit "
+                "checkout paths when supplied; otherwise use "
+                "${ARES_PRIOR_ART_ROOT:-$HOME/db} as the cache root and clone missing "
+                "official upstream repos there."
+            ),
             "allowed_scope": [
                 str(cfg.run_dir),
                 str(cfg.model_spec_path),
                 str(cfg.run_dir / "handoff.md"),
+                "prior-art checkout paths recorded in model_spec.json or handoff.md",
+                "${ARES_PRIOR_ART_ROOT:-$HOME/db}/vllm",
+                "${ARES_PRIOR_ART_ROOT:-$HOME/db}/llama.cpp",
+                "${ARES_PRIOR_ART_ROOT:-$HOME/db}/mlx",
             ],
             "verification_commands": [verify],
         },

@@ -195,20 +195,38 @@ class AresIngestCliTest(unittest.TestCase):
 
             self.assertEqual(model_skill["name"], "ares-model-port")
             self.assertIn("model row inventory", model_skill["why"])
+            self.assertIn("HuggingFace Transformers", model_skill["why"])
+            self.assertIn("vLLM", model_skill["why"])
+            self.assertIn("llama.cpp", model_skill["why"])
+            self.assertIn("MLX", model_skill["why"])
+            self.assertIn("${ARES_PRIOR_ART_ROOT:-$HOME/db}", model_skill["why"])
+            self.assertIn("clone missing official upstream repos", model_skill["why"])
             self.assertEqual(
                 model_skill["allowed_scope"],
                 [
                     str(cfg.run_dir),
                     str(cfg.model_spec_path),
                     str(cfg.run_dir / "handoff.md"),
+                    "prior-art checkout paths recorded in model_spec.json or handoff.md",
+                    "${ARES_PRIOR_ART_ROOT:-$HOME/db}/vllm",
+                    "${ARES_PRIOR_ART_ROOT:-$HOME/db}/llama.cpp",
+                    "${ARES_PRIOR_ART_ROOT:-$HOME/db}/mlx",
                 ],
             )
             run_dir.mkdir()
             write_handoff(cfg, reward, state={"workflow_skills": skills, "history": []})
-            self.assertIn(
-                "`ares-model-port` for `model_spec`",
-                (run_dir / "handoff.md").read_text(),
-            )
+            handoff = (run_dir / "handoff.md").read_text()
+            self.assertIn("`ares-model-port` for `model_spec`", handoff)
+            self.assertIn("vLLM, llama.cpp, and MLX", handoff)
+            self.assertIn("${ARES_PRIOR_ART_ROOT:-$HOME/db}/vllm", handoff)
+            prompt = write_refinement_prompt(
+                cfg,
+                iteration=1,
+                spec={},
+                reward=reward,
+            ).read_text()
+            self.assertIn("vLLM, llama.cpp, and MLX", prompt)
+            self.assertIn("${ARES_PRIOR_ART_ROOT:-$HOME/db}/llama.cpp", prompt)
 
     def test_cpp_tvd_selects_comparison_evidence_context(self) -> None:
         with TemporaryDirectory() as tmp:

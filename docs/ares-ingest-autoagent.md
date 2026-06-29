@@ -64,7 +64,11 @@ gates include `command-fess` for conditional post-commit claim audits.
 The `targetplan_valid` gate uses `ares-targetplan` because it crosses Lean
 lowering, Rust validation, and runtime provider handoff.
 The `model_spec` gate uses `ares-model-port` because it owns the initial model
-row inventory and gate plan.
+row inventory and gate plan. For unfamiliar model families, that inventory
+includes HuggingFace Transformers plus resolved or cloned vLLM, llama.cpp, and
+MLX checkouts. Prefer explicit checkout paths recorded in `model_spec.json` or
+the run handoff; otherwise use `${ARES_PRIOR_ART_ROOT:-$HOME/db}` as the cache
+root and clone missing official upstream repositories there.
 
 ## Evidence Rules
 

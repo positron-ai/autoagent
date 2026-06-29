@@ -45,6 +45,10 @@ For local development, mount or copy:
 - `explicit_gates`: gates already proven by supplied artifacts.
 - `expected_model_ids`: allowed model ids for cross-artifact consistency when a
   registry row, local checkpoint path, and HF model id are legitimate aliases.
+- `prior_art_checkouts`: optional explicit paths for vLLM, llama.cpp, and MLX
+  checkouts. If absent, the `ares-model-port` workflow uses
+  `${ARES_PRIOR_ART_ROOT:-$HOME/db}` as the cache root and clones missing
+  official upstream repositories there for prior-art inspection.
 - `oracle_records`: HF CPU oracle JSONL file, relative to `work_dir`,
   `files/`, or `ARES_REPO`.
 - `ares_plan`: generated AresPlan JSON artifact.
