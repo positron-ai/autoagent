@@ -18,6 +18,23 @@
     "lean_ingest": true
   },
   "oracle_records": null,
+  "policy": {
+    "no_hand_authored_rust_model_plugins": true,
+    "no_runtime_generated_execution_sidecars": true,
+    "runtime_path": "frontend -> Lean ingest -> AresPlan -> TargetPlan -> backend provider",
+    "hf_cpu_goldens": "capture_once_per_stable_oracle_tuple",
+    "ordinary_backend_loop_reference": "cached_hf_cpu_token_logit_goldens",
+    "debug_loop_priority": [
+      "cached_hf_cpu_logit_comparison",
+      "focused_backend_or_module_slice",
+      "short_depth_backend_generation",
+      "longer_depth_backend_generation",
+      "explicit_late_cpp_comparison_milestone"
+    ],
+    "fastest_verifier_first": true,
+    "avoid_recapturing_unchanged_hf_logits": true,
+    "defer_cpp_comparison_until_milestone_candidate": true
+  },
   "ares_plan": null,
   "target_plan": null,
   "backend_open_evidence": null,
