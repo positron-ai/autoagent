@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import unittest
 from pathlib import Path
@@ -15,6 +16,7 @@ from ares_ingest_autoagent.ares_cli import (
     build_parser,
     config_from_args,
     cockpit_checkpoint,
+    evaluate_run,
     initialize_run,
     main,
     selected_workflow_skills,
@@ -22,6 +24,86 @@ from ares_ingest_autoagent.ares_cli import (
     write_handoff,
     write_refinement_prompt,
 )
+
+
+SHA_A = "a" * 64
+
+
+def sha256_file(path: Path) -> str:
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def write_json_artifact(path: Path, payload: dict) -> dict[str, str]:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(payload, sort_keys=True) + "\n")
+    return {"path": path.name, "sha256": "sha256:" + sha256_file(path)}
+
+
+def write_introspection_ladder(root: Path) -> Path:
+    source_run = write_json_artifact(
+        root / "source.run.json",
+        {"schema": "ares.introspection.run.v1"},
+    )
+    compare = write_json_artifact(
+        root / "source.compare.json",
+        {"schema": "ares.introspection.compare.v1"},
+    )
+    backend_events = write_json_artifact(
+        root / "backend-events.jsonl",
+        {"event": "forward_executed"},
+    )
+    ladder = root / "ladder.json"
+    ladder.write_text(
+        json.dumps(
+            {
+                "schema": "ares.introspection.ladder.v1",
+                "status": "failed",
+                "evidence_class": "semantic_localization",
+                "producer": {"tool": "unit-test"},
+                "model": {"id": "Provider/Model", "checkpoint": "unit-test"},
+                "stage_order": ["hf_cpu_oracle", "source_hf_hypergraph"],
+                "graphs": [
+                    {
+                        "stage": "source_hf_hypergraph",
+                        "schema": "ares.introspection.graph.v1",
+                        "sha256": "sha256:" + SHA_A,
+                    }
+                ],
+                "runs": [
+                    {
+                        "stage": "source_hf_hypergraph",
+                        "evidence_role": "candidate",
+                        "schema": "ares.introspection.run.v1",
+                        "sha256": source_run["sha256"],
+                        "status": "passed",
+                        "path": source_run["path"],
+                    }
+                ],
+                "comparisons": [
+                    {
+                        "from_stage": "hf_cpu_oracle",
+                        "to_stage": "source_hf_hypergraph",
+                        "schema": "ares.introspection.compare.v1",
+                        "sha256": compare["sha256"],
+                        "status": "failed",
+                        "result": "diverged",
+                        "path": compare["path"],
+                        "first_mismatch": {"id": "logits"},
+                    }
+                ],
+                "first_failing_stage": "source_hf_hypergraph",
+                "next_owner": "ares-python",
+                "recommendation": "Investigate HF-export source replay.",
+                "trace_context": {
+                    "trace_labels": ["targetplan.stmt.00001.matmul"],
+                    "backend_events": [backend_events],
+                },
+            },
+            sort_keys=True,
+        )
+        + "\n"
+    )
+    return ladder
 
 
 class AresIngestCliTest(unittest.TestCase):
@@ -344,6 +426,105 @@ class AresIngestCliTest(unittest.TestCase):
             self.assertIn("## Operator Steering", prompt)
             self.assertIn("Prefer HF-export evidence", prompt)
             self.assertIn("candidate bundle", prompt)
+
+    def test_evaluate_run_validates_introspection_ladder_attachment(self) -> None:
+        with TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            run_dir = root / "run"
+            run_dir.mkdir()
+            cfg = config_from_args(
+                build_parser().parse_args(
+                    [
+                        "--ares-repo",
+                        str(root),
+                        "--run-dir",
+                        str(run_dir),
+                        "Provider/Model",
+                    ]
+                )
+            )
+            write_introspection_ladder(run_dir)
+            cfg.model_spec_path.write_text(
+                json.dumps(
+                    {
+                        "model": "Provider/Model",
+                        "required_gates": ["model_spec", "hf_cpu_oracle"],
+                        "explicit_gates": {
+                            "model_spec": {"passed": True, "score": 1.0}
+                        },
+                        "introspection_ladder": "ladder.json",
+                    }
+                )
+            )
+
+            spec, reward = evaluate_run(cfg)
+
+            gate = spec["validated_gates"]["introspection_ladder"]
+            self.assertTrue(gate["passed"], gate.get("errors"))
+            self.assertEqual(gate["artifact_validator"], "introspection_ladder")
+            self.assertEqual(reward["first_failed_gate"], "hf_cpu_oracle")
+            self.assertTrue(reward["gates"]["introspection_ladder"]["passed"])
+            prompt = write_refinement_prompt(
+                cfg,
+                iteration=1,
+                spec=spec,
+                reward=reward,
+            ).read_text()
+            self.assertIn("Validated introspection ladder", prompt)
+            self.assertIn("first failing introspection stage", prompt)
+            self.assertIn("source_hf_hypergraph", prompt)
+            self.assertIn(gate["sha256"], prompt)
+            self.assertIn("targetplan.stmt.00001.matmul", prompt)
+            self.assertIn("backend-events.jsonl", prompt)
+
+    def test_logit_drift_selects_introspection_skill_context(self) -> None:
+        with TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            cfg = config_from_args(
+                build_parser().parse_args(
+                    [
+                        "--ares-repo",
+                        str(root),
+                        "--run-dir",
+                        str(root / "run"),
+                        "Provider/Model",
+                    ]
+                )
+            )
+            reward = {
+                "score": 0.58,
+                "alpha_execution": 0.7,
+                "tau_tokens": 0.0,
+                "delta_inference": 0.0,
+                "stage_cap": 0.70,
+                "first_failed_gate": "one_token_logits",
+                "gates": {},
+            }
+
+            skills = selected_workflow_skills(
+                cfg,
+                first_failed_gate="one_token_logits",
+            )
+            drift_skill = next(
+                skill for skill in skills if skill.get("gate") == "one_token_logits"
+            )
+
+            self.assertEqual(drift_skill["name"], "ares-introspection")
+            self.assertIn("semantic-localization ladder", drift_skill["why"])
+            self.assertIn("bin/ares-introspect", drift_skill["allowed_scope"])
+            cfg.run_dir.mkdir()
+            write_handoff(cfg, reward, state={"workflow_skills": skills, "history": []})
+            handoff = (cfg.run_dir / "handoff.md").read_text()
+            self.assertIn("`ares-introspection` for `one_token_logits`", handoff)
+            prompt = write_refinement_prompt(
+                cfg,
+                iteration=1,
+                spec={"introspection_ladder": "ladder.json"},
+                reward=reward,
+            ).read_text()
+            self.assertIn("`ares-introspection` for `one_token_logits`", prompt)
+            self.assertIn("bin/ares-introspect ladder --graph", prompt)
+            self.assertIn("introspection_ladder", prompt)
 
     def test_cpp_tvd_selects_comparison_evidence_context(self) -> None:
         with TemporaryDirectory() as tmp:

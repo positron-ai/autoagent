@@ -12,6 +12,7 @@ from typing import Any, Iterable, Mapping
 
 HF_CPU_SCHEMA_ID = "ares.oracles.hf_cpu.record.v1"
 HF_CPU_ORACLE_KIND = "huggingface_transformers_pytorch_cpu"
+INTROSPECTION_LADDER_SCHEMA = "ares.introspection.ladder.v1"
 LEAN_TARGET_PLAN_PRODUCER = {"language": "lean", "tool": "ingest-lean"}
 SHA256_RE = re.compile(r"^[0-9a-f]{64}$", re.I)
 GIT_COMMIT_RE = re.compile(r"^[0-9a-f]{40}$", re.I)
@@ -33,6 +34,32 @@ CPP_COMPARISON_SOURCES = {
 }
 ARES_RUNTIME_CANDIDATES = {"ares", "ares_rust", "ares_runtime", "runares", "rinzler"}
 SCORING_WORKLOADS = {"independent_decode", "long_prefill"}
+INTROSPECTION_STAGES = {
+    "hf_cpu_oracle",
+    "source_hf_hypergraph",
+    "lean_imported_hypergraph",
+    "lean_post_bridge_hypergraph",
+    "lean_post_eqsat_hypergraph",
+    "lean_extracted_hypergraph",
+    "aresplan_semantic",
+    "targetplan_colored",
+    "backend",
+}
+INTROSPECTION_OWNERS = {
+    "none",
+    "ares-python",
+    "ares-lean",
+    "ares-targetplan",
+    "ares-rust",
+    "ares-perfetto",
+    "model-inventory",
+}
+INTROSPECTION_TRACE_ARTIFACT_FIELDS = (
+    "backend_events",
+    "perfetto_traces",
+    "stage_event_summaries",
+    "perfetto_summaries",
+)
 
 FLOATING_REVISION_NAMES = {
     "@",
@@ -276,6 +303,45 @@ def mmlu_pro_gate(
         validator_name="mmlu_pro",
         path=path,
     )
+
+
+def introspection_ladder_gate(
+    path: Path,
+    *,
+    label: str = "introspection ladder evidence",
+) -> dict[str, Any]:
+    if not path.is_file():
+        return {
+            "label": label,
+            "artifact_validator": "introspection_ladder",
+            "path": str(path),
+            "exists": path.exists(),
+            "passed": False,
+            "score": 0.0,
+            "errors": ["introspection ladder file is missing"],
+        }
+    try:
+        payload = _read_json_or_jsonl(path)
+    except ValueError as exc:
+        return {
+            "label": label,
+            "artifact_validator": "introspection_ladder",
+            "path": str(path),
+            "exists": True,
+            "passed": False,
+            "score": 0.0,
+            "errors": [str(exc)],
+        }
+    gate = validate_introspection_ladder_report(
+        payload,
+        base_dir=path.parent,
+    ).as_gate(
+        label=label,
+        validator_name="introspection_ladder",
+        path=path,
+    )
+    gate["sha256"] = _sha256_file(path)
+    return gate
 
 
 def token_agreement_gate(
@@ -844,7 +910,9 @@ def validate_mmlu_pro_evidence(
         if endpoint_host is None:
             errors.append("endpoint_models.openai_host must name the probed endpoint")
         elif openai_host is not None and endpoint_host != openai_host:
-            errors.append("endpoint_models.openai_host must match top-level openai_host")
+            errors.append(
+                "endpoint_models.openai_host must match top-level openai_host"
+            )
         served_models = _expect_string_list(
             errors,
             endpoint_models.get("models"),
@@ -906,7 +974,9 @@ def validate_mmlu_pro_evidence(
                 ("model", "config_model", "mmlu_model"),
             )
             if config_model is None:
-                errors.append("systems_test.config.model must name the config row model")
+                errors.append(
+                    "systems_test.config.model must name the config row model"
+                )
             elif model is not None and config_model != model:
                 errors.append("systems_test.config.model must match top-level model")
             nominal_users = config.get("nominal_users")
@@ -995,6 +1065,141 @@ def validate_mmlu_pro_evidence(
         "systems_test_config_model": systems_test_config_model,
         "subject_count": len(subjects) if isinstance(subjects, list) else None,
         "artifact_count": len(artifacts) if isinstance(artifacts, list) else None,
+    }
+    return _validation(not errors, errors, detail)
+
+
+def validate_introspection_ladder_report(
+    payload: Any,
+    *,
+    base_dir: Path | None = None,
+) -> ArtifactValidation:
+    errors: list[str] = []
+    if not isinstance(payload, dict):
+        return _validation(
+            False,
+            ["introspection ladder report must be a JSON object"],
+            {},
+        )
+
+    if payload.get("schema") != INTROSPECTION_LADDER_SCHEMA:
+        errors.append(
+            f"introspection ladder schema must be {INTROSPECTION_LADDER_SCHEMA}"
+        )
+    if payload.get("evidence_class") != "semantic_localization":
+        errors.append(
+            "introspection ladder evidence_class must be semantic_localization"
+        )
+
+    status = payload.get("status")
+    if status not in {"passed", "failed"}:
+        errors.append("introspection ladder status must be passed or failed")
+
+    stage_order = payload.get("stage_order")
+    if not isinstance(stage_order, list) or not stage_order:
+        errors.append("introspection ladder stage_order must be a non-empty list")
+        stage_names: list[str] = []
+    else:
+        stage_names = []
+        for index, stage in enumerate(stage_order):
+            if not isinstance(stage, str) or stage not in INTROSPECTION_STAGES:
+                errors.append(f"stage_order[{index}] is not a known ladder stage")
+                continue
+            stage_names.append(stage)
+
+    comparisons = payload.get("comparisons")
+    if not isinstance(comparisons, list) or not comparisons:
+        errors.append("introspection ladder comparisons must be a non-empty list")
+    else:
+        for index, comparison in enumerate(comparisons):
+            _validate_introspection_comparison_ref(
+                errors,
+                comparison,
+                base_dir,
+                f"comparisons[{index}]",
+            )
+
+    runs = payload.get("runs")
+    if not isinstance(runs, list):
+        errors.append("introspection ladder runs must be a list")
+    else:
+        for index, run in enumerate(runs):
+            _validate_introspection_artifact_ref(
+                errors,
+                run,
+                base_dir,
+                f"runs[{index}]",
+                expected_schema="ares.introspection.run.v1",
+            )
+
+    graphs = payload.get("graphs")
+    if not isinstance(graphs, list):
+        errors.append("introspection ladder graphs must be a list")
+    else:
+        for index, graph in enumerate(graphs):
+            _validate_introspection_artifact_ref(
+                errors,
+                graph,
+                base_dir,
+                f"graphs[{index}]",
+                expected_schema="ares.introspection.graph.v1",
+                verify_path=False,
+            )
+
+    first_failing_stage = payload.get("first_failing_stage")
+    next_owner = payload.get("next_owner")
+    if status == "failed":
+        if (
+            not isinstance(first_failing_stage, str)
+            or first_failing_stage not in INTROSPECTION_STAGES
+        ):
+            errors.append(
+                "failed introspection ladder must name a known first_failing_stage"
+            )
+        elif stage_names and first_failing_stage not in stage_names:
+            errors.append("first_failing_stage must appear in stage_order")
+        if not isinstance(next_owner, str) or next_owner in {"", "none"}:
+            errors.append("failed introspection ladder must name next_owner")
+    elif status == "passed":
+        if first_failing_stage is not None:
+            errors.append("passed introspection ladder must not name a failing stage")
+        if next_owner != "none":
+            errors.append("passed introspection ladder next_owner must be none")
+
+    if isinstance(next_owner, str) and next_owner not in INTROSPECTION_OWNERS:
+        errors.append("introspection ladder next_owner is not a known owner")
+    _require_non_empty_string(
+        errors,
+        payload.get("recommendation"),
+        "introspection ladder recommendation",
+    )
+    trace_context = payload.get("trace_context")
+    if "trace_context" in payload:
+        if not isinstance(trace_context, Mapping):
+            errors.append("introspection ladder trace_context must be a JSON object")
+        else:
+            _validate_introspection_trace_context(
+                errors,
+                trace_context,
+                base_dir,
+            )
+
+    trace_context_detail = (
+        _introspection_trace_context_detail(trace_context)
+        if isinstance(trace_context, Mapping)
+        else {}
+    )
+    detail = {
+        "schema": payload.get("schema"),
+        "evidence_class": payload.get("evidence_class"),
+        "status": status,
+        "first_failing_stage": first_failing_stage,
+        "next_owner": next_owner,
+        "stage_order": stage_names,
+        "comparison_count": len(comparisons) if isinstance(comparisons, list) else 0,
+        "run_count": len(runs) if isinstance(runs, list) else 0,
+        "graph_count": len(graphs) if isinstance(graphs, list) else 0,
+        "trace_context": trace_context_detail,
     }
     return _validation(not errors, errors, detail)
 
@@ -1344,6 +1549,190 @@ def _validate_referenced_sha256(
         errors.append(f"{label}.sha256 does not match referenced file")
 
 
+def _validate_introspection_trace_context(
+    errors: list[str],
+    trace_context: Mapping[str, Any],
+    base_dir: Path | None,
+) -> None:
+    for field in ("autoagent_run_id", "request_id"):
+        if field in trace_context:
+            _require_non_empty_string(
+                errors,
+                trace_context.get(field),
+                f"trace_context.{field}",
+            )
+    labels = trace_context.get("trace_labels")
+    if labels is not None:
+        if not isinstance(labels, list):
+            errors.append("trace_context.trace_labels must be a list")
+        else:
+            for index, label in enumerate(labels):
+                _require_non_empty_string(
+                    errors,
+                    label,
+                    f"trace_context.trace_labels[{index}]",
+                )
+    for field in INTROSPECTION_TRACE_ARTIFACT_FIELDS:
+        refs = trace_context.get(field)
+        if refs is None:
+            continue
+        if not isinstance(refs, list):
+            errors.append(f"trace_context.{field} must be a list")
+            continue
+        if not refs:
+            errors.append(f"trace_context.{field} must not be empty when present")
+            continue
+        for index, ref in enumerate(refs):
+            _validate_introspection_trace_artifact_ref(
+                errors,
+                ref,
+                base_dir,
+                f"trace_context.{field}[{index}]",
+            )
+
+
+def _validate_introspection_trace_artifact_ref(
+    errors: list[str],
+    value: Any,
+    base_dir: Path | None,
+    label: str,
+) -> None:
+    if not isinstance(value, Mapping):
+        errors.append(f"{label} must be an object")
+        return
+    _require_non_empty_string(errors, value.get("path"), f"{label}.path")
+    _require_introspection_sha256(errors, value.get("sha256"), f"{label}.sha256")
+    for field in ("schema", "role", "profile"):
+        if field in value:
+            _require_non_empty_string(errors, value.get(field), f"{label}.{field}")
+    if "path" in value and "sha256" in value:
+        _validate_referenced_introspection_sha256(errors, value, base_dir, label)
+
+
+def _introspection_trace_context_detail(value: Mapping[str, Any]) -> dict[str, Any]:
+    detail: dict[str, Any] = {}
+    for field in ("autoagent_run_id", "request_id"):
+        item = value.get(field)
+        if isinstance(item, str) and item:
+            detail[field] = item
+    labels = value.get("trace_labels")
+    if isinstance(labels, list):
+        detail["trace_labels"] = [
+            label for label in labels if isinstance(label, str) and label
+        ]
+    for field in INTROSPECTION_TRACE_ARTIFACT_FIELDS:
+        refs = value.get(field)
+        if not isinstance(refs, list):
+            continue
+        normalized_refs = []
+        for ref in refs:
+            if not isinstance(ref, Mapping):
+                continue
+            normalized_ref: dict[str, Any] = {}
+            path = ref.get("path")
+            if isinstance(path, str) and path:
+                normalized_ref["path"] = path
+            digest = _normalize_introspection_sha256(ref.get("sha256"))
+            if digest is not None:
+                normalized_ref["sha256"] = f"sha256:{digest}"
+            for metadata_field in ("schema", "role", "profile"):
+                item = ref.get(metadata_field)
+                if isinstance(item, str) and item:
+                    normalized_ref[metadata_field] = item
+            if normalized_ref:
+                normalized_refs.append(normalized_ref)
+        if normalized_refs:
+            detail[field] = normalized_refs
+    return detail
+
+
+def _validate_introspection_comparison_ref(
+    errors: list[str],
+    value: Any,
+    base_dir: Path | None,
+    label: str,
+) -> None:
+    if not isinstance(value, Mapping):
+        errors.append(f"{label} must be an object")
+        return
+    if value.get("schema") != "ares.introspection.compare.v1":
+        errors.append(f"{label}.schema must be ares.introspection.compare.v1")
+    for field in ("from_stage", "to_stage"):
+        stage = value.get(field)
+        if not isinstance(stage, str) or stage not in INTROSPECTION_STAGES:
+            errors.append(f"{label}.{field} must be a known ladder stage")
+    status = value.get("status")
+    result = value.get("result")
+    if status not in {"passed", "failed"}:
+        errors.append(f"{label}.status must be passed or failed")
+    if status == "passed" and result != "matches":
+        errors.append(f"{label}.result must be matches when status is passed")
+    if status == "failed":
+        if result != "diverged":
+            errors.append(f"{label}.result must be diverged when status is failed")
+        mismatch = value.get("first_mismatch")
+        if not isinstance(mismatch, Mapping):
+            errors.append(f"{label}.first_mismatch must identify the divergence")
+        else:
+            _require_non_empty_string(
+                errors,
+                mismatch.get("id"),
+                f"{label}.first_mismatch.id",
+            )
+    _validate_introspection_artifact_ref(
+        errors,
+        value,
+        base_dir,
+        label,
+        expected_schema="ares.introspection.compare.v1",
+    )
+
+
+def _validate_introspection_artifact_ref(
+    errors: list[str],
+    value: Any,
+    base_dir: Path | None,
+    label: str,
+    *,
+    expected_schema: str,
+    verify_path: bool = True,
+) -> None:
+    if not isinstance(value, Mapping):
+        errors.append(f"{label} must be an object")
+        return
+    if value.get("schema") != expected_schema:
+        errors.append(f"{label}.schema must be {expected_schema}")
+    _require_introspection_sha256(errors, value.get("sha256"), f"{label}.sha256")
+    if verify_path and "path" in value:
+        _validate_referenced_introspection_sha256(errors, value, base_dir, label)
+
+
+def _validate_referenced_introspection_sha256(
+    errors: list[str],
+    value: Mapping[str, Any],
+    base_dir: Path | None,
+    label: str,
+) -> None:
+    if base_dir is None:
+        errors.append(
+            f"{label}.sha256 cannot be verified without evidence path context"
+        )
+        return
+    path_value = value.get("path")
+    digest_value = _normalize_introspection_sha256(value.get("sha256"))
+    if not isinstance(path_value, str) or digest_value is None:
+        return
+    path = Path(path_value)
+    if not path.is_absolute():
+        path = base_dir / path
+    if not path.is_file():
+        errors.append(f"{label}.path does not exist: {path}")
+        return
+    actual = _sha256_file(path)
+    if actual != digest_value:
+        errors.append(f"{label}.sha256 does not match referenced file")
+
+
 def _token_result_generated_count(payload: Mapping[str, Any]) -> int | None:
     explicit = payload.get("generated_tokens", payload.get("generated_token_count"))
     if isinstance(explicit, int):
@@ -1477,6 +1866,24 @@ def _event_name(row: dict[str, Any]) -> str | None:
 def _require_sha256(errors: list[str], value: Any, label: str) -> None:
     if not isinstance(value, str) or SHA256_RE.fullmatch(value) is None:
         errors.append(f"{label} SHA-256 must be a 64-character hex string")
+
+
+def _require_introspection_sha256(
+    errors: list[str],
+    value: Any,
+    label: str,
+) -> None:
+    if _normalize_introspection_sha256(value) is None:
+        errors.append(f"{label} must be a SHA-256 hex string or sha256:<hex> digest")
+
+
+def _normalize_introspection_sha256(value: Any) -> str | None:
+    if not isinstance(value, str):
+        return None
+    digest = value[7:] if value.startswith("sha256:") else value
+    if SHA256_RE.fullmatch(digest) is None:
+        return None
+    return digest.lower()
 
 
 def _require_git_sha(errors: list[str], value: Any, label: str) -> None:

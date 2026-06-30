@@ -12,10 +12,12 @@ from ares_ingest_autoagent.artifacts import (
     build_greedy_token_evidence,
     cpp_tvd_gate,
     depth_performance_gate,
+    introspection_ladder_gate,
     mmlu_pro_gate,
     one_token_logits_gate,
     token_agreement_gate,
     validate_cpp_tvd_evidence,
+    validate_introspection_ladder_report,
 )
 
 
@@ -32,6 +34,83 @@ def sha256_file(path: Path) -> str:
 def write_json_artifact(path: Path, payload: dict) -> dict[str, str]:
     path.write_text(json.dumps(payload, sort_keys=True) + "\n")
     return {"path": path.name, "sha256": sha256_file(path)}
+
+
+def write_prefixed_json_artifact(path: Path, payload: dict) -> dict[str, str]:
+    artifact = write_json_artifact(path, payload)
+    return {"path": artifact["path"], "sha256": "sha256:" + artifact["sha256"]}
+
+
+def introspection_ladder_payload(root: Path, *, evidence_class: str) -> dict:
+    source_run = write_prefixed_json_artifact(
+        root / "source.run.json",
+        {"schema": "ares.introspection.run.v1"},
+    )
+    compare = write_prefixed_json_artifact(
+        root / "hf-vs-source.compare.json",
+        {"schema": "ares.introspection.compare.v1"},
+    )
+    backend_events = write_prefixed_json_artifact(
+        root / "backend-events.jsonl",
+        {"event": "forward_executed"},
+    )
+    backend_events["role"] = "backend_events"
+    perfetto_trace = write_prefixed_json_artifact(
+        root / "trace.perfetto-trace",
+        {"synthetic": "trace-bytes"},
+    )
+    perfetto_trace["role"] = "perfetto_trace"
+    return {
+        "schema": "ares.introspection.ladder.v1",
+        "status": "failed",
+        "evidence_class": evidence_class,
+        "producer": {"tool": "unit-test"},
+        "model": {"id": "synthetic/model", "checkpoint": "unit-test"},
+        "stage_order": ["hf_cpu_oracle", "source_hf_hypergraph"],
+        "graphs": [
+            {
+                "stage": "source_hf_hypergraph",
+                "schema": "ares.introspection.graph.v1",
+                "sha256": "sha256:" + SHA_A,
+            }
+        ],
+        "runs": [
+            {
+                "stage": "source_hf_hypergraph",
+                "evidence_role": "candidate",
+                "schema": "ares.introspection.run.v1",
+                "sha256": source_run["sha256"],
+                "status": "passed",
+                "path": source_run["path"],
+            }
+        ],
+        "comparisons": [
+            {
+                "from_stage": "hf_cpu_oracle",
+                "to_stage": "source_hf_hypergraph",
+                "schema": "ares.introspection.compare.v1",
+                "sha256": compare["sha256"],
+                "status": "failed",
+                "result": "diverged",
+                "path": compare["path"],
+                "first_mismatch": {
+                    "id": "logits",
+                    "producer_generator": "linear_0",
+                    "max_abs_error": 0.25,
+                },
+            }
+        ],
+        "first_failing_stage": "source_hf_hypergraph",
+        "next_owner": "ares-python",
+        "recommendation": "Investigate HF-export source replay.",
+        "trace_context": {
+            "autoagent_run_id": "unit-test",
+            "request_id": "request-1",
+            "trace_labels": ["targetplan.stmt.00001.matmul"],
+            "backend_events": [backend_events],
+            "perfetto_traces": [perfetto_trace],
+        },
+    }
 
 
 def mmlu_pro_payload(
@@ -55,8 +134,7 @@ def mmlu_pro_payload(
         "dirty": systems_test_dirty,
         "config_model": model,
         "command": (
-            f"OPENAI_HOST={openai_host} SKIP_PROVISION=1 "
-            f"MMLU_MODEL={model} uv run mmlu_pro"
+            f"OPENAI_HOST={openai_host} SKIP_PROVISION=1 MMLU_MODEL={model} uv run mmlu_pro"
         ),
     }
     if include_systems_test_config:
@@ -396,6 +474,80 @@ class AresIngestArtifactTest(unittest.TestCase):
             self.assertTrue(gate["passed"])
             self.assertEqual(gate["artifact_validator"], "cpp_tvd")
 
+    def test_introspection_ladder_gate_accepts_semantic_localization(self) -> None:
+        with TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            path = root / "ladder.json"
+            path.write_text(
+                json.dumps(
+                    introspection_ladder_payload(
+                        root,
+                        evidence_class="semantic_localization",
+                    )
+                )
+            )
+
+            gate = introspection_ladder_gate(path)
+
+            self.assertTrue(gate["passed"], gate.get("errors"))
+            self.assertEqual(gate["artifact_validator"], "introspection_ladder")
+            self.assertEqual(gate["sha256"], sha256_file(path))
+            self.assertEqual(
+                gate["detail"]["first_failing_stage"],
+                "source_hf_hypergraph",
+            )
+            self.assertEqual(
+                gate["detail"]["trace_context"]["trace_labels"],
+                ["targetplan.stmt.00001.matmul"],
+            )
+            self.assertEqual(
+                gate["detail"]["trace_context"]["backend_events"][0]["path"],
+                "backend-events.jsonl",
+            )
+            self.assertEqual(
+                gate["detail"]["trace_context"]["backend_events"][0]["role"],
+                "backend_events",
+            )
+            self.assertEqual(
+                gate["detail"]["trace_context"]["perfetto_traces"][0]["role"],
+                "perfetto_trace",
+            )
+
+    def test_introspection_ladder_rejects_promotion_claim(self) -> None:
+        with TemporaryDirectory() as tmp:
+            validation = validate_introspection_ladder_report(
+                introspection_ladder_payload(
+                    Path(tmp),
+                    evidence_class="promotion",
+                ),
+                base_dir=Path(tmp),
+            )
+
+            self.assertFalse(validation.passed)
+            self.assertIn("semantic_localization", " ".join(validation.errors))
+
+    def test_introspection_ladder_rejects_bad_trace_context_hash(self) -> None:
+        with TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            payload = introspection_ladder_payload(
+                root,
+                evidence_class="semantic_localization",
+            )
+            payload["trace_context"]["backend_events"][0]["sha256"] = (
+                "sha256:" + "b" * 64
+            )
+
+            validation = validate_introspection_ladder_report(
+                payload,
+                base_dir=root,
+            )
+
+            self.assertFalse(validation.passed)
+            self.assertIn(
+                "trace_context.backend_events[0].sha256 does not match referenced file",
+                validation.errors,
+            )
+
     def test_token_agreement_gate_accepts_eight_token_evidence(self) -> None:
         with TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -671,15 +823,15 @@ class AresIngestArtifactTest(unittest.TestCase):
 
             self.assertFalse(gate["passed"])
             self.assertIn("endpoint_models must be an object", " ".join(gate["errors"]))
-            self.assertIn("systems_test.config must be an object", " ".join(gate["errors"]))
+            self.assertIn(
+                "systems_test.config must be an object", " ".join(gate["errors"])
+            )
 
     def test_mmlu_pro_gate_rejects_undercoverage_for_spec(self) -> None:
         with TemporaryDirectory() as tmp:
             root = Path(tmp)
             path = root / "mmlu-pro.json"
-            path.write_text(
-                json.dumps(mmlu_pro_payload(root, coverage_percent=1))
-            )
+            path.write_text(json.dumps(mmlu_pro_payload(root, coverage_percent=1)))
 
             gate = mmlu_pro_gate(path, required_coverage_percent=10)
 
