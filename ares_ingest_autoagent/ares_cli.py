@@ -719,9 +719,9 @@ Latest refinement prompt: `{latest_prompt or "none"}`
 
 - HF Transformers on PyTorch CPU is the model-correctness oracle.
 - Cache HF CPU token/logit artifacts once for the exact model/checkpoint,
-  tokenizer, prompt-token context, decode depth, and deterministic settings;
-  reuse those goldens for the fast Ares backend debug loop until that tuple
-  changes.
+  tokenizer, prompt-token context, decode depth, dtype/quantization policy,
+  deterministic settings, and oracle/exporter code tuple; reuse those goldens
+  for the fast Ares backend debug loop until that tuple changes.
 - Prefer the cheapest verifier that proves the first failing gate. Do not
   recapture HF logits or run slower comparison lanes for ordinary Ares backend
   code changes.
@@ -1047,7 +1047,7 @@ def gate_guidance(
             "- Capture or attach a real HF Transformers + PyTorch CPU oracle record.",
             "- Do not use Ares/Rust, C++ Tron, mocks, or generated fixtures as the oracle.",
             "- Record model/tokenizer revisions, prompt tokens, generated ids, and logit slices.",
-            "- Treat the captured token/logit rows as reusable goldens for this exact model/checkpoint, tokenizer, prompt-token context, decode depth, and deterministic setting tuple.",
+            "- Treat the captured token/logit rows as reusable goldens for this exact model/checkpoint, tokenizer, prompt-token context, decode depth, dtype/quantization policy, deterministic settings, and oracle/exporter code tuple.",
         ],
         "frontend_export": [
             "- Produce or select the frontend artifact declared by the model spec.",
@@ -1185,7 +1185,7 @@ def write_refinement_prompt(
             "## Ares Rules",
             "",
             "- HF Transformers on PyTorch CPU is the only model-correctness oracle.",
-            "- Capture HF CPU token/logit artifacts once per exact model/checkpoint, tokenizer, prompt-token context, decode depth, and deterministic setting tuple; reuse those goldens for fast backend iteration until that tuple changes.",
+            "- Capture HF CPU token/logit artifacts once per exact model/checkpoint, tokenizer, prompt-token context, decode depth, dtype/quantization policy, deterministic settings, and oracle/exporter code tuple; reuse those goldens for fast backend iteration until that tuple changes.",
             "- Prefer the fastest verifier that can prove the first failing gate; do not recapture HF logits or launch C++ comparison for ordinary Ares backend code changes.",
             "- C++ Tron/Rinzler is comparison, compliance, performance, and rollback evidence only.",
             "- Keep C++ Tron/Rinzler out of the normal debug loop; run it as an explicit milestone comparison after the selected Ares backend has HF-backed quality and competitive performance evidence.",
