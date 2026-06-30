@@ -25,9 +25,17 @@ score = min(
 )
 ```
 
-HF Transformers on PyTorch CPU is the only model-correctness oracle. C++
-Tron/Rinzler artifacts are comparison, compliance, performance, and rollback
-evidence only.
+HF Transformers on PyTorch CPU is the only model-correctness oracle. Capture
+HF token/logit artifacts once for the exact model/checkpoint, tokenizer,
+prompt-token context, decode depth, dtype/quantization policy, deterministic
+generation settings, and oracle/exporter code tuple, then reuse those artifacts
+as goldens while iterating on the selected Ares backend. C++ Tron/Rinzler
+artifacts are comparison, compliance, performance, and rollback evidence only;
+do not put that slow lane in the normal debug loop until HF-backed backend
+quality and performance show a competitive candidate. The intended debug-loop
+order is cached HF logit comparison, focused backend/module slices,
+short-depth generation, longer-depth generation, and only then explicit late
+C++ comparison milestones.
 
 ## Expected Runtime Layout
 
@@ -105,12 +113,14 @@ For local development, mount or copy:
   `delta_inference`.
 
 The default setup profile should require only CPU-side gates through
-`targetplan_valid`, `artifact_consistency`, and `shortcut_scan`. Enable backend,
-C++ comparison, performance, or MMLU Pro gates only when the task environment
-supplies the corresponding generated artifacts, runtime backend, model
-checkpoint, comparison binaries, OpenAI-compatible endpoint, and systems_test
-outputs. Wrapper command output still must be transformed into validator-backed
-evidence files before the backend, token, C++ TVD, depth/performance, or
-MMLU Pro gates can pass. The runtime wrappers consume `ares_plan`; keep
-`target_plan` attached separately for TargetPlan validation rather than treating
-wrapper launch output as TargetPlan proof.
+`targetplan_valid`, `artifact_consistency`, and `shortcut_scan`. Enable backend
+and performance gates when the task environment supplies the generated
+artifacts, runtime backend, model checkpoint, and cached HF goldens needed for
+a fast backend loop. Enable C++ comparison only as an explicit late milestone
+when the selected backend is already HF-correct and plausibly competitive.
+Enable MMLU Pro only when an OpenAI-compatible endpoint and systems_test outputs
+are available. Wrapper command output still must be transformed into
+validator-backed evidence files before the backend, token, C++ TVD,
+depth/performance, or MMLU Pro gates can pass. The runtime wrappers consume
+`ares_plan`; keep `target_plan` attached separately for TargetPlan validation
+rather than treating wrapper launch output as TargetPlan proof.

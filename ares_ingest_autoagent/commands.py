@@ -9,11 +9,12 @@ from typing import Any, Mapping
 
 
 DEFAULT_PROMPT = "In one sentence, explain why attention caches matter."
+DEFAULT_BACKEND = "fpga"
 DEFAULT_TIMEOUT_SEC = 3600
 COMPARISON_TIMEOUT_SEC = 24 * 3600
 MMLU_PRO_TIMEOUT_SEC = 24 * 3600
 BACKEND_GATES = {"backend_open", "one_token_logits", "eight_token_greedy"}
-COMPARISON_GATES = {"cpp_tvd", "depth_performance"}
+COMPARISON_GATES = {"cpp_tvd"}
 MMLU_PRO_GATES = {"mmlu_pro"}
 
 
@@ -118,7 +119,7 @@ def build_command_wrapper_plan(
     return {
         "schema": "ares.autoagent.command_wrappers.v1",
         "model": spec.get("model"),
-        "backend": spec.get("backend", "tron"),
+        "backend": spec.get("backend", DEFAULT_BACKEND),
         "dry_run": dry_run,
         "execute_command_wrappers": execute,
         "config_errors": config_errors,
@@ -138,7 +139,7 @@ def rinzler_chat_wrapper(
     dry_run: bool = True,
 ) -> CommandWrapper:
     model = _string(spec.get("model"))
-    backend = _string(spec.get("backend")) or "tron"
+    backend = _string(spec.get("backend")) or DEFAULT_BACKEND
     weights = _string(_first(spec, "weights", "checkpoint", "model_weights"))
     ares_plan = _string(spec.get("ares_plan"))
     prompt = _prompt(spec)
@@ -214,7 +215,7 @@ def full_inference_smoke_wrapper(
     dry_run: bool = True,
 ) -> CommandWrapper:
     model = _string(spec.get("model"))
-    backend = _string(spec.get("backend")) or "tron"
+    backend = _string(spec.get("backend")) or DEFAULT_BACKEND
     weights = _string(_first(spec, "weights", "checkpoint", "model_weights"))
     ares_plan = _string(spec.get("ares_plan"))
     prompt = _prompt(spec)
@@ -278,7 +279,7 @@ def side_by_side_comparison_wrapper(
     dry_run: bool = True,
 ) -> CommandWrapper:
     model = _string(spec.get("model"))
-    backend = _string(spec.get("backend")) or "tron"
+    backend = _string(spec.get("backend")) or DEFAULT_BACKEND
     weights = _string(_first(spec, "weights", "checkpoint", "model_weights"))
     comparison = _object(spec.get("comparison"))
     cpp_bin = _string(_first(comparison, "cpp_rinzler_bin", "cpp_bin"))
@@ -337,6 +338,7 @@ def side_by_side_comparison_wrapper(
         notes=(
             "C++ Tron/Rinzler output is comparison and rollback evidence only.",
             "This wrapper never supplies HF CPU oracle correctness evidence.",
+            "Do not run this slow lane in the normal debug loop; attach it only after HF-backed Ares backend quality and performance are competitive enough to justify milestone comparison.",
         ),
         pass_regexes=("dry-run",) if dry_run else (),
     )
@@ -350,7 +352,7 @@ def mmlu_pro_wrapper(
     dry_run: bool = True,
 ) -> CommandWrapper:
     model = _string(_first(spec, "mmlu_model", "model"))
-    backend = _string(spec.get("backend")) or "tron"
+    backend = _string(spec.get("backend")) or DEFAULT_BACKEND
     mmlu_cfg = _object(spec.get("mmlu_pro"))
     openai_host = _string(
         _first(mmlu_cfg, "openai_host", "endpoint")

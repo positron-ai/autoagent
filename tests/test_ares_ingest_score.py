@@ -8,8 +8,11 @@ from pathlib import Path
 from ares_ingest_autoagent.artifacts import build_greedy_token_evidence
 from ares_ingest_autoagent.score import (
     BACKEND_GATES,
+    COMPARISON_GATES,
     CPU_ONLY_GATES,
     FULL_GATES,
+    GATE_PROFILES,
+    STAGE_CAPS,
     compute_reward,
     main,
 )
@@ -223,7 +226,6 @@ class AresIngestScoreTest(unittest.TestCase):
                     "backend_open": artifact_gate("backend_open"),
                     "one_token_logits": artifact_gate("one_token_logits"),
                     "eight_token_greedy": artifact_gate("eight_token_greedy"),
-                    "cpp_tvd": artifact_gate("cpp_tvd"),
                     "depth_performance": artifact_gate("depth_performance"),
                 }
             },
@@ -240,6 +242,21 @@ class AresIngestScoreTest(unittest.TestCase):
         self.assertEqual(reward["first_failed_gate"], "mmlu_pro")
         self.assertEqual(reward["stage_cap"], 0.98)
         self.assertLess(reward["score"], 1.0)
+
+    def test_full_profile_does_not_require_cpp_comparison(self) -> None:
+        self.assertIn("depth_performance", FULL_GATES)
+        self.assertNotIn("cpp_tvd", FULL_GATES)
+        self.assertIn("cpp_tvd", COMPARISON_GATES)
+        self.assertLess(
+            COMPARISON_GATES.index("depth_performance"),
+            COMPARISON_GATES.index("cpp_tvd"),
+        )
+
+    def test_profile_stage_caps_are_monotonic(self) -> None:
+        for profile, gates in GATE_PROFILES.items():
+            with self.subTest(profile=profile):
+                caps = [STAGE_CAPS[gate] for gate in gates]
+                self.assertEqual(caps, sorted(caps))
 
     def test_missing_targetplan_caps_fast_token_match(self) -> None:
         reward = compute_reward(
