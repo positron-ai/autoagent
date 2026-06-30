@@ -402,6 +402,27 @@ class AresIngestArtifactTest(unittest.TestCase):
                                     ),
                                 },
                                 {
+                                    "heading": "Tensor Payload Sidecar Rows",
+                                    "json_path": "sections.tensor_payload_sidecar_rows",
+                                    "json_section": "tensor_payload_sidecar_rows",
+                                    "section_kind": "sidecar",
+                                    "claim_boundary": (
+                                        "system_under_test_payload_diagnostic"
+                                    ),
+                                },
+                                {
+                                    "heading": "K/V Payload Digest Sidecar Rows",
+                                    "json_path": (
+                                        "sections.kv_payload_digest_sidecar_rows"
+                                    ),
+                                    "json_section": "kv_payload_digest_sidecar_rows",
+                                    "section_kind": "sidecar",
+                                    "claim_boundary": (
+                                        "system_under_test_scheduler_kv_payload_"
+                                        "diagnostic"
+                                    ),
+                                },
+                                {
                                     "heading": "Next Measurements",
                                     "json_path": "sections.next_measurements",
                                     "json_section": "next_measurements",
@@ -525,6 +546,59 @@ class AresIngestArtifactTest(unittest.TestCase):
                                     ),
                                 }
                             ],
+                            "tensor_payload_sidecar_rows": [
+                                {
+                                    "status": "ok",
+                                    "evidence_role": "system_under_test",
+                                    "backend_id": "fpga",
+                                    "request_id": "7005",
+                                    "generation_id": "rinzler-7005",
+                                    "token_index": 0,
+                                    "targetplan_op_id": "tp.generic.0",
+                                    "targetplan_action": "provider_payload",
+                                    "layer": "31",
+                                    "tensor_payload_kind": "tensor_payload",
+                                    "tensor_name": "provider_payload",
+                                    "tensor_role": "provider_device_payload",
+                                    "element_type": "f32",
+                                    "shape": "[2]",
+                                    "element_count": "2",
+                                    "digest_sha256": SHA_A,
+                                    "sample_value_count": "2",
+                                    "sample_min": "9.0",
+                                    "sample_max": "10.0",
+                                    "sample_nan_count": "0",
+                                    "sample_pos_inf_count": "0",
+                                    "sample_neg_inf_count": "0",
+                                    "sample_values": "[9.0, 10.0]",
+                                }
+                            ],
+                            "kv_payload_digest_sidecar_rows": [
+                                {
+                                    "status": "ok",
+                                    "evidence_role": "system_under_test",
+                                    "backend_id": "fpga",
+                                    "request_id": "7006",
+                                    "generation_id": "rinzler-7006",
+                                    "token_index": 0,
+                                    "targetplan_action": "kv_cache",
+                                    "layer": "0",
+                                    "tensor_payload_kind": "kv_payload_digest",
+                                    "tensor_name": "scheduler_kv_save.layer_0.buf_1.k",
+                                    "tensor_role": "kv_key",
+                                    "element_type": "f32",
+                                    "shape": "[16]",
+                                    "element_count": "16",
+                                    "digest_sha256": SHA_B,
+                                    "sample_value_count": "4",
+                                    "sample_min": "0.125",
+                                    "sample_max": "0.5",
+                                    "sample_nan_count": "0",
+                                    "sample_pos_inf_count": "0",
+                                    "sample_neg_inf_count": "0",
+                                    "sample_values": "[0.125, 0.25, 0.375, 0.5]",
+                                }
+                            ],
                             "introspection_capability_rows": [
                                 {
                                     "capture_capability": "token_quality",
@@ -602,7 +676,27 @@ class AresIngestArtifactTest(unittest.TestCase):
                 gate["detail"]["oracle_reference_summary_correctness_counts"],
                 {"not_oracle_evidence": 1},
             )
-            self.assertEqual(gate["detail"]["report_json_section_count"], 7)
+            self.assertEqual(
+                gate["detail"]["tensor_payload_sidecar_status_counts"],
+                {"ok": 1},
+            )
+            self.assertEqual(
+                gate["detail"]["tensor_payload_sidecar_kind_counts"],
+                {"tensor_payload": 1},
+            )
+            self.assertEqual(
+                gate["detail"]["tensor_payload_sidecar_role_counts"],
+                {"provider_device_payload": 1},
+            )
+            self.assertEqual(
+                gate["detail"]["kv_payload_digest_sidecar_status_counts"],
+                {"ok": 1},
+            )
+            self.assertEqual(
+                gate["detail"]["kv_payload_digest_sidecar_role_counts"],
+                {"kv_key": 1},
+            )
+            self.assertEqual(gate["detail"]["report_json_section_count"], 9)
             self.assertEqual(
                 gate["detail"]["report_json_section_kind_counts"],
                 {
@@ -611,7 +705,7 @@ class AresIngestArtifactTest(unittest.TestCase):
                     "introspection": 1,
                     "introspection_inventory": 1,
                     "measurement_guidance": 1,
-                    "sidecar": 2,
+                    "sidecar": 4,
                 },
             )
             self.assertEqual(
@@ -672,6 +766,24 @@ class AresIngestArtifactTest(unittest.TestCase):
                     "external_hf_cpu_reference_anchor_only; "
                     "token_quality_row_remains_system_under_test"
                 ),
+            )
+            self.assertEqual(
+                gate["detail"]["tensor_payload_sidecar_samples"][0][
+                    "tensor_payload_kind"
+                ],
+                "tensor_payload",
+            )
+            self.assertEqual(
+                gate["detail"]["tensor_payload_sidecar_samples"][0]["tensor_role"],
+                "provider_device_payload",
+            )
+            self.assertEqual(
+                gate["detail"]["kv_payload_digest_sidecar_samples"][0]["tensor_role"],
+                "kv_key",
+            )
+            self.assertEqual(
+                gate["detail"]["kv_payload_digest_sidecar_samples"][0]["digest_sha256"],
+                SHA_B,
             )
             self.assertEqual(
                 gate["detail"]["introspection_capability_samples"][0][
@@ -735,6 +847,26 @@ class AresIngestArtifactTest(unittest.TestCase):
             gate["detail"]["oracle_reference_summary_correctness_counts"],
             {"not_oracle_evidence": 1},
         )
+        self.assertEqual(
+            gate["detail"]["tensor_payload_sidecar_status_counts"],
+            {"ok": 1},
+        )
+        self.assertEqual(
+            gate["detail"]["tensor_payload_sidecar_kind_counts"],
+            {"logit_slice": 1},
+        )
+        self.assertEqual(
+            gate["detail"]["tensor_payload_sidecar_role_counts"],
+            {"logits": 1},
+        )
+        self.assertEqual(
+            gate["detail"]["kv_payload_digest_sidecar_status_counts"],
+            {"ok": 1},
+        )
+        self.assertEqual(
+            gate["detail"]["kv_payload_digest_sidecar_role_counts"],
+            {"kv_key": 1},
+        )
         section_paths = {
             sample["json_path"]
             for sample in gate["detail"]["report_json_section_samples"]
@@ -743,6 +875,8 @@ class AresIngestArtifactTest(unittest.TestCase):
         self.assertIn("sections.debug_payload_artifact_summary_rows", section_paths)
         self.assertIn("sections.token_quality_summary_rows", section_paths)
         self.assertIn("sections.oracle_reference_summary_rows", section_paths)
+        self.assertIn("sections.tensor_payload_sidecar_rows", section_paths)
+        self.assertIn("sections.kv_payload_digest_sidecar_rows", section_paths)
         self.assertIn("sections.introspection_capability_rows", section_paths)
         self.assertIn("sections.introspection_artifact_summary_rows", section_paths)
         self.assertIn(
@@ -810,6 +944,18 @@ class AresIngestArtifactTest(unittest.TestCase):
                 "correctness_claim_status"
             ],
             "not_oracle_evidence",
+        )
+        self.assertEqual(
+            gate["detail"]["tensor_payload_sidecar_samples"][0]["tensor_payload_kind"],
+            "logit_slice",
+        )
+        self.assertEqual(
+            gate["detail"]["tensor_payload_sidecar_samples"][0]["tensor_role"],
+            "logits",
+        )
+        self.assertEqual(
+            gate["detail"]["kv_payload_digest_sidecar_samples"][0]["tensor_role"],
+            "kv_key",
         )
 
     def test_trace_report_gate_rejects_missing_file(self) -> None:

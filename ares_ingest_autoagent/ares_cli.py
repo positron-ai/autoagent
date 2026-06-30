@@ -214,6 +214,25 @@ def trace_report_summary_from_spec(spec: Mapping[str, Any]) -> dict[str, Any] | 
         "oracle_reference_summary_correctness_counts": detail.get(
             "oracle_reference_summary_correctness_counts"
         ),
+        "tensor_payload_sidecar_count": detail.get("tensor_payload_sidecar_count"),
+        "tensor_payload_sidecar_status_counts": detail.get(
+            "tensor_payload_sidecar_status_counts"
+        ),
+        "tensor_payload_sidecar_kind_counts": detail.get(
+            "tensor_payload_sidecar_kind_counts"
+        ),
+        "tensor_payload_sidecar_role_counts": detail.get(
+            "tensor_payload_sidecar_role_counts"
+        ),
+        "kv_payload_digest_sidecar_count": detail.get(
+            "kv_payload_digest_sidecar_count"
+        ),
+        "kv_payload_digest_sidecar_status_counts": detail.get(
+            "kv_payload_digest_sidecar_status_counts"
+        ),
+        "kv_payload_digest_sidecar_role_counts": detail.get(
+            "kv_payload_digest_sidecar_role_counts"
+        ),
         "introspection_capability_count": detail.get("introspection_capability_count"),
         "introspection_capability_status_counts": detail.get(
             "introspection_capability_status_counts"
@@ -238,6 +257,10 @@ def trace_report_summary_from_spec(spec: Mapping[str, Any]) -> dict[str, Any] | 
         "token_quality_summary_samples": detail.get("token_quality_summary_samples"),
         "oracle_reference_summary_samples": detail.get(
             "oracle_reference_summary_samples"
+        ),
+        "tensor_payload_sidecar_samples": detail.get("tensor_payload_sidecar_samples"),
+        "kv_payload_digest_sidecar_samples": detail.get(
+            "kv_payload_digest_sidecar_samples"
         ),
         "introspection_capability_samples": detail.get(
             "introspection_capability_samples"
@@ -345,6 +368,36 @@ def render_trace_report_lines(summary: Mapping[str, Any]) -> list[str]:
             "`"
             + json.dumps(
                 summary["oracle_reference_summary_correctness_counts"],
+                sort_keys=True,
+            )
+            + "`"
+        )
+    if summary.get("tensor_payload_sidecar_kind_counts"):
+        lines.append(
+            "- Tensor payload sidecars: "
+            "`"
+            + json.dumps(
+                summary["tensor_payload_sidecar_kind_counts"],
+                sort_keys=True,
+            )
+            + "`"
+        )
+    if summary.get("tensor_payload_sidecar_role_counts"):
+        lines.append(
+            "- Tensor payload roles: "
+            "`"
+            + json.dumps(
+                summary["tensor_payload_sidecar_role_counts"],
+                sort_keys=True,
+            )
+            + "`"
+        )
+    if summary.get("kv_payload_digest_sidecar_role_counts"):
+        lines.append(
+            "- K/V payload digest roles: "
+            "`"
+            + json.dumps(
+                summary["kv_payload_digest_sidecar_role_counts"],
                 sort_keys=True,
             )
             + "`"
@@ -483,6 +536,119 @@ def render_trace_report_lines(summary: Mapping[str, Any]) -> list[str]:
             if any(parts):
                 line += " " + " ".join(part for part in parts if part)
             lines.append(line)
+    for sample in summary.get("tensor_payload_sidecar_samples", [])[:3]:
+        if not isinstance(sample, Mapping):
+            continue
+        request_id = sample.get("request_id")
+        generation_id = sample.get("generation_id")
+        token_index = sample.get("token_index")
+        backend_id = sample.get("backend_id")
+        payload_kind = sample.get("tensor_payload_kind")
+        tensor_name = sample.get("tensor_name")
+        tensor_role = sample.get("tensor_role")
+        targetplan_op_id = sample.get("targetplan_op_id")
+        targetplan_action = sample.get("targetplan_action")
+        layer = sample.get("layer")
+        shape = sample.get("shape")
+        element_count = sample.get("element_count")
+        digest = sample.get("digest_sha256")
+        sample_count = sample.get("sample_value_count")
+        sample_nan_count = sample.get("sample_nan_count")
+        failure_reason = sample.get("failure_reason")
+        label = (
+            request_id
+            if _trace_report_sample_value_present(request_id)
+            else generation_id
+            if _trace_report_sample_value_present(generation_id)
+            else "unknown"
+        )
+        parts = []
+        if _trace_report_sample_value_present(generation_id):
+            parts.append(f"generation={generation_id}")
+        if _trace_report_sample_value_present(token_index):
+            parts.append(f"token_index={token_index}")
+        if backend_id:
+            parts.append(f"backend={backend_id}")
+        if payload_kind:
+            parts.append(f"kind={payload_kind}")
+        if tensor_role:
+            parts.append(f"role={tensor_role}")
+        if targetplan_op_id:
+            parts.append(f"op={targetplan_op_id}")
+        if targetplan_action:
+            parts.append(f"action={targetplan_action}")
+        if _trace_report_sample_value_present(layer):
+            parts.append(f"layer={layer}")
+        if tensor_name:
+            parts.append(f"tensor={tensor_name}")
+        if shape:
+            parts.append(f"shape={shape}")
+        if _trace_report_sample_value_present(element_count):
+            parts.append(f"elements={element_count}")
+        if _trace_report_sample_value_present(sample_count):
+            parts.append(f"samples={sample_count}")
+        if _trace_report_sample_value_present(sample_nan_count):
+            parts.append(f"sample_nan={sample_nan_count}")
+        if digest:
+            parts.append(f"digest_sha256={digest}")
+        if failure_reason:
+            parts.append(f"failure={failure_reason}")
+        line = f"- Tensor payload sidecar: request={label}"
+        if parts:
+            line += " " + " ".join(parts)
+        lines.append(line)
+    for sample in summary.get("kv_payload_digest_sidecar_samples", [])[:3]:
+        if not isinstance(sample, Mapping):
+            continue
+        request_id = sample.get("request_id")
+        generation_id = sample.get("generation_id")
+        token_index = sample.get("token_index")
+        backend_id = sample.get("backend_id")
+        tensor_name = sample.get("tensor_name")
+        tensor_role = sample.get("tensor_role")
+        targetplan_action = sample.get("targetplan_action")
+        layer = sample.get("layer")
+        element_count = sample.get("element_count")
+        digest = sample.get("digest_sha256")
+        sample_count = sample.get("sample_value_count")
+        sample_min = sample.get("sample_min")
+        sample_max = sample.get("sample_max")
+        label = (
+            request_id
+            if _trace_report_sample_value_present(request_id)
+            else generation_id
+            if _trace_report_sample_value_present(generation_id)
+            else "unknown"
+        )
+        parts = []
+        if _trace_report_sample_value_present(generation_id):
+            parts.append(f"generation={generation_id}")
+        if _trace_report_sample_value_present(token_index):
+            parts.append(f"token_index={token_index}")
+        if backend_id:
+            parts.append(f"backend={backend_id}")
+        if tensor_role:
+            parts.append(f"role={tensor_role}")
+        if targetplan_action:
+            parts.append(f"action={targetplan_action}")
+        if _trace_report_sample_value_present(layer):
+            parts.append(f"layer={layer}")
+        if tensor_name:
+            parts.append(f"tensor={tensor_name}")
+        if _trace_report_sample_value_present(element_count):
+            parts.append(f"elements={element_count}")
+        if _trace_report_sample_value_present(sample_count):
+            parts.append(f"samples={sample_count}")
+        if _trace_report_sample_value_present(sample_min):
+            parts.append(f"sample_min={sample_min}")
+        if _trace_report_sample_value_present(sample_max):
+            parts.append(f"sample_max={sample_max}")
+        if digest:
+            parts.append(f"digest_sha256={digest}")
+        line = f"- K/V payload digest sidecar: request={label}"
+        if parts:
+            line += " " + " ".join(parts)
+        lines.append(line)
     for sample in summary.get("token_quality_summary_samples", [])[:3]:
         if not isinstance(sample, Mapping):
             continue
@@ -669,6 +835,10 @@ def trace_report_prompt_section(spec: Mapping[str, Any]) -> list[str]:
         "payload lanes, then read",
         "`sections.debug_payload_artifact_summary_rows` to see payload",
         "sensitivity and timing-perturbation boundaries, and",
+        "`sections.tensor_payload_sidecar_rows` and",
+        "`sections.kv_payload_digest_sidecar_rows` to inspect provider/runtime",
+        "payload summaries and scheduler K/V digest rows without treating",
+        "them as oracle evidence. Then read",
         "`sections.token_quality_summary_rows` and",
         "`sections.oracle_reference_summary_rows` to inspect selected-token",
         "top-k status and HF CPU reference anchors without treating",
@@ -1604,7 +1774,7 @@ def gate_guidance(
             [
                 f"- Trace report JSON: `{resolve_run_path(str(value), cfg)}`",
                 "- Inspect `sections.answerability`, `sections.unsupported_claims`, and `sections.next_measurements` before ad hoc parsing.",
-                "- Read `sections.report_json_section_inventory` to discover available report sections, then read `sections.trace_config_rows`, `sections.provider_payload_boundary_inventory_rows`, `sections.debug_payload_artifact_summary_rows`, `sections.token_quality_summary_rows`, and `sections.oracle_reference_summary_rows` before choosing sidecar-specific report sections.",
+                "- Read `sections.report_json_section_inventory` to discover available report sections, then read `sections.trace_config_rows`, `sections.provider_payload_boundary_inventory_rows`, `sections.debug_payload_artifact_summary_rows`, `sections.tensor_payload_sidecar_rows`, `sections.kv_payload_digest_sidecar_rows`, `sections.token_quality_summary_rows`, and `sections.oracle_reference_summary_rows` before choosing sidecar-specific report sections.",
             ]
         )
     if value := spec.get("command_wrapper_plan"):

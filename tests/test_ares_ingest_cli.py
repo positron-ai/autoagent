@@ -114,6 +114,22 @@ def trace_report_payload() -> dict:
                     ),
                 },
                 {
+                    "heading": "Tensor Payload Sidecar Rows",
+                    "json_path": "sections.tensor_payload_sidecar_rows",
+                    "json_section": "tensor_payload_sidecar_rows",
+                    "section_kind": "sidecar",
+                    "claim_boundary": "system_under_test_payload_diagnostic",
+                },
+                {
+                    "heading": "K/V Payload Digest Sidecar Rows",
+                    "json_path": "sections.kv_payload_digest_sidecar_rows",
+                    "json_section": "kv_payload_digest_sidecar_rows",
+                    "section_kind": "sidecar",
+                    "claim_boundary": (
+                        "system_under_test_scheduler_kv_payload_diagnostic"
+                    ),
+                },
+                {
                     "heading": "Next Measurements",
                     "json_path": "sections.next_measurements",
                     "json_section": "next_measurements",
@@ -222,6 +238,59 @@ def trace_report_payload() -> dict:
                         "external_hf_cpu_reference_anchor_only; "
                         "token_quality_row_remains_system_under_test"
                     ),
+                }
+            ],
+            "tensor_payload_sidecar_rows": [
+                {
+                    "status": "ok",
+                    "evidence_role": "system_under_test",
+                    "backend_id": "fpga",
+                    "request_id": "7005",
+                    "generation_id": "rinzler-7005",
+                    "token_index": 0,
+                    "targetplan_op_id": "tp.generic.0",
+                    "targetplan_action": "provider_payload",
+                    "layer": "31",
+                    "tensor_payload_kind": "tensor_payload",
+                    "tensor_name": "provider_payload",
+                    "tensor_role": "provider_device_payload",
+                    "element_type": "f32",
+                    "shape": "[2]",
+                    "element_count": "2",
+                    "digest_sha256": "a" * 64,
+                    "sample_value_count": "2",
+                    "sample_min": "9.0",
+                    "sample_max": "10.0",
+                    "sample_nan_count": "0",
+                    "sample_pos_inf_count": "0",
+                    "sample_neg_inf_count": "0",
+                    "sample_values": "[9.0, 10.0]",
+                }
+            ],
+            "kv_payload_digest_sidecar_rows": [
+                {
+                    "status": "ok",
+                    "evidence_role": "system_under_test",
+                    "backend_id": "fpga",
+                    "request_id": "7006",
+                    "generation_id": "rinzler-7006",
+                    "token_index": 0,
+                    "targetplan_action": "kv_cache",
+                    "layer": "0",
+                    "tensor_payload_kind": "kv_payload_digest",
+                    "tensor_name": "scheduler_kv_save.layer_0.buf_1.k",
+                    "tensor_role": "kv_key",
+                    "element_type": "f32",
+                    "shape": "[16]",
+                    "element_count": "16",
+                    "digest_sha256": "b" * 64,
+                    "sample_value_count": "4",
+                    "sample_min": "0.125",
+                    "sample_max": "0.5",
+                    "sample_nan_count": "0",
+                    "sample_pos_inf_count": "0",
+                    "sample_neg_inf_count": "0",
+                    "sample_values": "[0.125, 0.25, 0.375, 0.5]",
                 }
             ],
             "introspection_artifact_summary_rows": [
@@ -446,7 +515,27 @@ class AresIngestCliTest(unittest.TestCase):
                 state["trace_report"]["oracle_reference_summary_correctness_counts"],
                 {"not_oracle_evidence": 1},
             )
-            self.assertEqual(state["trace_report"]["report_json_section_count"], 7)
+            self.assertEqual(
+                state["trace_report"]["tensor_payload_sidecar_status_counts"],
+                {"ok": 1},
+            )
+            self.assertEqual(
+                state["trace_report"]["tensor_payload_sidecar_kind_counts"],
+                {"tensor_payload": 1},
+            )
+            self.assertEqual(
+                state["trace_report"]["tensor_payload_sidecar_role_counts"],
+                {"provider_device_payload": 1},
+            )
+            self.assertEqual(
+                state["trace_report"]["kv_payload_digest_sidecar_status_counts"],
+                {"ok": 1},
+            )
+            self.assertEqual(
+                state["trace_report"]["kv_payload_digest_sidecar_role_counts"],
+                {"kv_key": 1},
+            )
+            self.assertEqual(state["trace_report"]["report_json_section_count"], 9)
             self.assertEqual(
                 state["trace_report"]["report_json_section_kind_counts"],
                 {
@@ -455,7 +544,7 @@ class AresIngestCliTest(unittest.TestCase):
                     "introspection": 1,
                     "introspection_inventory": 1,
                     "measurement_guidance": 1,
-                    "sidecar": 2,
+                    "sidecar": 4,
                 },
             )
             spec = json.loads((run_dir / "model_spec.json").read_text())
@@ -483,6 +572,16 @@ class AresIngestCliTest(unittest.TestCase):
                 "payload_boundary=debug_payloads_can_perturb_timing",
                 handoff,
             )
+            self.assertIn("Tensor payload sidecars", handoff)
+            self.assertIn("Tensor payload roles", handoff)
+            self.assertIn("Tensor payload sidecar: request=7005", handoff)
+            self.assertIn("kind=tensor_payload", handoff)
+            self.assertIn("role=provider_device_payload", handoff)
+            self.assertIn("sample_nan=0", handoff)
+            self.assertIn("K/V payload digest roles", handoff)
+            self.assertIn("K/V payload digest sidecar: request=7006", handoff)
+            self.assertIn("role=kv_key", handoff)
+            self.assertIn("sample_min=0.125", handoff)
             self.assertIn("Token quality summaries", handoff)
             self.assertIn("Token quality top-k status", handoff)
             self.assertIn("Token quality summary: request=7001", handoff)
@@ -511,6 +610,8 @@ class AresIngestCliTest(unittest.TestCase):
             self.assertIn("sections.trace_config_rows", prompt)
             self.assertIn("sections.provider_payload_boundary_inventory_rows", prompt)
             self.assertIn("sections.debug_payload_artifact_summary_rows", prompt)
+            self.assertIn("sections.tensor_payload_sidecar_rows", prompt)
+            self.assertIn("sections.kv_payload_digest_sidecar_rows", prompt)
             self.assertIn("sections.token_quality_summary_rows", prompt)
             self.assertIn("sections.oracle_reference_summary_rows", prompt)
             self.assertIn("Provider payload boundary: fpga/kv_payload_digests", prompt)
@@ -519,6 +620,13 @@ class AresIngestCliTest(unittest.TestCase):
             self.assertIn("same_kind_backends=fpga", prompt)
             self.assertIn("Debug payload artifact: attention_page_trace", prompt)
             self.assertIn("features=trace-introspection", prompt)
+            self.assertIn("Tensor payload sidecar: request=7005", prompt)
+            self.assertIn("kind=tensor_payload", prompt)
+            self.assertIn("digest_sha256=", prompt)
+            self.assertIn("K/V payload digest sidecar: request=7006", prompt)
+            self.assertIn("scheduler K/V digest rows", prompt)
+            self.assertIn("without treating", prompt)
+            self.assertIn("oracle evidence", prompt)
             self.assertIn("Token quality summary: request=7001", prompt)
             self.assertIn("token_index=0", prompt)
             self.assertIn("top1_margin=1.4", prompt)

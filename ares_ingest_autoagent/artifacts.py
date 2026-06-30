@@ -47,6 +47,8 @@ TRACE_REPORT_JSON_SECTION_SAMPLE_KEYS = (
     "debug_payload_artifact_summary_rows",
     "token_quality_summary_rows",
     "oracle_reference_summary_rows",
+    "tensor_payload_sidecar_rows",
+    "kv_payload_digest_sidecar_rows",
     "introspection_capability_rows",
     "introspection_artifact_summary_rows",
     "answerability",
@@ -1373,6 +1375,8 @@ def validate_trace_report_json(report: Any) -> ArtifactValidation:
     debug_payload_artifact_summary_rows: list[dict[str, Any]] = []
     token_quality_summary_rows: list[dict[str, Any]] = []
     oracle_reference_summary_rows: list[dict[str, Any]] = []
+    tensor_payload_sidecar_rows: list[dict[str, Any]] = []
+    kv_payload_digest_sidecar_rows: list[dict[str, Any]] = []
     introspection_capability_rows: list[dict[str, Any]] = []
     introspection_artifact_summary_rows: list[dict[str, Any]] = []
     if sections is not None:
@@ -1428,6 +1432,18 @@ def validate_trace_report_json(report: Any) -> ArtifactValidation:
             errors,
             sections,
             "oracle_reference_summary_rows",
+            required=False,
+        )
+        tensor_payload_sidecar_rows = _trace_report_section_rows(
+            errors,
+            sections,
+            "tensor_payload_sidecar_rows",
+            required=False,
+        )
+        kv_payload_digest_sidecar_rows = _trace_report_section_rows(
+            errors,
+            sections,
+            "kv_payload_digest_sidecar_rows",
             required=False,
         )
         introspection_capability_rows = _trace_report_section_rows(
@@ -1527,6 +1543,28 @@ def validate_trace_report_json(report: Any) -> ArtifactValidation:
         "oracle_reference_summary_correctness_counts": _trace_report_value_counts(
             oracle_reference_summary_rows,
             "correctness_claim_status",
+        ),
+        "tensor_payload_sidecar_count": len(tensor_payload_sidecar_rows),
+        "tensor_payload_sidecar_status_counts": _trace_report_value_counts(
+            tensor_payload_sidecar_rows,
+            "status",
+        ),
+        "tensor_payload_sidecar_kind_counts": _trace_report_value_counts(
+            tensor_payload_sidecar_rows,
+            "tensor_payload_kind",
+        ),
+        "tensor_payload_sidecar_role_counts": _trace_report_value_counts(
+            tensor_payload_sidecar_rows,
+            "tensor_role",
+        ),
+        "kv_payload_digest_sidecar_count": len(kv_payload_digest_sidecar_rows),
+        "kv_payload_digest_sidecar_status_counts": _trace_report_value_counts(
+            kv_payload_digest_sidecar_rows,
+            "status",
+        ),
+        "kv_payload_digest_sidecar_role_counts": _trace_report_value_counts(
+            kv_payload_digest_sidecar_rows,
+            "tensor_role",
         ),
         "introspection_capability_count": len(introspection_capability_rows),
         "introspection_capability_status_counts": _trace_report_value_counts(
@@ -1646,6 +1684,64 @@ def validate_trace_report_json(report: Any) -> ArtifactValidation:
                 "sut_classification",
                 "correctness_claim_status",
                 "claim_boundary",
+            ),
+        ),
+        "tensor_payload_sidecar_samples": _trace_report_samples(
+            tensor_payload_sidecar_rows,
+            (
+                "status",
+                "evidence_role",
+                "backend_id",
+                "request_id",
+                "generation_id",
+                "token_index",
+                "targetplan_op_id",
+                "targetplan_action",
+                "layer",
+                "tensor_payload_kind",
+                "tensor_name",
+                "tensor_role",
+                "element_type",
+                "shape",
+                "element_count",
+                "digest_sha256",
+                "sample_value_count",
+                "sample_min",
+                "sample_max",
+                "sample_nan_count",
+                "sample_pos_inf_count",
+                "sample_neg_inf_count",
+                "sample_values",
+                "failure_reason",
+            ),
+        ),
+        "kv_payload_digest_sidecar_samples": _trace_report_samples(
+            kv_payload_digest_sidecar_rows,
+            (
+                "status",
+                "evidence_role",
+                "backend_id",
+                "request_id",
+                "generation_id",
+                "token_index",
+                "targetplan_op_id",
+                "targetplan_action",
+                "layer",
+                "tensor_payload_kind",
+                "tensor_name",
+                "tensor_role",
+                "element_type",
+                "shape",
+                "element_count",
+                "digest_sha256",
+                "sample_value_count",
+                "sample_min",
+                "sample_max",
+                "sample_nan_count",
+                "sample_pos_inf_count",
+                "sample_neg_inf_count",
+                "sample_values",
+                "failure_reason",
             ),
         ),
         "introspection_capability_samples": _trace_report_samples(
