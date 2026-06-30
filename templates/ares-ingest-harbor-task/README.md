@@ -32,7 +32,10 @@ generation settings, and oracle/exporter code tuple, then reuse those artifacts
 as goldens while iterating on the selected Ares backend. C++ Tron/Rinzler
 artifacts are comparison, compliance, performance, and rollback evidence only;
 do not put that slow lane in the normal debug loop until HF-backed backend
-quality and performance show a competitive candidate.
+quality and performance show a competitive candidate. The intended debug-loop
+order is cached HF logit comparison, focused backend/module slices,
+short-depth generation, longer-depth generation, and only then explicit late
+C++ comparison milestones.
 
 ## Expected Runtime Layout
 

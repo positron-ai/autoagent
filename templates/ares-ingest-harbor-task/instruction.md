@@ -13,4 +13,7 @@ that slow lane only as a late comparison, compliance, performance, or rollback
 checkpoint after the selected Ares backend is HF-correct and plausibly
 competitive. Prefer the cheapest verifier that proves the current failing gate;
 do not recapture HF logits or launch C++ comparison for ordinary Ares backend
-code changes.
+code changes. Order the debug loop by wall-clock cost: cached HF logit
+comparison first, focused backend/module slices next, short-depth generation
+after that, then longer-depth generation, with C++ comparison reserved for an
+explicit late milestone.

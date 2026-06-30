@@ -118,6 +118,13 @@ def build_model_spec(cfg: AresIngestConfig) -> dict[str, Any]:
             "runtime_path": "frontend -> Lean ingest -> AresPlan -> TargetPlan -> backend provider",
             "hf_cpu_goldens": "capture_once_per_stable_oracle_tuple",
             "ordinary_backend_loop_reference": "cached_hf_cpu_token_logit_goldens",
+            "debug_loop_priority": [
+                "cached_hf_cpu_logit_comparison",
+                "focused_backend_or_module_slice",
+                "short_depth_backend_generation",
+                "longer_depth_backend_generation",
+                "explicit_late_cpp_comparison_milestone",
+            ],
             "fastest_verifier_first": True,
             "avoid_recapturing_unchanged_hf_logits": True,
             "defer_cpp_comparison_until_milestone_candidate": True,
@@ -730,6 +737,10 @@ Latest refinement prompt: `{latest_prompt or "none"}`
 - Prefer the cheapest verifier that proves the first failing gate. Do not
   recapture HF logits or run slower comparison lanes for ordinary Ares backend
   code changes.
+- Order the debug loop by wall-clock cost: cached HF logit comparison first,
+  focused backend/module slices next, short-depth generation after that, then
+  longer-depth generation, with C++ comparison reserved for an explicit late
+  milestone.
 - Ares/Rust output is system-under-test evidence.
 - C++ Tron/Rinzler is comparison and rollback evidence only. Do not involve
   that slow lane until the selected Ares backend has a competitive candidate
@@ -1192,6 +1203,7 @@ def write_refinement_prompt(
             "- HF Transformers on PyTorch CPU is the only model-correctness oracle.",
             "- Capture HF CPU token/logit artifacts once per exact model/checkpoint, tokenizer, prompt-token context, decode depth, dtype/quantization policy, deterministic settings, and oracle/exporter code tuple; reuse those goldens for fast backend iteration until that tuple changes.",
             "- Prefer the fastest verifier that can prove the first failing gate; do not recapture HF logits or launch C++ comparison for ordinary Ares backend code changes.",
+            "- Order the debug loop by wall-clock cost: cached HF logit comparison, focused backend/module slices, short-depth generation, longer-depth generation, then explicit late C++ comparison milestones.",
             "- C++ Tron/Rinzler is comparison, compliance, performance, and rollback evidence only.",
             "- Keep C++ Tron/Rinzler out of the normal debug loop; run it as an explicit milestone comparison after the selected Ares backend has HF-backed quality and competitive performance evidence.",
             "- Ares/Rust output is system-under-test evidence.",
