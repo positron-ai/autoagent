@@ -77,10 +77,11 @@ For local development, mount or copy:
   semantic-localization evidence and surfaced in refiner prompts; it does not
   replace HF CPU oracle, TargetPlan, backend, token, C++ comparison, or
   production-readiness evidence. When the report's `trace_context` references
-  backend event JSONL, stage-event summaries, Perfetto traces, or Perfetto
-  summaries, those paths and SHA-256 values are validated before prompt
-  exposure, and conventional `role`, `profile`, and retained `schema` metadata
-  is preserved in the validated gate detail for tracing consumers.
+  backend event JSONL, stage-event summaries, Perfetto traces, Perfetto
+  summaries, or Ares trace metadata, those paths and SHA-256 values are
+  validated before prompt exposure, and conventional `role`, `profile`, and
+  retained `schema` metadata is preserved in the validated gate detail for
+  tracing consumers.
 - `cpp_tvd_evidence`: C++ Tron/Rinzler comparison TVD evidence. This is
   comparison/rollback evidence, not an oracle.
 - `depth_performance_evidence`: 8/64/512 depth-ladder performance evidence

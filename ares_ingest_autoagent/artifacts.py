@@ -59,6 +59,7 @@ INTROSPECTION_TRACE_ARTIFACT_FIELDS = (
     "perfetto_traces",
     "stage_event_summaries",
     "perfetto_summaries",
+    "trace_metadata",
 )
 TRACE_REPORT_REQUIRED_SECTIONS = (
     "preflight",

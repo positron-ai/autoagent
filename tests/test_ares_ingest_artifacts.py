@@ -61,6 +61,16 @@ def introspection_ladder_payload(root: Path, *, evidence_class: str) -> dict:
         {"synthetic": "trace-bytes"},
     )
     perfetto_trace["role"] = "perfetto_trace"
+    trace_metadata = write_prefixed_json_artifact(
+        root / "run.trace-meta.json",
+        {
+            "schema_version": 1,
+            "trace_run_id": "trace-run-001",
+            "introspection_artifacts": [],
+        },
+    )
+    trace_metadata["schema"] = "ares.trace.metadata.v1"
+    trace_metadata["role"] = "ares_trace_metadata"
     return {
         "schema": "ares.introspection.ladder.v1",
         "status": "failed",
@@ -110,6 +120,7 @@ def introspection_ladder_payload(root: Path, *, evidence_class: str) -> dict:
             "trace_labels": ["targetplan.stmt.00001.matmul"],
             "backend_events": [backend_events],
             "perfetto_traces": [perfetto_trace],
+            "trace_metadata": [trace_metadata],
         },
     }
 
@@ -726,6 +737,18 @@ class AresIngestArtifactTest(unittest.TestCase):
             self.assertEqual(
                 gate["detail"]["trace_context"]["perfetto_traces"][0]["role"],
                 "perfetto_trace",
+            )
+            self.assertEqual(
+                gate["detail"]["trace_context"]["trace_metadata"][0]["path"],
+                "run.trace-meta.json",
+            )
+            self.assertEqual(
+                gate["detail"]["trace_context"]["trace_metadata"][0]["schema"],
+                "ares.trace.metadata.v1",
+            )
+            self.assertEqual(
+                gate["detail"]["trace_context"]["trace_metadata"][0]["role"],
+                "ares_trace_metadata",
             )
 
     def test_introspection_ladder_rejects_promotion_claim(self) -> None:

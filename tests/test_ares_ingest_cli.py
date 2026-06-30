@@ -52,6 +52,16 @@ def write_introspection_ladder(root: Path) -> Path:
         root / "backend-events.jsonl",
         {"event": "forward_executed"},
     )
+    trace_metadata = write_json_artifact(
+        root / "run.trace-meta.json",
+        {
+            "schema_version": 1,
+            "trace_run_id": "trace-run-001",
+            "introspection_artifacts": [],
+        },
+    )
+    trace_metadata["schema"] = "ares.trace.metadata.v1"
+    trace_metadata["role"] = "ares_trace_metadata"
     ladder = root / "ladder.json"
     ladder.write_text(
         json.dumps(
@@ -97,6 +107,7 @@ def write_introspection_ladder(root: Path) -> Path:
                 "trace_context": {
                     "trace_labels": ["targetplan.stmt.00001.matmul"],
                     "backend_events": [backend_events],
+                    "trace_metadata": [trace_metadata],
                 },
             },
             sort_keys=True,
@@ -692,6 +703,7 @@ class AresIngestCliTest(unittest.TestCase):
             self.assertIn(gate["sha256"], prompt)
             self.assertIn("targetplan.stmt.00001.matmul", prompt)
             self.assertIn("backend-events.jsonl", prompt)
+            self.assertIn("run.trace-meta.json", prompt)
 
     def test_logit_drift_selects_introspection_skill_context(self) -> None:
         with TemporaryDirectory() as tmp:

@@ -981,6 +981,7 @@ def introspection_ladder_prompt_lines(spec: Mapping[str, Any]) -> list[str]:
             ("perfetto_traces", "Perfetto traces"),
             ("stage_event_summaries", "stage-event summaries"),
             ("perfetto_summaries", "Perfetto summaries"),
+            ("trace_metadata", "Ares trace metadata"),
         ):
             refs = trace_context.get(field)
             if isinstance(refs, list) and refs:
