@@ -338,14 +338,25 @@ def render_trace_report_lines(summary: Mapping[str, Any]) -> list[str]:
         provider_id = sample.get("provider_id")
         payload_lane = sample.get("payload_lane")
         status = sample.get("capture_status")
-        artifact_count = sample.get("artifact_count")
+        provider_artifact_count = sample.get(
+            "matching_provider_artifact_count"
+        ) or sample.get("artifact_count")
+        artifact_kind_count = sample.get("artifact_kind_recorded_count")
+        artifact_backend_count = sample.get("artifact_kind_recorded_backend_count")
+        artifact_backend_ids = sample.get("artifact_kind_recorded_backend_ids")
         report_section = sample.get("report_section")
         boundary = sample.get("claim_boundary")
         next_action = sample.get("next_action")
         if provider_id and payload_lane:
             parts = [f"status={status}" if status else ""]
-            if artifact_count is not None:
-                parts.append(f"artifacts={artifact_count}")
+            if provider_artifact_count is not None:
+                parts.append(f"provider_artifacts={provider_artifact_count}")
+            if artifact_kind_count is not None:
+                parts.append(f"same_kind_artifacts={artifact_kind_count}")
+            if artifact_backend_ids:
+                parts.append(f"same_kind_backends={artifact_backend_ids}")
+            elif artifact_backend_count is not None:
+                parts.append(f"same_kind_backend_count={artifact_backend_count}")
             if report_section:
                 parts.append(f"section={report_section}")
             if boundary:
@@ -443,7 +454,8 @@ def trace_report_prompt_section(spec: Mapping[str, Any]) -> list[str]:
         "sections. Then read `sections.trace_config_rows` first to distinguish",
         "requested controls from recorded sidecars, then use",
         "`sections.provider_payload_boundary_inventory_rows` to distinguish",
-        "available, recorded, and blocked provider/runtime payload lanes, and",
+        "available, recorded, blocked, and other-backend provider/runtime",
+        "payload lanes, and",
         "`sections.introspection_capability_rows` and",
         "`sections.introspection_artifact_summary_rows` to decide which tracing",
         "sidecars exist before opening heavier sidecar-specific sections.",

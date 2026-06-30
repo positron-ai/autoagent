@@ -124,6 +124,10 @@ def trace_report_payload() -> dict:
                     "payload_lane": "kv_payload_digests",
                     "capture_status": "recorded_artifact",
                     "artifact_count": 2,
+                    "matching_provider_artifact_count": 2,
+                    "artifact_kind_recorded_count": 2,
+                    "artifact_kind_recorded_backend_count": 1,
+                    "artifact_kind_recorded_backend_ids": "fpga",
                     "report_section": "kv_payload_digest_sidecar_rows",
                     "boundary_status": "available_from_scheduler_protocol_boundary",
                     "claim_boundary": "system_under_test_scheduler_kv_payload_diagnostic",
@@ -356,6 +360,9 @@ class AresIngestCliTest(unittest.TestCase):
             self.assertIn("recorded=tensor_payloads", handoff)
             self.assertIn("Provider payload boundaries", handoff)
             self.assertIn("Provider payload boundary: fpga/kv_payload_digests", handoff)
+            self.assertIn("provider_artifacts=2", handoff)
+            self.assertIn("same_kind_artifacts=2", handoff)
+            self.assertIn("same_kind_backends=fpga", handoff)
             self.assertIn("Capture backend event JSONL", handoff)
             self.assertIn("Introspection capability: token_quality", handoff)
             self.assertIn("set ARES_BACKEND_EVENT_ARTIFACT_DIR", handoff)
@@ -374,6 +381,9 @@ class AresIngestCliTest(unittest.TestCase):
             self.assertIn("sections.trace_config_rows", prompt)
             self.assertIn("sections.provider_payload_boundary_inventory_rows", prompt)
             self.assertIn("Provider payload boundary: fpga/kv_payload_digests", prompt)
+            self.assertIn("provider_artifacts=2", prompt)
+            self.assertIn("same_kind_artifacts=2", prompt)
+            self.assertIn("same_kind_backends=fpga", prompt)
             self.assertIn("inspect_matching_introspection_report_sections", prompt)
             self.assertIn("sections.introspection_capability_rows", prompt)
             self.assertIn("sections.introspection_artifact_summary_rows", prompt)

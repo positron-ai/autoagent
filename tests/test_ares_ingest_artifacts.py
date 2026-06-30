@@ -392,6 +392,10 @@ class AresIngestArtifactTest(unittest.TestCase):
                                     "payload_lane": "kv_payload_digests",
                                     "capture_status": "recorded_artifact",
                                     "artifact_count": 2,
+                                    "matching_provider_artifact_count": 2,
+                                    "artifact_kind_recorded_count": 2,
+                                    "artifact_kind_recorded_backend_count": 1,
+                                    "artifact_kind_recorded_backend_ids": "fpga",
                                     "report_section": "kv_payload_digest_sidecar_rows",
                                     "boundary_status": (
                                         "available_from_scheduler_protocol_boundary"
@@ -483,6 +487,18 @@ class AresIngestArtifactTest(unittest.TestCase):
                 "fpga",
             )
             self.assertEqual(
+                gate["detail"]["provider_payload_boundary_samples"][0][
+                    "matching_provider_artifact_count"
+                ],
+                "2",
+            )
+            self.assertEqual(
+                gate["detail"]["provider_payload_boundary_samples"][0][
+                    "artifact_kind_recorded_backend_ids"
+                ],
+                "fpga",
+            )
+            self.assertEqual(
                 gate["detail"]["introspection_capability_samples"][0][
                     "matching_artifact_count"
                 ],
@@ -542,6 +558,24 @@ class AresIngestArtifactTest(unittest.TestCase):
         self.assertEqual(
             gate["detail"]["provider_payload_boundary_samples"][0]["capture_status"],
             "capability_without_matching_provider_artifact",
+        )
+        self.assertEqual(
+            gate["detail"]["provider_payload_boundary_samples"][0][
+                "matching_provider_artifact_count"
+            ],
+            "0",
+        )
+        self.assertEqual(
+            gate["detail"]["provider_payload_boundary_samples"][0][
+                "artifact_kind_recorded_count"
+            ],
+            "1",
+        )
+        self.assertEqual(
+            gate["detail"]["provider_payload_boundary_samples"][0][
+                "artifact_kind_recorded_backend_ids"
+            ],
+            "fpga",
         )
         self.assertEqual(
             gate["detail"]["introspection_artifact_summary_samples"][0][
