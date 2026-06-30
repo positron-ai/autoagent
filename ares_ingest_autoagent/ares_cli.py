@@ -194,6 +194,12 @@ def trace_report_summary_from_spec(spec: Mapping[str, Any]) -> dict[str, Any] | 
         "provider_payload_boundary_status_counts": detail.get(
             "provider_payload_boundary_status_counts"
         ),
+        "debug_payload_artifact_summary_count": detail.get(
+            "debug_payload_artifact_summary_count"
+        ),
+        "debug_payload_artifact_summary_status_counts": detail.get(
+            "debug_payload_artifact_summary_status_counts"
+        ),
         "introspection_capability_count": detail.get("introspection_capability_count"),
         "introspection_capability_status_counts": detail.get(
             "introspection_capability_status_counts"
@@ -211,6 +217,9 @@ def trace_report_summary_from_spec(spec: Mapping[str, Any]) -> dict[str, Any] | 
         "trace_config_samples": detail.get("trace_config_samples"),
         "provider_payload_boundary_samples": detail.get(
             "provider_payload_boundary_samples"
+        ),
+        "debug_payload_artifact_summary_samples": detail.get(
+            "debug_payload_artifact_summary_samples"
         ),
         "introspection_capability_samples": detail.get(
             "introspection_capability_samples"
@@ -264,6 +273,16 @@ def render_trace_report_lines(summary: Mapping[str, Any]) -> list[str]:
             "`"
             + json.dumps(
                 summary["provider_payload_boundary_status_counts"],
+                sort_keys=True,
+            )
+            + "`"
+        )
+    if summary.get("debug_payload_artifact_summary_status_counts"):
+        lines.append(
+            "- Debug payload artifacts: "
+            "`"
+            + json.dumps(
+                summary["debug_payload_artifact_summary_status_counts"],
                 sort_keys=True,
             )
             + "`"
@@ -367,6 +386,41 @@ def render_trace_report_lines(summary: Mapping[str, Any]) -> list[str]:
             lines.append(line)
         if next_action:
             lines.append(f"  Next action: `{next_action}`")
+    for sample in summary.get("debug_payload_artifact_summary_samples", [])[:3]:
+        if not isinstance(sample, Mapping):
+            continue
+        artifact_kind = sample.get("artifact_kind")
+        status = sample.get("payload_summary_status")
+        row_count = sample.get("row_count")
+        byte_count = sample.get("byte_count")
+        sensitivity = sample.get("sensitivity")
+        token_window = sample.get("token_window")
+        compile_features = sample.get("compile_features")
+        report_section = sample.get("report_section")
+        payload_boundary = sample.get("debug_payload_boundary")
+        claim_boundary = sample.get("claim_boundary")
+        if artifact_kind:
+            parts = [f"status={status}" if status else ""]
+            if row_count:
+                parts.append(f"rows={row_count}")
+            if byte_count:
+                parts.append(f"bytes={byte_count}")
+            if sensitivity:
+                parts.append(f"sensitivity={sensitivity}")
+            if token_window:
+                parts.append(f"token_window={token_window}")
+            if compile_features:
+                parts.append(f"features={compile_features}")
+            if report_section:
+                parts.append(f"section={report_section}")
+            if payload_boundary:
+                parts.append(f"payload_boundary={payload_boundary}")
+            if claim_boundary:
+                parts.append(f"claim_boundary={claim_boundary}")
+            line = f"- Debug payload artifact: {artifact_kind}"
+            if any(parts):
+                line += " " + " ".join(part for part in parts if part)
+            lines.append(line)
     for sample in summary.get("introspection_capability_samples", [])[:3]:
         if not isinstance(sample, Mapping):
             continue
@@ -455,7 +509,9 @@ def trace_report_prompt_section(spec: Mapping[str, Any]) -> list[str]:
         "requested controls from recorded sidecars, then use",
         "`sections.provider_payload_boundary_inventory_rows` to distinguish",
         "available, recorded, blocked, and other-backend provider/runtime",
-        "payload lanes, and",
+        "payload lanes, then read",
+        "`sections.debug_payload_artifact_summary_rows` to see payload",
+        "sensitivity and timing-perturbation boundaries, and",
         "`sections.introspection_capability_rows` and",
         "`sections.introspection_artifact_summary_rows` to decide which tracing",
         "sidecars exist before opening heavier sidecar-specific sections.",
@@ -1387,7 +1443,7 @@ def gate_guidance(
             [
                 f"- Trace report JSON: `{resolve_run_path(str(value), cfg)}`",
                 "- Inspect `sections.answerability`, `sections.unsupported_claims`, and `sections.next_measurements` before ad hoc parsing.",
-                "- Read `sections.report_json_section_inventory` to discover available report sections, then read `sections.trace_config_rows` and `sections.provider_payload_boundary_inventory_rows` before choosing sidecar-specific report sections.",
+                "- Read `sections.report_json_section_inventory` to discover available report sections, then read `sections.trace_config_rows`, `sections.provider_payload_boundary_inventory_rows`, and `sections.debug_payload_artifact_summary_rows` before choosing sidecar-specific report sections.",
             ]
         )
     if value := spec.get("command_wrapper_plan"):

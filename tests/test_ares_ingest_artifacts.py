@@ -366,6 +366,19 @@ class AresIngestArtifactTest(unittest.TestCase):
                                     ),
                                 },
                                 {
+                                    "heading": "Debug Payload Artifact Summary Rows",
+                                    "json_path": (
+                                        "sections.debug_payload_artifact_summary_rows"
+                                    ),
+                                    "json_section": (
+                                        "debug_payload_artifact_summary_rows"
+                                    ),
+                                    "section_kind": "debug_payload_diagnostic",
+                                    "claim_boundary": (
+                                        "debug_payloads_can_perturb_timing"
+                                    ),
+                                },
+                                {
                                     "heading": "Next Measurements",
                                     "json_path": "sections.next_measurements",
                                     "json_section": "next_measurements",
@@ -405,6 +418,30 @@ class AresIngestArtifactTest(unittest.TestCase):
                                         "diagnostic"
                                     ),
                                     "next_action": "inspect_report_section",
+                                }
+                            ],
+                            "debug_payload_artifact_summary_rows": [
+                                {
+                                    "artifact_kind": "attention_page_trace",
+                                    "payload_summary_status": "recorded",
+                                    "row_count": "1",
+                                    "byte_count": "918",
+                                    "sampling_policy": (
+                                        "selected attention page summaries"
+                                    ),
+                                    "token_window": "attention-page:7004",
+                                    "sensitivity": "local-only",
+                                    "compile_features": "trace-introspection",
+                                    "report_section": (
+                                        "attention_page_trace_sidecar_rows"
+                                    ),
+                                    "debug_payload_boundary": (
+                                        "debug_payloads_can_perturb_timing"
+                                    ),
+                                    "claim_boundary": (
+                                        "system_under_test_numeric_"
+                                        "localization_diagnostic"
+                                    ),
                                 }
                             ],
                             "introspection_capability_rows": [
@@ -464,11 +501,16 @@ class AresIngestArtifactTest(unittest.TestCase):
                 gate["detail"]["provider_payload_boundary_status_counts"],
                 {"recorded_artifact": 1},
             )
-            self.assertEqual(gate["detail"]["report_json_section_count"], 4)
+            self.assertEqual(
+                gate["detail"]["debug_payload_artifact_summary_status_counts"],
+                {"recorded": 1},
+            )
+            self.assertEqual(gate["detail"]["report_json_section_count"], 5)
             self.assertEqual(
                 gate["detail"]["report_json_section_kind_counts"],
                 {
                     "capture_configuration": 1,
+                    "debug_payload_diagnostic": 1,
                     "introspection": 1,
                     "introspection_inventory": 1,
                     "measurement_guidance": 1,
@@ -497,6 +539,18 @@ class AresIngestArtifactTest(unittest.TestCase):
                     "artifact_kind_recorded_backend_ids"
                 ],
                 "fpga",
+            )
+            self.assertEqual(
+                gate["detail"]["debug_payload_artifact_summary_samples"][0][
+                    "artifact_kind"
+                ],
+                "attention_page_trace",
+            )
+            self.assertEqual(
+                gate["detail"]["debug_payload_artifact_summary_samples"][0][
+                    "debug_payload_boundary"
+                ],
+                "debug_payloads_can_perturb_timing",
             )
             self.assertEqual(
                 gate["detail"]["introspection_capability_samples"][0][
@@ -540,11 +594,16 @@ class AresIngestArtifactTest(unittest.TestCase):
             gate["detail"]["introspection_artifact_summary_status_counts"],
             {"recorded_and_locally_present": 8},
         )
+        self.assertEqual(
+            gate["detail"]["debug_payload_artifact_summary_status_counts"],
+            {"recorded": 1},
+        )
         section_paths = {
             sample["json_path"]
             for sample in gate["detail"]["report_json_section_samples"]
         }
         self.assertIn("sections.trace_config_rows", section_paths)
+        self.assertIn("sections.debug_payload_artifact_summary_rows", section_paths)
         self.assertIn("sections.introspection_capability_rows", section_paths)
         self.assertIn("sections.introspection_artifact_summary_rows", section_paths)
         self.assertIn(
@@ -582,6 +641,16 @@ class AresIngestArtifactTest(unittest.TestCase):
                 "artifact_kind"
             ],
             "token_quality",
+        )
+        self.assertEqual(
+            gate["detail"]["debug_payload_artifact_summary_samples"][0][
+                "artifact_kind"
+            ],
+            "attention_page_trace",
+        )
+        self.assertEqual(
+            gate["detail"]["debug_payload_artifact_summary_samples"][0]["sensitivity"],
+            "local-only",
         )
 
     def test_trace_report_gate_rejects_missing_file(self) -> None:

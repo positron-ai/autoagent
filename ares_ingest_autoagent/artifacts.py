@@ -44,6 +44,7 @@ TRACE_REPORT_REQUIRED_SECTIONS = (
 TRACE_REPORT_JSON_SECTION_SAMPLE_KEYS = (
     "trace_config_rows",
     "provider_payload_boundary_inventory_rows",
+    "debug_payload_artifact_summary_rows",
     "introspection_capability_rows",
     "introspection_artifact_summary_rows",
     "answerability",
@@ -1367,6 +1368,7 @@ def validate_trace_report_json(report: Any) -> ArtifactValidation:
     report_json_section_rows: list[dict[str, Any]] = []
     trace_config_rows: list[dict[str, Any]] = []
     provider_payload_boundary_rows: list[dict[str, Any]] = []
+    debug_payload_artifact_summary_rows: list[dict[str, Any]] = []
     introspection_capability_rows: list[dict[str, Any]] = []
     introspection_artifact_summary_rows: list[dict[str, Any]] = []
     if sections is not None:
@@ -1404,6 +1406,12 @@ def validate_trace_report_json(report: Any) -> ArtifactValidation:
             errors,
             sections,
             "provider_payload_boundary_inventory_rows",
+            required=False,
+        )
+        debug_payload_artifact_summary_rows = _trace_report_section_rows(
+            errors,
+            sections,
+            "debug_payload_artifact_summary_rows",
             required=False,
         )
         introspection_capability_rows = _trace_report_section_rows(
@@ -1479,6 +1487,13 @@ def validate_trace_report_json(report: Any) -> ArtifactValidation:
             provider_payload_boundary_rows,
             "capture_status",
         ),
+        "debug_payload_artifact_summary_count": len(
+            debug_payload_artifact_summary_rows
+        ),
+        "debug_payload_artifact_summary_status_counts": _trace_report_value_counts(
+            debug_payload_artifact_summary_rows,
+            "payload_summary_status",
+        ),
         "introspection_capability_count": len(introspection_capability_rows),
         "introspection_capability_status_counts": _trace_report_value_counts(
             introspection_capability_rows,
@@ -1506,7 +1521,7 @@ def validate_trace_report_json(report: Any) -> ArtifactValidation:
         "report_json_section_samples": _trace_report_samples(
             report_json_section_sample_rows,
             ("json_path", "json_section", "section_kind", "claim_boundary"),
-            limit=6,
+            limit=8,
         ),
         "trace_config_samples": _trace_report_samples(
             trace_config_rows,
@@ -1535,6 +1550,22 @@ def validate_trace_report_json(report: Any) -> ArtifactValidation:
                 "boundary_status",
                 "claim_boundary",
                 "next_action",
+            ),
+        ),
+        "debug_payload_artifact_summary_samples": _trace_report_samples(
+            debug_payload_artifact_summary_rows,
+            (
+                "artifact_kind",
+                "payload_summary_status",
+                "row_count",
+                "byte_count",
+                "sampling_policy",
+                "token_window",
+                "sensitivity",
+                "compile_features",
+                "report_section",
+                "debug_payload_boundary",
+                "claim_boundary",
             ),
         ),
         "introspection_capability_samples": _trace_report_samples(

@@ -91,6 +91,13 @@ def trace_report_payload() -> dict:
                     "claim_boundary": "payload_boundary_inventory_not_evidence",
                 },
                 {
+                    "heading": "Debug Payload Artifact Summary Rows",
+                    "json_path": "sections.debug_payload_artifact_summary_rows",
+                    "json_section": "debug_payload_artifact_summary_rows",
+                    "section_kind": "debug_payload_diagnostic",
+                    "claim_boundary": "debug_payloads_can_perturb_timing",
+                },
+                {
                     "heading": "Next Measurements",
                     "json_path": "sections.next_measurements",
                     "json_section": "next_measurements",
@@ -132,6 +139,23 @@ def trace_report_payload() -> dict:
                     "boundary_status": "available_from_scheduler_protocol_boundary",
                     "claim_boundary": "system_under_test_scheduler_kv_payload_diagnostic",
                     "next_action": "inspect_report_section",
+                }
+            ],
+            "debug_payload_artifact_summary_rows": [
+                {
+                    "artifact_kind": "attention_page_trace",
+                    "payload_summary_status": "recorded",
+                    "row_count": "1",
+                    "byte_count": "918",
+                    "sampling_policy": "selected attention page summaries",
+                    "token_window": "attention-page:7004",
+                    "sensitivity": "local-only",
+                    "compile_features": "trace-introspection",
+                    "report_section": "attention_page_trace_sidecar_rows",
+                    "debug_payload_boundary": "debug_payloads_can_perturb_timing",
+                    "claim_boundary": (
+                        "system_under_test_numeric_localization_diagnostic"
+                    ),
                 }
             ],
             "introspection_artifact_summary_rows": [
@@ -336,11 +360,16 @@ class AresIngestCliTest(unittest.TestCase):
                 state["trace_report"]["provider_payload_boundary_status_counts"],
                 {"recorded_artifact": 1},
             )
-            self.assertEqual(state["trace_report"]["report_json_section_count"], 4)
+            self.assertEqual(
+                state["trace_report"]["debug_payload_artifact_summary_status_counts"],
+                {"recorded": 1},
+            )
+            self.assertEqual(state["trace_report"]["report_json_section_count"], 5)
             self.assertEqual(
                 state["trace_report"]["report_json_section_kind_counts"],
                 {
                     "capture_configuration": 1,
+                    "debug_payload_diagnostic": 1,
                     "introspection": 1,
                     "introspection_inventory": 1,
                     "measurement_guidance": 1,
@@ -364,6 +393,13 @@ class AresIngestCliTest(unittest.TestCase):
             self.assertIn("same_kind_artifacts=2", handoff)
             self.assertIn("same_kind_backends=fpga", handoff)
             self.assertIn("Capture backend event JSONL", handoff)
+            self.assertIn("Debug payload artifacts", handoff)
+            self.assertIn("Debug payload artifact: attention_page_trace", handoff)
+            self.assertIn("sensitivity=local-only", handoff)
+            self.assertIn(
+                "payload_boundary=debug_payloads_can_perturb_timing",
+                handoff,
+            )
             self.assertIn("Introspection capability: token_quality", handoff)
             self.assertIn("set ARES_BACKEND_EVENT_ARTIFACT_DIR", handoff)
 
@@ -380,10 +416,13 @@ class AresIngestCliTest(unittest.TestCase):
             self.assertIn("sections.report_json_section_inventory", prompt)
             self.assertIn("sections.trace_config_rows", prompt)
             self.assertIn("sections.provider_payload_boundary_inventory_rows", prompt)
+            self.assertIn("sections.debug_payload_artifact_summary_rows", prompt)
             self.assertIn("Provider payload boundary: fpga/kv_payload_digests", prompt)
             self.assertIn("provider_artifacts=2", prompt)
             self.assertIn("same_kind_artifacts=2", prompt)
             self.assertIn("same_kind_backends=fpga", prompt)
+            self.assertIn("Debug payload artifact: attention_page_trace", prompt)
+            self.assertIn("features=trace-introspection", prompt)
             self.assertIn("inspect_matching_introspection_report_sections", prompt)
             self.assertIn("sections.introspection_capability_rows", prompt)
             self.assertIn("sections.introspection_artifact_summary_rows", prompt)
