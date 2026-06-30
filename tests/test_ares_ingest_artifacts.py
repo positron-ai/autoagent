@@ -22,6 +22,7 @@ from ares_ingest_autoagent.artifacts import (
 
 SHA_A = "a" * 64
 SHA_B = "b" * 64
+FIXTURE_DIR = Path(__file__).resolve().parent / "fixtures"
 
 
 def sha256_file(path: Path) -> str:
@@ -446,6 +447,50 @@ class AresIngestArtifactTest(unittest.TestCase):
                 "1",
             )
             self.assertEqual(len(gate["detail"]["sha256"]), 64)
+
+    def test_trace_report_gate_accepts_real_ares_trace_report_fixture(self) -> None:
+        path = FIXTURE_DIR / "ares_trace_report_introspection_real.json"
+
+        gate = trace_report_gate(path)
+
+        self.assertTrue(gate["passed"], gate.get("errors"))
+        self.assertEqual(gate["artifact_validator"], "trace_report")
+        self.assertEqual(gate["detail"]["report_grade"], "diagnostic")
+        self.assertEqual(gate["detail"]["preflight_status"], "pass")
+        self.assertEqual(gate["detail"]["report_json_section_count"], 50)
+        self.assertEqual(
+            gate["detail"]["trace_config_status_counts"],
+            {"requested_and_recorded": 1},
+        )
+        self.assertEqual(
+            gate["detail"]["introspection_capability_status_counts"],
+            {
+                "capability_without_artifact": 1,
+                "compiled": 1,
+                "recorded": 10,
+            },
+        )
+        self.assertEqual(
+            gate["detail"]["introspection_artifact_summary_status_counts"],
+            {"recorded_and_locally_present": 8},
+        )
+        section_paths = {
+            sample["json_path"]
+            for sample in gate["detail"]["report_json_section_samples"]
+        }
+        self.assertIn("sections.trace_config_rows", section_paths)
+        self.assertIn("sections.introspection_capability_rows", section_paths)
+        self.assertIn("sections.introspection_artifact_summary_rows", section_paths)
+        self.assertEqual(
+            gate["detail"]["trace_config_samples"][0]["requested_sidecar_controls"],
+            "topk,logit_slices,tensor_payloads,activation_digests,kv_payload_digests",
+        )
+        self.assertEqual(
+            gate["detail"]["introspection_artifact_summary_samples"][0][
+                "artifact_kind"
+            ],
+            "token_quality",
+        )
 
     def test_trace_report_gate_rejects_missing_file(self) -> None:
         with TemporaryDirectory() as tmp:

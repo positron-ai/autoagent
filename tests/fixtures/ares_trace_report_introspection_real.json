@@ -1,0 +1,3002 @@
+{
+  "claim_boundaries": [
+    "Synthetic introspection sidecar fixture; token-quality, scheduler packet-lineage, device DMA lifecycle, attention page trace, tensor payload logit-slice rows, generic tensor payload rows, tensor payload activation-digest rows, and tensor payload K/V digest rows are system-under-test diagnostics, not model correctness or performance evidence.",
+    "Debug-heavy payload sidecars can perturb timing and require separate production-performance recapture.",
+    "Do not read absent counters as zero.",
+    "Do not infer device utilization from wall-clock spans alone.",
+    "Do not compare different trace modes, TargetPlans, prompts, token counts, hardware, or dirty/clean states without making that difference explicit."
+  ],
+  "comparison": {
+    "align": "targetplan-op",
+    "inputs": [],
+    "preflight": [],
+    "present": false,
+    "rows": [],
+    "warnings": []
+  },
+  "inputs": {
+    "baseline": "",
+    "baseline_metadata": "",
+    "candidate": "",
+    "candidate_metadata": "",
+    "compare_align": "targetplan-op",
+    "limit": 1,
+    "metadata": "tools/ares-trace/fixtures/introspection_artifacts.trace-meta.json",
+    "require_device_counters": false,
+    "required_categories": [],
+    "required_evidence": [],
+    "required_fields": [],
+    "required_introspection_artifacts": [],
+    "required_introspection_capabilities": [],
+    "required_trace_phases": [],
+    "trace": ""
+  },
+  "schema_version": 1,
+  "sections": {
+    "ab_comparability": [
+      {
+        "basis": "no complete baseline/candidate comparison inputs",
+        "promotion_gate": "Capture comparable baseline and candidate traces before making A/B claims.",
+        "status": "not_applicable"
+      }
+    ],
+    "ab_coverage": [
+      {
+        "align": "targetplan-op",
+        "baseline_only_rows": 0,
+        "basis": "no complete baseline/candidate comparison inputs",
+        "candidate_only_rows": 0,
+        "coverage_status": "not_applicable",
+        "matched_rows": 0,
+        "total_rows": 0,
+        "warnings": ""
+      }
+    ],
+    "ab_provenance": [
+      {
+        "artifact_hash_count": 0,
+        "artifact_hash_status": "",
+        "artifact_hashes": "",
+        "basis": "no complete baseline/candidate metadata inputs",
+        "binary": "",
+        "git_sha": "",
+        "hardware_card_count": 0,
+        "hardware_cards": "",
+        "proof_grade_status": "not_established_by_report",
+        "provenance_status": "not_applicable",
+        "role": "comparison",
+        "source_state": "",
+        "worktree_dirty": ""
+      }
+    ],
+    "ab_repeatability": [
+      {
+        "align": "targetplan-op",
+        "baseline_runs": 0,
+        "basis": "no complete baseline/candidate comparison inputs",
+        "candidate_runs": 0,
+        "matched_rows": 0,
+        "proof_grade_status": "not_established_by_report",
+        "required_matched_runs_for_hardware_proof": 3,
+        "status": "not_applicable"
+      }
+    ],
+    "activation_digest_sidecar_rows": [
+      {
+        "artifact_index": 6,
+        "backend_id": "fpga",
+        "digest_sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+        "element_count": "4096",
+        "element_type": "f32",
+        "evidence_role": "system_under_test",
+        "failure_reason": "",
+        "generation_id": "rinzler-7007",
+        "intrinsic": "rmsnorm",
+        "layer": "0",
+        "request_id": "7007",
+        "row_index": 0,
+        "row_kind": "tensor_payload_summary",
+        "sample_max": "0.5",
+        "sample_min": "-0.125",
+        "sample_nan_count": "0",
+        "sample_neg_inf_count": "0",
+        "sample_pos_inf_count": "0",
+        "sample_start": "0",
+        "sample_stride": "8",
+        "sample_value_count": "4",
+        "sample_values": "[-0.125, 0.0, 0.25, 0.5]",
+        "shape": "[1, 4096]",
+        "status": "ok",
+        "targetplan_action": "activation",
+        "targetplan_op_id": "tp.activation.0",
+        "tensor_name": "layer_0.mlp.down_proj.activation",
+        "tensor_payload_kind": "activation_digest",
+        "tensor_role": "activation",
+        "token_index": "0"
+      }
+    ],
+    "analysis_commands": [
+      {
+        "command": "bin/ares-trace-preflight --metadata tools/ares-trace/fixtures/introspection_artifacts.trace-meta.json",
+        "purpose": "preflight"
+      },
+      {
+        "command": "bin/ares-trace-report --metadata tools/ares-trace/fixtures/introspection_artifacts.trace-meta.json --title 'Ares Trace Performance Report' --limit 1",
+        "purpose": "report"
+      }
+    ],
+    "answerability": [
+      {
+        "basis": "metadata.artifacts: 0 row(s)",
+        "question": "metadata artifact identity",
+        "status": "not_present"
+      },
+      {
+        "basis": "backend_event_artifacts: 0 matching row(s)",
+        "question": "backend JSONL evidence",
+        "status": "not_present"
+      },
+      {
+        "basis": "no timeline trace supplied",
+        "question": "run lifecycle/config",
+        "status": "not_answerable"
+      },
+      {
+        "basis": "no timeline trace supplied",
+        "question": "capture phase/window",
+        "status": "not_answerable"
+      },
+      {
+        "basis": "no timeline trace supplied",
+        "question": "data-loss indicators",
+        "status": "not_answerable"
+      },
+      {
+        "basis": "no timeline trace supplied",
+        "question": "span anomaly diagnostics",
+        "status": "not_answerable"
+      },
+      {
+        "basis": "no timeline trace supplied",
+        "question": "artifact load status summary",
+        "status": "not_answerable"
+      },
+      {
+        "basis": "no timeline trace supplied",
+        "question": "artifact load identity",
+        "status": "not_answerable"
+      },
+      {
+        "basis": "no timeline trace supplied",
+        "question": "trace join-key coverage",
+        "status": "not_answerable"
+      },
+      {
+        "basis": "no timeline trace supplied",
+        "question": "pipeline stage duration summary",
+        "status": "not_answerable"
+      },
+      {
+        "basis": "no timeline trace supplied",
+        "question": "required pipeline profile coverage summary",
+        "status": "not_answerable"
+      },
+      {
+        "basis": "no timeline trace supplied",
+        "question": "required pipeline profile coverage",
+        "status": "not_answerable"
+      },
+      {
+        "basis": "no timeline trace supplied",
+        "question": "pipeline profile bucket summary",
+        "status": "not_answerable"
+      },
+      {
+        "basis": "no timeline trace supplied",
+        "question": "pipeline profile summary",
+        "status": "not_answerable"
+      },
+      {
+        "basis": "no timeline trace supplied",
+        "question": "pipeline profile stage gaps",
+        "status": "not_answerable"
+      },
+      {
+        "basis": "no timeline trace supplied",
+        "question": "pipeline wall-clock/overlap summary",
+        "status": "not_answerable"
+      },
+      {
+        "basis": "no timeline trace supplied",
+        "question": "pipeline waterfall",
+        "status": "not_answerable"
+      },
+      {
+        "basis": "no timeline trace supplied",
+        "question": "top span timing",
+        "status": "not_answerable"
+      },
+      {
+        "basis": "no timeline trace supplied",
+        "question": "planning artifact/cache identity",
+        "status": "not_answerable"
+      },
+      {
+        "basis": "no timeline trace supplied",
+        "question": "frontend/planning phase summary",
+        "status": "not_answerable"
+      },
+      {
+        "basis": "no timeline trace supplied",
+        "question": "frontend/planning latency",
+        "status": "not_answerable"
+      },
+      {
+        "basis": "no timeline trace supplied",
+        "question": "request/generation/streaming lifecycle summary",
+        "status": "not_answerable"
+      },
+      {
+        "basis": "no timeline trace supplied",
+        "question": "request/generation/streaming lifecycle",
+        "status": "not_answerable"
+      },
+      {
+        "basis": "no timeline trace supplied",
+        "question": "TargetPlan operation timeline",
+        "status": "not_answerable"
+      },
+      {
+        "basis": "no timeline trace supplied",
+        "question": "TargetPlan action/intrinsic timing",
+        "status": "not_answerable"
+      },
+      {
+        "basis": "no timeline trace supplied",
+        "question": "TargetPlan operation timing",
+        "status": "not_answerable"
+      },
+      {
+        "basis": "no timeline trace supplied",
+        "question": "TargetPlan scheduler/device placement",
+        "status": "not_answerable"
+      },
+      {
+        "basis": "no timeline trace supplied",
+        "question": "TargetPlan device stage timing",
+        "status": "not_answerable"
+      },
+      {
+        "basis": "no timeline trace supplied",
+        "question": "TargetPlan device critical stage",
+        "status": "not_answerable"
+      },
+      {
+        "basis": "no timeline trace supplied",
+        "question": "TargetPlan device stage coverage",
+        "status": "not_answerable"
+      },
+      {
+        "basis": "no timeline trace supplied",
+        "question": "TargetPlan device stage sequence",
+        "status": "not_answerable"
+      },
+      {
+        "basis": "no timeline trace supplied",
+        "question": "TargetPlan device stage transition gaps",
+        "status": "not_answerable"
+      },
+      {
+        "basis": "no timeline trace supplied",
+        "question": "fail-closed boundary summary",
+        "status": "not_answerable"
+      },
+      {
+        "basis": "no timeline trace supplied",
+        "question": "fail-closed boundary diagnosis",
+        "status": "not_answerable"
+      },
+      {
+        "basis": "no timeline trace supplied",
+        "question": "generation callback timing",
+        "status": "not_answerable"
+      },
+      {
+        "basis": "no timeline trace supplied",
+        "question": "first recorded token latency",
+        "status": "not_answerable"
+      },
+      {
+        "basis": "no timeline trace supplied",
+        "question": "first recorded token and token gaps",
+        "status": "not_answerable"
+      },
+      {
+        "basis": "no timeline trace supplied",
+        "question": "token-indexed runtime latency",
+        "status": "not_answerable"
+      },
+      {
+        "basis": "no timeline trace supplied",
+        "question": "forward request timing",
+        "status": "not_answerable"
+      },
+      {
+        "basis": "no timeline trace supplied",
+        "question": "scheduler cache reuse/location context",
+        "status": "not_answerable"
+      },
+      {
+        "basis": "no timeline trace supplied",
+        "question": "scheduler to backend forward handoff",
+        "status": "not_answerable"
+      },
+      {
+        "basis": "no timeline trace supplied",
+        "question": "scheduler stage transition gaps",
+        "status": "not_answerable"
+      },
+      {
+        "basis": "no timeline trace supplied",
+        "question": "scheduler to device handoff",
+        "status": "not_answerable"
+      },
+      {
+        "basis": "no timeline trace supplied",
+        "question": "scheduler wall-clock summary",
+        "status": "not_answerable"
+      },
+      {
+        "basis": "no timeline trace supplied",
+        "question": "scheduler wall-clock timing",
+        "status": "not_answerable"
+      },
+      {
+        "basis": "no timeline trace supplied",
+        "question": "device wall-clock timing",
+        "status": "not_answerable"
+      },
+      {
+        "basis": "no timeline trace supplied",
+        "question": "device stage timing summary",
+        "status": "not_answerable"
+      },
+      {
+        "basis": "no timeline trace supplied",
+        "question": "device stage transition gaps",
+        "status": "not_answerable"
+      },
+      {
+        "basis": "no timeline trace supplied",
+        "question": "device queue wait/launch latency",
+        "status": "not_answerable"
+      },
+      {
+        "basis": "no timeline trace supplied",
+        "question": "device transfer bytes/time summary",
+        "status": "not_answerable"
+      },
+      {
+        "basis": "no timeline trace supplied",
+        "question": "per-card device timing/counter summary",
+        "status": "not_answerable"
+      },
+      {
+        "basis": "no timeline trace supplied",
+        "question": "sampled device counters",
+        "status": "not_answerable"
+      },
+      {
+        "basis": "no timeline trace supplied",
+        "question": "sampled device counter summary",
+        "status": "not_answerable"
+      },
+      {
+        "basis": "no timeline trace supplied",
+        "question": "sampled device counter rate diagnostics",
+        "status": "not_answerable"
+      },
+      {
+        "basis": "no timeline trace supplied",
+        "question": "generation-to-SSE streaming lag",
+        "status": "not_answerable"
+      },
+      {
+        "basis": "no timeline trace supplied",
+        "question": "SSE write to channel enqueue lag",
+        "status": "not_answerable"
+      },
+      {
+        "basis": "no timeline trace supplied",
+        "question": "channel enqueue to body dequeue lag",
+        "status": "not_answerable"
+      },
+      {
+        "basis": "no timeline trace supplied",
+        "question": "streaming handoff anomaly diagnostics",
+        "status": "not_answerable"
+      },
+      {
+        "basis": "no timeline trace supplied",
+        "question": "incomplete streaming handoff diagnostics",
+        "status": "not_answerable"
+      },
+      {
+        "basis": "no timeline trace supplied",
+        "question": "streaming handoff stage coverage",
+        "status": "not_answerable"
+      },
+      {
+        "basis": "no timeline trace supplied",
+        "question": "streaming handoff summary",
+        "status": "not_answerable"
+      },
+      {
+        "basis": "no timeline trace supplied",
+        "question": "streaming cancellation summary",
+        "status": "not_answerable"
+      },
+      {
+        "basis": "no timeline trace supplied",
+        "question": "streaming frame timing summary",
+        "status": "not_answerable"
+      },
+      {
+        "basis": "no timeline trace supplied",
+        "question": "streaming frame send/close timing",
+        "status": "not_answerable"
+      },
+      {
+        "basis": "no timeline trace supplied",
+        "question": "Rinzler lifecycle timing",
+        "status": "not_answerable"
+      },
+      {
+        "basis": "metadata.capture_capabilities.device_counters is absent or false",
+        "question": "counter-dependent device utilization",
+        "status": "not_answerable"
+      },
+      {
+        "basis": "metadata.capture_capabilities.deep_introspection=true; introspection_artifacts: 8 artifact(s)",
+        "question": "deep introspection sidecars",
+        "status": "answerable"
+      }
+    ],
+    "artifact_identities": [],
+    "artifact_identity_checks": [
+      {
+        "artifact": "<all>",
+        "check": "metadata.artifacts",
+        "detail": "0 artifact(s)",
+        "status": "ok"
+      }
+    ],
+    "attention_page_trace_sidecar_rows": [
+      {
+        "artifact_index": 3,
+        "attention_row_index": "7",
+        "backend_id": "fpga",
+        "batch": "8",
+        "evidence_role": "system_under_test",
+        "exp_score_count": "2",
+        "failure_reason": "",
+        "generation_id": "rinzler-7004",
+        "head": "17",
+        "kv_head": "4",
+        "layer": "2",
+        "m_star": "3.0",
+        "page_count": "1",
+        "page_start": "64",
+        "page_v_count": "1",
+        "request_id": "7004",
+        "row_index": 0,
+        "row_kind": "attention_page_state",
+        "s_star": "5.0",
+        "scaled_score_count": "2",
+        "scaled_score_values": "[3.0, \"-Infinity\"]",
+        "status": "ok",
+        "targetplan_action": "attention",
+        "targetplan_op_id": "tp.attention.0",
+        "v_star_count": "1",
+        "visible_tokens": "65",
+        "was_valid": "True"
+      }
+    ],
+    "backend_event_artifacts": [],
+    "backend_event_rows": [],
+    "backend_fail_closed_root_causes": [],
+    "backend_provider_boundaries": [],
+    "capture": [
+      {
+        "backend_id": "fpga",
+        "created_utc": "2026-06-29T00:00:00Z",
+        "metadata": "tools/ares-trace/fixtures/introspection_artifacts.trace-meta.json",
+        "model_id": "fixture-model",
+        "process_kind": "test",
+        "target_plan_sha256": "",
+        "trace": "",
+        "trace_mode": "debug-heavy",
+        "trace_run_id": "ares-fixture-introspection",
+        "trace_sinks": "jsonl",
+        "worktree_dirty": ""
+      }
+    ],
+    "capture_capabilities": [
+      {
+        "capability": "activation_digests",
+        "present": "True"
+      },
+      {
+        "capability": "attention_page_trace",
+        "present": "True"
+      },
+      {
+        "capability": "compile_feature_trace_introspection",
+        "present": "True"
+      },
+      {
+        "capability": "debug_payloads",
+        "present": "True"
+      },
+      {
+        "capability": "deep_introspection",
+        "present": "True"
+      },
+      {
+        "capability": "device_counters",
+        "present": "False"
+      },
+      {
+        "capability": "device_dma_lifecycle",
+        "present": "True"
+      },
+      {
+        "capability": "driver_detail",
+        "present": "True"
+      },
+      {
+        "capability": "kv_payload_digests",
+        "present": "True"
+      },
+      {
+        "capability": "logit_slices",
+        "present": "True"
+      },
+      {
+        "capability": "os_sched",
+        "present": "False"
+      },
+      {
+        "capability": "scheduler_packet_lineage",
+        "present": "True"
+      },
+      {
+        "capability": "tensor_payloads",
+        "present": "True"
+      },
+      {
+        "capability": "token_quality",
+        "present": "True"
+      },
+      {
+        "capability": "tokens_recorded",
+        "present": "True"
+      },
+      {
+        "capability": "topk_rows",
+        "present": "True"
+      }
+    ],
+    "correctness_evidence": [
+      {
+        "artifact_status": "",
+        "basis": "trace metadata does not record HuggingFace CPU oracle token/logit artifacts",
+        "evidence": "hf_cpu_oracle_tokens_logits",
+        "evidence_role": "oracle_required_for_correctness",
+        "next_gate": "attach HF Transformers CPU oracle artifacts with prompt context and SHA-256 before correctness claims",
+        "path": "",
+        "proof_grade_status": "not_established_by_report",
+        "result": "",
+        "sha256": "",
+        "status": "not_recorded"
+      },
+      {
+        "artifact_status": "",
+        "basis": "trace metadata does not record dense-logit TVD results or artifact identities",
+        "evidence": "dense_logit_tvd",
+        "evidence_role": "correctness_gate",
+        "next_gate": "run dense-logit TVD against HF CPU oracle or approved comparison artifacts before TVD claims",
+        "path": "",
+        "proof_grade_status": "not_established_by_report",
+        "result": "",
+        "sha256": "",
+        "status": "not_recorded"
+      },
+      {
+        "artifact_status": "",
+        "basis": "trace metadata does not record external C++ comparison sidecars",
+        "evidence": "cpp_tron_rinzler_comparison",
+        "evidence_role": "legacy_comparison_when_applicable",
+        "next_gate": "attach C++ comparison artifacts only for supported legacy comparison lanes",
+        "path": "",
+        "proof_grade_status": "not_established_by_report",
+        "result": "",
+        "sha256": "",
+        "status": "not_recorded"
+      },
+      {
+        "artifact_status": "",
+        "basis": "Rust/Ares traces describe system-under-test behavior and are not correctness oracles",
+        "evidence": "rust_ares_trace_artifacts",
+        "evidence_role": "system_under_test",
+        "next_gate": "join trace rows to external oracle/comparison artifacts before correctness or proof-grade performance claims",
+        "path": "",
+        "proof_grade_status": "not_established_by_report",
+        "result": "",
+        "sha256": "",
+        "status": "metadata_only"
+      }
+    ],
+    "debug_payload_artifact_summary_rows": [
+      {
+        "artifact_index": 3,
+        "artifact_kind": "attention_page_trace",
+        "byte_count": "918",
+        "capture_capability": "debug_payloads",
+        "claim_boundary": "system_under_test_numeric_localization_diagnostic",
+        "compile_features": "trace-introspection",
+        "debug_payload_boundary": "debug_payloads_can_perturb_timing",
+        "path": "introspection_attention_page_trace_sidecar.jsonl",
+        "payload_summary_status": "recorded",
+        "report_section": "attention_page_trace_sidecar_rows",
+        "row_count": "1",
+        "sampling_policy": "selected attention page summaries; borrowed vector payloads only when requested",
+        "sensitivity": "local-only",
+        "sha256": "19d1de9d162e6d43b2f5f958c0b486fe94f3f2f2fd0c97fedee12f87d9c8acbc",
+        "token_window": "attention-page:7004"
+      }
+    ],
+    "device_dma_lifecycle_sidecar_rows": [
+      {
+        "artifact_index": 2,
+        "backend_id": "fpga",
+        "byte_count": "65536",
+        "cacheblock_dma_gof_start_in_shard": "12",
+        "cacheblock_dma_k_transfer_count": "4",
+        "cacheblock_dma_shard_id": "9",
+        "cacheblock_dma_transfer_byte_count": "8192",
+        "cacheblock_dma_v_transfer_count": "6",
+        "cacheblock_gof_start_position": "48",
+        "cacheblock_k_word_checksum": "123456",
+        "cacheblock_v_word_checksum": "654321",
+        "card_bus": "0xe1",
+        "counter_name": "rx_completions",
+        "counter_value_delta": "5",
+        "descriptor_count": "5",
+        "device_index": "0",
+        "device_stage": "dma_completion",
+        "dma_direction": "host_to_device",
+        "evidence_role": "system_under_test",
+        "failure_reason": "",
+        "generation_id": "rinzler-7002",
+        "queue_depth_after": "0",
+        "queue_depth_before": "5",
+        "queue_id": "load_weight_q",
+        "request_id": "7002",
+        "row_index": 0,
+        "row_kind": "device_dma_lifecycle",
+        "status": "ok",
+        "targetplan_action": "device_load",
+        "targetplan_op_id": "tp.device.load_weights.0"
+      }
+    ],
+    "evidence_artifact_checks": [
+      {
+        "check": "metadata.evidence_artifacts",
+        "detail": "0 artifact(s)",
+        "evidence_artifact": "<all>",
+        "status": "ok"
+      }
+    ],
+    "evidence_classification": [
+      "diagnostic: preflight passed, subject to provenance, correctness, and comparison gates."
+    ],
+    "introspection_artifact_summary_rows": [
+      {
+        "artifact_count": 1,
+        "artifact_indices": "0",
+        "artifact_kind": "token_quality",
+        "byte_count_total": 918,
+        "capture_capabilities": "token_quality,topk_rows",
+        "claim_boundaries": "external_oracle_reference_anchor_not_sut_oracle_evidence,system_under_test_diagnostic_not_oracle,system_under_test_topk_diagnostic_not_oracle",
+        "compile_features": "trace-introspection",
+        "json_section": "introspection_artifact_summary_rows",
+        "local_missing_count": 0,
+        "local_missing_path_count": 0,
+        "local_present_count": 1,
+        "metadata_statuses": "recorded",
+        "next_action": "inspect_stable_report_sections",
+        "report_sections": "oracle_reference_summary_rows,token_quality_sidecar_rows,token_quality_summary_rows,topk_token_sidecar_rows",
+        "row_count_total": 1,
+        "sensitivities": "local-only",
+        "summary_status": "recorded_and_locally_present"
+      },
+      {
+        "artifact_count": 1,
+        "artifact_indices": "1",
+        "artifact_kind": "scheduler_packet_lineage",
+        "byte_count_total": 1298,
+        "capture_capabilities": "scheduler_packet_lineage",
+        "claim_boundaries": "system_under_test_scheduler_diagnostic",
+        "compile_features": "trace-introspection",
+        "json_section": "introspection_artifact_summary_rows",
+        "local_missing_count": 0,
+        "local_missing_path_count": 0,
+        "local_present_count": 1,
+        "metadata_statuses": "recorded",
+        "next_action": "inspect_stable_report_sections",
+        "report_sections": "scheduler_kv_shard_lifecycle_sidecar_rows,scheduler_listener_sparse_logit_sidecar_rows,scheduler_packet_lineage_sidecar_rows",
+        "row_count_total": 1,
+        "sensitivities": "local-only",
+        "summary_status": "recorded_and_locally_present"
+      },
+      {
+        "artifact_count": 1,
+        "artifact_indices": "2",
+        "artifact_kind": "device_dma_lifecycle",
+        "byte_count_total": 1571,
+        "capture_capabilities": "device_dma_lifecycle",
+        "claim_boundaries": "system_under_test_device_diagnostic",
+        "compile_features": "trace-introspection",
+        "json_section": "introspection_artifact_summary_rows",
+        "local_missing_count": 0,
+        "local_missing_path_count": 0,
+        "local_present_count": 1,
+        "metadata_statuses": "recorded",
+        "next_action": "inspect_stable_report_sections",
+        "report_sections": "device_dma_lifecycle_sidecar_rows",
+        "row_count_total": 2,
+        "sensitivities": "local-only",
+        "summary_status": "recorded_and_locally_present"
+      },
+      {
+        "artifact_count": 1,
+        "artifact_indices": "3",
+        "artifact_kind": "attention_page_trace",
+        "byte_count_total": 918,
+        "capture_capabilities": "attention_page_trace,debug_payloads",
+        "claim_boundaries": "debug_payloads_can_perturb_timing,system_under_test_numeric_localization_diagnostic",
+        "compile_features": "trace-introspection",
+        "json_section": "introspection_artifact_summary_rows",
+        "local_missing_count": 0,
+        "local_missing_path_count": 0,
+        "local_present_count": 1,
+        "metadata_statuses": "recorded",
+        "next_action": "inspect_stable_report_sections",
+        "report_sections": "attention_page_trace_sidecar_rows,debug_payload_artifact_summary_rows",
+        "row_count_total": 1,
+        "sensitivities": "local-only",
+        "summary_status": "recorded_and_locally_present"
+      },
+      {
+        "artifact_count": 1,
+        "artifact_indices": "4",
+        "artifact_kind": "logit_slices",
+        "byte_count_total": 1009,
+        "capture_capabilities": "debug_payloads,logit_slices",
+        "claim_boundaries": "debug_payloads_can_perturb_timing,system_under_test_final_logit_diagnostic",
+        "compile_features": "trace-introspection",
+        "json_section": "introspection_artifact_summary_rows",
+        "local_missing_count": 0,
+        "local_missing_path_count": 0,
+        "local_present_count": 1,
+        "metadata_statuses": "recorded",
+        "next_action": "inspect_stable_report_sections",
+        "report_sections": "debug_payload_artifact_summary_rows,logit_slice_sidecar_rows",
+        "row_count_total": 1,
+        "sensitivities": "local-only",
+        "summary_status": "recorded_and_locally_present"
+      },
+      {
+        "artifact_count": 1,
+        "artifact_indices": "5",
+        "artifact_kind": "tensor_payload",
+        "byte_count_total": 1021,
+        "capture_capabilities": "tensor_payloads",
+        "claim_boundaries": "system_under_test_payload_diagnostic",
+        "compile_features": "trace-introspection",
+        "json_section": "introspection_artifact_summary_rows",
+        "local_missing_count": 0,
+        "local_missing_path_count": 0,
+        "local_present_count": 1,
+        "metadata_statuses": "recorded",
+        "next_action": "inspect_stable_report_sections",
+        "report_sections": "tensor_payload_sidecar_rows",
+        "row_count_total": 1,
+        "sensitivities": "local-only",
+        "summary_status": "recorded_and_locally_present"
+      },
+      {
+        "artifact_count": 1,
+        "artifact_indices": "6",
+        "artifact_kind": "activation_digests",
+        "byte_count_total": 1035,
+        "capture_capabilities": "activation_digests,debug_payloads",
+        "claim_boundaries": "debug_payloads_can_perturb_timing,system_under_test_activation_digest_diagnostic",
+        "compile_features": "trace-introspection",
+        "json_section": "introspection_artifact_summary_rows",
+        "local_missing_count": 0,
+        "local_missing_path_count": 0,
+        "local_present_count": 1,
+        "metadata_statuses": "recorded",
+        "next_action": "inspect_stable_report_sections",
+        "report_sections": "activation_digest_sidecar_rows,debug_payload_artifact_summary_rows",
+        "row_count_total": 1,
+        "sensitivities": "local-only",
+        "summary_status": "recorded_and_locally_present"
+      },
+      {
+        "artifact_count": 1,
+        "artifact_indices": "7",
+        "artifact_kind": "kv_payload_digests",
+        "byte_count_total": 1872,
+        "capture_capabilities": "debug_payloads,kv_payload_digests",
+        "claim_boundaries": "debug_payloads_can_perturb_timing,system_under_test_scheduler_kv_payload_diagnostic",
+        "compile_features": "trace-introspection",
+        "json_section": "introspection_artifact_summary_rows",
+        "local_missing_count": 0,
+        "local_missing_path_count": 0,
+        "local_present_count": 1,
+        "metadata_statuses": "recorded",
+        "next_action": "inspect_stable_report_sections",
+        "report_sections": "debug_payload_artifact_summary_rows,kv_payload_digest_sidecar_rows",
+        "row_count_total": 2,
+        "sensitivities": "local-only",
+        "summary_status": "recorded_and_locally_present"
+      }
+    ],
+    "introspection_artifacts": [
+      {
+        "artifact_kind": "token_quality_jsonl",
+        "byte_count": "918",
+        "compile_features": "trace-introspection",
+        "index": 0,
+        "kind": "token_quality",
+        "path": "introspection_token_quality_sidecar.jsonl",
+        "row_count": "1",
+        "sampling_policy": "selected token rows; top-k rows only when requested",
+        "sensitivity": "local-only",
+        "sha256": "4255461c82b837e9c6196aba804042ac967ee637602826962b70fe4a9576534e",
+        "status": "recorded",
+        "token_window": "0:1"
+      },
+      {
+        "artifact_kind": "scheduler_packet_lineage_jsonl",
+        "byte_count": "1298",
+        "compile_features": "trace-introspection",
+        "index": 1,
+        "kind": "scheduler_packet_lineage",
+        "path": "introspection_scheduler_packet_lineage_sidecar.jsonl",
+        "row_count": "1",
+        "sampling_policy": "scheduler forward packet summaries; no tensor payloads",
+        "sensitivity": "local-only",
+        "sha256": "1fd6d56b3aa01a7b3f5052a9ba6bb5755bebce1a38df558a8b0dff31c49a9b6f",
+        "status": "recorded",
+        "token_window": "scheduler-forward:7002"
+      },
+      {
+        "artifact_kind": "device_dma_lifecycle_jsonl",
+        "byte_count": "1571",
+        "compile_features": "trace-introspection",
+        "index": 2,
+        "kind": "device_dma_lifecycle",
+        "path": "introspection_device_dma_lifecycle_sidecar.jsonl",
+        "row_count": "2",
+        "sampling_policy": "device DMA/queue/counter summaries; no tensor payloads",
+        "sensitivity": "local-only",
+        "sha256": "95574942b9d0a7b43f91a01448e7f1b0bdb9bb83b26aeaae384a5e948bc1505f",
+        "status": "recorded",
+        "token_window": "device-lifecycle:7002"
+      },
+      {
+        "artifact_kind": "attention_page_trace_jsonl",
+        "byte_count": "918",
+        "compile_features": "trace-introspection",
+        "index": 3,
+        "kind": "attention_page_trace",
+        "path": "introspection_attention_page_trace_sidecar.jsonl",
+        "row_count": "1",
+        "sampling_policy": "selected attention page summaries; borrowed vector payloads only when requested",
+        "sensitivity": "local-only",
+        "sha256": "19d1de9d162e6d43b2f5f958c0b486fe94f3f2f2fd0c97fedee12f87d9c8acbc",
+        "status": "recorded",
+        "token_window": "attention-page:7004"
+      },
+      {
+        "artifact_kind": "tensor_payload_jsonl",
+        "byte_count": "1009",
+        "compile_features": "trace-introspection",
+        "index": 4,
+        "kind": "logit_slices",
+        "path": "introspection_tensor_payload_sidecar.jsonl",
+        "row_count": "1",
+        "sampling_policy": "selected tensor summaries, digests, and slices; no full dense dumps by default",
+        "sensitivity": "local-only",
+        "sha256": "1fefa9e15328b7f680cd3642ab4d7528e4bd1fa340dc1c0d6163c8b135fa7675",
+        "status": "recorded",
+        "token_window": "logit-slice:7005"
+      },
+      {
+        "artifact_kind": "tensor_payload_jsonl",
+        "byte_count": "1021",
+        "compile_features": "trace-introspection",
+        "index": 5,
+        "kind": "tensor_payload",
+        "path": "introspection_generic_tensor_payload_sidecar.jsonl",
+        "row_count": "1",
+        "sampling_policy": "selected generic tensor payload summaries, digests, and bounded samples",
+        "sensitivity": "local-only",
+        "sha256": "780cebb9843adc73443f878eaa1d83d3de089c1fa3345221f2620c146ffe2f22",
+        "status": "recorded",
+        "token_window": "tensor-payload:7008"
+      },
+      {
+        "artifact_kind": "tensor_payload_jsonl",
+        "byte_count": "1035",
+        "compile_features": "trace-introspection",
+        "index": 6,
+        "kind": "activation_digests",
+        "path": "introspection_activation_digest_sidecar.jsonl",
+        "row_count": "1",
+        "sampling_policy": "selected tensor summaries, digests, and slices; no full dense dumps by default",
+        "sensitivity": "local-only",
+        "sha256": "3d367a464b4ce40a2d98b27dcd1002c34a59a456c7a14c2a6b7a048d0f8a4eca",
+        "status": "recorded",
+        "token_window": "activation-digest:7007"
+      },
+      {
+        "artifact_kind": "tensor_payload_jsonl",
+        "byte_count": "1872",
+        "compile_features": "trace-introspection",
+        "index": 7,
+        "kind": "kv_payload_digests",
+        "path": "introspection_kv_payload_digest_sidecar.jsonl",
+        "row_count": "2",
+        "sampling_policy": "selected tensor summaries, digests, and slices; no full dense dumps by default",
+        "sensitivity": "local-only",
+        "sha256": "ba6833c9b53ea46fa129c765a6ce4ac09b9e0c98d120f65db07b7419282b2aa8",
+        "status": "recorded",
+        "token_window": "kv-payload-digest:7006"
+      }
+    ],
+    "introspection_capability_rows": [
+      {
+        "capability_present": true,
+        "capability_status": "capability_without_artifact",
+        "capture_capability": "deep_introspection",
+        "claim_boundary": "diagnostic_deep_introspection_only",
+        "expected_artifact_kinds": "planning_decisions",
+        "json_section": "introspection_capability_rows",
+        "matching_artifact_count": 0,
+        "matching_artifact_counts": "planning_decisions:0",
+        "next_action": "recapture_or_fix_metadata_so_required_artifact_is_recorded"
+      },
+      {
+        "capability_present": true,
+        "capability_status": "recorded",
+        "capture_capability": "debug_payloads",
+        "claim_boundary": "debug_payloads_can_perturb_timing",
+        "expected_artifact_kinds": "attention_page_trace,logit_slices,activation_digests,kv_payload_digests",
+        "json_section": "introspection_capability_rows",
+        "matching_artifact_count": 4,
+        "matching_artifact_counts": "attention_page_trace:1,logit_slices:1,activation_digests:1,kv_payload_digests:1",
+        "next_action": "inspect_introspection_artifacts_and_stable_report_sections"
+      },
+      {
+        "capability_present": true,
+        "capability_status": "recorded",
+        "capture_capability": "token_quality",
+        "claim_boundary": "system_under_test_token_diagnostic_not_oracle",
+        "expected_artifact_kinds": "token_quality",
+        "json_section": "introspection_capability_rows",
+        "matching_artifact_count": 1,
+        "matching_artifact_counts": "token_quality:1",
+        "next_action": "inspect_introspection_artifacts_and_stable_report_sections"
+      },
+      {
+        "capability_present": true,
+        "capability_status": "recorded",
+        "capture_capability": "topk_rows",
+        "claim_boundary": "system_under_test_topk_diagnostic_not_oracle",
+        "expected_artifact_kinds": "token_quality",
+        "json_section": "introspection_capability_rows",
+        "matching_artifact_count": 1,
+        "matching_artifact_counts": "token_quality:1",
+        "next_action": "inspect_introspection_artifacts_and_stable_report_sections"
+      },
+      {
+        "capability_present": true,
+        "capability_status": "recorded",
+        "capture_capability": "logit_slices",
+        "claim_boundary": "system_under_test_final_logit_diagnostic",
+        "expected_artifact_kinds": "logit_slices",
+        "json_section": "introspection_capability_rows",
+        "matching_artifact_count": 1,
+        "matching_artifact_counts": "logit_slices:1",
+        "next_action": "inspect_introspection_artifacts_and_stable_report_sections"
+      },
+      {
+        "capability_present": true,
+        "capability_status": "recorded",
+        "capture_capability": "tensor_payloads",
+        "claim_boundary": "system_under_test_payload_diagnostic",
+        "expected_artifact_kinds": "tensor_payload",
+        "json_section": "introspection_capability_rows",
+        "matching_artifact_count": 1,
+        "matching_artifact_counts": "tensor_payload:1",
+        "next_action": "inspect_introspection_artifacts_and_stable_report_sections"
+      },
+      {
+        "capability_present": true,
+        "capability_status": "recorded",
+        "capture_capability": "activation_digests",
+        "claim_boundary": "system_under_test_activation_digest_diagnostic",
+        "expected_artifact_kinds": "activation_digests",
+        "json_section": "introspection_capability_rows",
+        "matching_artifact_count": 1,
+        "matching_artifact_counts": "activation_digests:1",
+        "next_action": "inspect_introspection_artifacts_and_stable_report_sections"
+      },
+      {
+        "capability_present": true,
+        "capability_status": "recorded",
+        "capture_capability": "kv_payload_digests",
+        "claim_boundary": "system_under_test_scheduler_kv_payload_diagnostic",
+        "expected_artifact_kinds": "kv_payload_digests",
+        "json_section": "introspection_capability_rows",
+        "matching_artifact_count": 1,
+        "matching_artifact_counts": "kv_payload_digests:1",
+        "next_action": "inspect_introspection_artifacts_and_stable_report_sections"
+      },
+      {
+        "capability_present": true,
+        "capability_status": "recorded",
+        "capture_capability": "scheduler_packet_lineage",
+        "claim_boundary": "system_under_test_scheduler_diagnostic",
+        "expected_artifact_kinds": "scheduler_packet_lineage",
+        "json_section": "introspection_capability_rows",
+        "matching_artifact_count": 1,
+        "matching_artifact_counts": "scheduler_packet_lineage:1",
+        "next_action": "inspect_introspection_artifacts_and_stable_report_sections"
+      },
+      {
+        "capability_present": true,
+        "capability_status": "recorded",
+        "capture_capability": "device_dma_lifecycle",
+        "claim_boundary": "system_under_test_device_diagnostic",
+        "expected_artifact_kinds": "device_dma_lifecycle",
+        "json_section": "introspection_capability_rows",
+        "matching_artifact_count": 1,
+        "matching_artifact_counts": "device_dma_lifecycle:1",
+        "next_action": "inspect_introspection_artifacts_and_stable_report_sections"
+      },
+      {
+        "capability_present": true,
+        "capability_status": "recorded",
+        "capture_capability": "attention_page_trace",
+        "claim_boundary": "system_under_test_numeric_localization_diagnostic",
+        "expected_artifact_kinds": "attention_page_trace",
+        "json_section": "introspection_capability_rows",
+        "matching_artifact_count": 1,
+        "matching_artifact_counts": "attention_page_trace:1",
+        "next_action": "inspect_introspection_artifacts_and_stable_report_sections"
+      },
+      {
+        "capability_present": true,
+        "capability_status": "compiled",
+        "capture_capability": "compile_feature_trace_introspection",
+        "claim_boundary": "compile_time_gate_only_not_payload_evidence",
+        "expected_artifact_kinds": "",
+        "json_section": "introspection_capability_rows",
+        "matching_artifact_count": 0,
+        "matching_artifact_counts": "",
+        "next_action": "enable_runtime_introspection_and_payload_artifacts_if_needed"
+      }
+    ],
+    "introspection_section_inventory": [
+      {
+        "artifact_count": 0,
+        "artifact_kind": "planning_decisions",
+        "capability_present": true,
+        "capture_capability": "deep_introspection",
+        "claim_boundary": "planning_decision_diagnostic_not_model_evidence",
+        "heading": "Planning Decision Sidecar Rows",
+        "json_section": "planning_decision_sidecar_rows",
+        "section_status": "capability_without_artifact"
+      },
+      {
+        "artifact_count": 1,
+        "artifact_kind": "token_quality",
+        "capability_present": true,
+        "capture_capability": "token_quality",
+        "claim_boundary": "system_under_test_diagnostic_not_oracle",
+        "heading": "Token Quality Sidecar Rows",
+        "json_section": "token_quality_sidecar_rows",
+        "section_status": "available"
+      },
+      {
+        "artifact_count": 1,
+        "artifact_kind": "token_quality",
+        "capability_present": true,
+        "capture_capability": "token_quality",
+        "claim_boundary": "system_under_test_diagnostic_not_oracle",
+        "heading": "Token Quality Summary Rows",
+        "json_section": "token_quality_summary_rows",
+        "section_status": "available"
+      },
+      {
+        "artifact_count": 1,
+        "artifact_kind": "token_quality",
+        "capability_present": true,
+        "capture_capability": "token_quality",
+        "claim_boundary": "external_oracle_reference_anchor_not_sut_oracle_evidence",
+        "heading": "Oracle Reference Summary Rows",
+        "json_section": "oracle_reference_summary_rows",
+        "section_status": "available"
+      },
+      {
+        "artifact_count": 1,
+        "artifact_kind": "token_quality",
+        "capability_present": true,
+        "capture_capability": "topk_rows",
+        "claim_boundary": "system_under_test_topk_diagnostic_not_oracle",
+        "heading": "Top-K Token Sidecar Rows",
+        "json_section": "topk_token_sidecar_rows",
+        "section_status": "available"
+      },
+      {
+        "artifact_count": 1,
+        "artifact_kind": "scheduler_packet_lineage",
+        "capability_present": true,
+        "capture_capability": "scheduler_packet_lineage",
+        "claim_boundary": "system_under_test_scheduler_diagnostic",
+        "heading": "Scheduler Packet Lineage Sidecar Rows",
+        "json_section": "scheduler_packet_lineage_sidecar_rows",
+        "section_status": "available"
+      },
+      {
+        "artifact_count": 1,
+        "artifact_kind": "scheduler_packet_lineage",
+        "capability_present": true,
+        "capture_capability": "scheduler_packet_lineage",
+        "claim_boundary": "system_under_test_scheduler_diagnostic",
+        "heading": "Scheduler K/V Shard Lifecycle Sidecar Rows",
+        "json_section": "scheduler_kv_shard_lifecycle_sidecar_rows",
+        "section_status": "available"
+      },
+      {
+        "artifact_count": 1,
+        "artifact_kind": "scheduler_packet_lineage",
+        "capability_present": true,
+        "capture_capability": "scheduler_packet_lineage",
+        "claim_boundary": "system_under_test_scheduler_diagnostic",
+        "heading": "Scheduler Listener Sparse Logit Sidecar Rows",
+        "json_section": "scheduler_listener_sparse_logit_sidecar_rows",
+        "section_status": "available"
+      },
+      {
+        "artifact_count": 1,
+        "artifact_kind": "device_dma_lifecycle",
+        "capability_present": true,
+        "capture_capability": "device_dma_lifecycle",
+        "claim_boundary": "system_under_test_device_diagnostic",
+        "heading": "Device DMA Lifecycle Sidecar Rows",
+        "json_section": "device_dma_lifecycle_sidecar_rows",
+        "section_status": "available"
+      },
+      {
+        "artifact_count": 1,
+        "artifact_kind": "attention_page_trace",
+        "capability_present": true,
+        "capture_capability": "attention_page_trace",
+        "claim_boundary": "system_under_test_numeric_localization_diagnostic",
+        "heading": "Attention Page Trace Sidecar Rows",
+        "json_section": "attention_page_trace_sidecar_rows",
+        "section_status": "available"
+      },
+      {
+        "artifact_count": 4,
+        "artifact_kind": "attention_page_trace,logit_slices,activation_digests,kv_payload_digests",
+        "capability_present": true,
+        "capture_capability": "debug_payloads",
+        "claim_boundary": "debug_payloads_can_perturb_timing",
+        "heading": "Debug Payload Artifact Summary Rows",
+        "json_section": "debug_payload_artifact_summary_rows",
+        "section_status": "available"
+      },
+      {
+        "artifact_count": 1,
+        "artifact_kind": "tensor_payload",
+        "capability_present": true,
+        "capture_capability": "tensor_payloads",
+        "claim_boundary": "system_under_test_payload_diagnostic",
+        "heading": "Tensor Payload Sidecar Rows",
+        "json_section": "tensor_payload_sidecar_rows",
+        "section_status": "available"
+      },
+      {
+        "artifact_count": 1,
+        "artifact_kind": "logit_slices",
+        "capability_present": true,
+        "capture_capability": "logit_slices",
+        "claim_boundary": "system_under_test_final_logit_diagnostic",
+        "heading": "Logit Slice Sidecar Rows",
+        "json_section": "logit_slice_sidecar_rows",
+        "section_status": "available"
+      },
+      {
+        "artifact_count": 1,
+        "artifact_kind": "activation_digests",
+        "capability_present": true,
+        "capture_capability": "activation_digests",
+        "claim_boundary": "system_under_test_activation_digest_diagnostic",
+        "heading": "Activation Digest Sidecar Rows",
+        "json_section": "activation_digest_sidecar_rows",
+        "section_status": "available"
+      },
+      {
+        "artifact_count": 1,
+        "artifact_kind": "kv_payload_digests",
+        "capability_present": true,
+        "capture_capability": "kv_payload_digests",
+        "claim_boundary": "system_under_test_scheduler_kv_payload_diagnostic",
+        "heading": "K/V Payload Digest Sidecar Rows",
+        "json_section": "kv_payload_digest_sidecar_rows",
+        "section_status": "available"
+      }
+    ],
+    "kv_payload_digest_sidecar_rows": [
+      {
+        "artifact_index": 7,
+        "backend_id": "fpga",
+        "digest_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "element_count": "16",
+        "element_type": "f32",
+        "evidence_role": "system_under_test",
+        "failure_reason": "",
+        "generation_id": "rinzler-7006",
+        "intrinsic": "",
+        "layer": "0",
+        "request_id": "7006",
+        "row_index": 0,
+        "row_kind": "tensor_payload_summary",
+        "sample_max": "0.5",
+        "sample_min": "0.125",
+        "sample_nan_count": "0",
+        "sample_neg_inf_count": "0",
+        "sample_pos_inf_count": "0",
+        "sample_start": "0",
+        "sample_stride": "1",
+        "sample_value_count": "4",
+        "sample_values": "[0.125, 0.25, 0.375, 0.5]",
+        "shape": "[16]",
+        "status": "ok",
+        "targetplan_action": "kv_cache",
+        "targetplan_op_id": "",
+        "tensor_name": "scheduler_kv_save.layer_0.buf_1.k",
+        "tensor_payload_kind": "kv_payload_digest",
+        "tensor_role": "kv_key",
+        "token_index": "0"
+      }
+    ],
+    "logit_slice_sidecar_rows": [
+      {
+        "artifact_index": 4,
+        "backend_id": "fpga",
+        "digest_sha256": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+        "element_count": "32000",
+        "element_type": "f32",
+        "evidence_role": "system_under_test",
+        "failure_reason": "",
+        "generation_id": "rinzler-7005",
+        "intrinsic": "topk",
+        "layer": "31",
+        "request_id": "7005",
+        "row_index": 0,
+        "row_kind": "tensor_payload_summary",
+        "sample_max": "0.5",
+        "sample_min": "-0.25",
+        "sample_nan_count": "1",
+        "sample_neg_inf_count": "1",
+        "sample_pos_inf_count": "0",
+        "sample_start": "7",
+        "sample_stride": "1",
+        "sample_value_count": "4",
+        "sample_values": "[0.5, \"-Infinity\", \"NaN\", -0.25]",
+        "shape": "[1, 32000]",
+        "status": "ok",
+        "targetplan_action": "final_logits",
+        "targetplan_op_id": "tp.logits.0",
+        "tensor_name": "ares_logits",
+        "tensor_payload_kind": "logit_slice",
+        "tensor_role": "logits",
+        "token_index": "0"
+      }
+    ],
+    "next_measurements": [
+      {
+        "command_hint": "bin/ares-trace-report --metadata tools/ares-trace/fixtures/introspection_artifacts.trace-meta.json --trace <trace.chrome.json>",
+        "next_measurement": "Capture a Chrome/Perfetto timeline before asking timeline latency questions.",
+        "priority": "timeline_capture",
+        "reason": "no timeline trace supplied"
+      },
+      {
+        "command_hint": "set ARES_BACKEND_EVENT_ARTIFACT_DIR for the run and re-run preflight",
+        "next_measurement": "Capture backend event JSONL artifacts so timeline rows can be joined to backend evidence.",
+        "priority": "backend_jsonl",
+        "reason": "backend JSONL evidence not present"
+      },
+      {
+        "command_hint": "uv run --project frontend/hf-export --frozen hf-ares-reference-tokens ... --device cpu --tokens-out <path> --logits-out <path> --report <path>",
+        "next_measurement": "Capture HuggingFace Transformers CPU token/logit oracle artifacts with prompt context and SHA-256 before correctness claims.",
+        "priority": "correctness_oracle",
+        "reason": "HF CPU oracle artifacts not recorded"
+      },
+      {
+        "command_hint": "run the project TVD comparison workflow after oracle/comparison artifacts exist",
+        "next_measurement": "Run dense-logit TVD against HF CPU oracle or approved comparison artifacts before TVD or strict correctness claims.",
+        "priority": "correctness_tvd",
+        "reason": "dense-logit TVD not recorded"
+      },
+      {
+        "command_hint": "capture external C++ comparison artifacts with source revision, dirty state, command, and SHA-256",
+        "next_measurement": "Attach C++ Tron/Rinzler comparison artifacts when the gate requires legacy comparison, rollback, or supported-model performance parity.",
+        "priority": "comparison_sidecars",
+        "reason": "C++ comparison sidecars not recorded"
+      }
+    ],
+    "oracle_reference_summary_rows": [
+      {
+        "artifact_index": 0,
+        "claim_boundary": "external_hf_cpu_reference_anchor_only; token_quality_row_remains_system_under_test",
+        "correctness_claim_status": "not_oracle_evidence",
+        "evidence_role": "system_under_test",
+        "expected_oracle_source": "hf_transformers_pytorch_cpu",
+        "generation_id": "rinzler-7001",
+        "hf_cpu_oracle_artifact_path": "correctness_hf_cpu_oracle.txt",
+        "hf_cpu_oracle_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "oracle_reference_role": "external_hf_cpu_reference",
+        "oracle_reference_status": "external_reference_hash_recorded",
+        "request_id": "7001",
+        "row_index": 0,
+        "selected_token_id": "42",
+        "status": "present",
+        "sut_classification": "system_under_test",
+        "token_index": "0"
+      }
+    ],
+    "planning_decision_sidecar_rows": [],
+    "preflight": [
+      {
+        "fail": 0,
+        "ok": 38,
+        "status": "pass",
+        "warn": 1
+      }
+    ],
+    "preflight_findings": [
+      "warn: metadata.device_counters: absent; do not read missing counters as zero"
+    ],
+    "promotion_gate_summary": [
+      {
+        "basis": "preflight passed for the requested report inputs",
+        "gate": "capture_preflight",
+        "next_gate": "Continue through provenance, correctness, comparison, and repeatability gates.",
+        "proof_grade_status": "not_established_by_report",
+        "status": "passed"
+      },
+      {
+        "basis": "preflight passed; no complete baseline/candidate comparison inputs",
+        "gate": "report_grade",
+        "next_gate": "Capture comparable baseline/candidate artifacts and satisfy provenance/correctness gates before promotion.",
+        "proof_grade_status": "not_established_by_report",
+        "status": "diagnostic"
+      },
+      {
+        "basis": "report missing git_sha; report source_state=unknown; report missing artifact hashes: ares_plan,target_plan",
+        "gate": "run_source_provenance",
+        "next_gate": "Record binary identity, git SHA, clean worktree state, and required AresPlan/TargetPlan hashes before promotion.",
+        "proof_grade_status": "not_established_by_report",
+        "status": "insufficient_for_proof"
+      },
+      {
+        "basis": "artifact identity checks are present and non-failing",
+        "gate": "artifact_identity",
+        "next_gate": "Use hash-bound frontend, AresPlan, and TargetPlan artifacts for promotion evidence.",
+        "proof_grade_status": "not_established_by_report",
+        "status": "passed"
+      },
+      {
+        "basis": "No complete A/B inputs; timing rows remain diagnostic single-capture evidence.",
+        "gate": "trace_mode_overhead",
+        "next_gate": "Use matched low-overhead capture modes and sinks before interpreting performance deltas.",
+        "proof_grade_status": "not_established_by_report",
+        "status": "diagnostic"
+      },
+      {
+        "basis": "trace metadata does not record HuggingFace CPU oracle token/logit artifacts",
+        "gate": "hf_cpu_oracle",
+        "next_gate": "Attach HF Transformers CPU token/logit oracle artifacts before correctness claims.",
+        "proof_grade_status": "not_established_by_report",
+        "status": "blocked"
+      },
+      {
+        "basis": "trace metadata does not record dense-logit TVD results or artifact identities",
+        "gate": "dense_logit_tvd",
+        "next_gate": "Run dense-logit TVD against the oracle or approved comparison artifacts.",
+        "proof_grade_status": "not_established_by_report",
+        "status": "blocked"
+      },
+      {
+        "basis": "trace metadata does not record external C++ comparison sidecars",
+        "gate": "cpp_comparison_sidecars",
+        "next_gate": "Attach external C++ comparison sidecars for supported comparison or rollback gates.",
+        "proof_grade_status": "not_established_by_report",
+        "status": "blocked"
+      },
+      {
+        "basis": "no complete baseline/candidate metadata inputs",
+        "gate": "ab_provenance",
+        "next_gate": "Use clean, hash-bound, hardware-matched baseline and candidate inputs before proof-grade A/B claims.",
+        "proof_grade_status": "not_established_by_report",
+        "status": "not_applicable"
+      },
+      {
+        "basis": "no complete baseline/candidate comparison inputs",
+        "gate": "ab_comparability",
+        "next_gate": "Capture comparable baseline and candidate traces before making A/B claims.",
+        "proof_grade_status": "not_established_by_report",
+        "status": "not_applicable"
+      },
+      {
+        "basis": "no complete baseline/candidate comparison inputs",
+        "gate": "ab_coverage",
+        "next_gate": "Use an aligner with matched rows and inspect baseline-only/candidate-only samples before A/B claims.",
+        "proof_grade_status": "not_established_by_report",
+        "status": "not_applicable"
+      },
+      {
+        "basis": "no complete baseline/candidate comparison inputs",
+        "gate": "ab_repeatability",
+        "next_gate": "Capture at least three matched baseline and candidate hardware runs before proof-grade A/B claims.",
+        "proof_grade_status": "not_established_by_report",
+        "status": "not_applicable"
+      },
+      {
+        "basis": "device counters were not required for this report",
+        "gate": "device_counter_gate",
+        "next_gate": "Require device counters before utilization or sampled hardware-state claims.",
+        "proof_grade_status": "not_established_by_report",
+        "status": "not_applicable"
+      },
+      {
+        "basis": "this report alone cannot close production, correctness, rollback, or proof-grade performance gates",
+        "gate": "proof_grade_promotion",
+        "next_gate": "Combine clean provenance, HF CPU oracle, TVD/comparison artifacts, matched repeat runs, and gate-specific hardware evidence.",
+        "proof_grade_status": "not_established_by_report",
+        "status": "not_established"
+      }
+    ],
+    "report_grade": [
+      {
+        "basis": "preflight passed; no complete baseline/candidate comparison inputs",
+        "promotion_gate": "Capture comparable baseline/candidate artifacts and satisfy provenance/correctness gates before promotion.",
+        "proof_grade_status": "not_established_by_report",
+        "report_grade": "diagnostic"
+      }
+    ],
+    "report_json_section_inventory": [
+      {
+        "claim_boundary": "diagnostic_capture_metadata",
+        "heading": "Capture",
+        "json_path": "sections.capture",
+        "json_section": "capture",
+        "requires_timeline_trace": false,
+        "section_kind": "capture_metadata"
+      },
+      {
+        "claim_boundary": "diagnostic_capture_metadata",
+        "heading": "Run Provenance",
+        "json_path": "sections.run_provenance",
+        "json_section": "run_provenance",
+        "requires_timeline_trace": false,
+        "section_kind": "capture_metadata"
+      },
+      {
+        "claim_boundary": "identity_anchor_not_correctness_evidence",
+        "heading": "Artifact Identities",
+        "json_path": "sections.artifact_identities",
+        "json_section": "artifact_identities",
+        "requires_timeline_trace": false,
+        "section_kind": "artifact_metadata"
+      },
+      {
+        "claim_boundary": "identity_anchor_not_correctness_evidence",
+        "heading": "Artifact Identity Checks",
+        "json_path": "sections.artifact_identity_checks",
+        "json_section": "artifact_identity_checks",
+        "requires_timeline_trace": false,
+        "section_kind": "artifact_metadata"
+      },
+      {
+        "claim_boundary": "capability_presence_not_payload_evidence",
+        "heading": "Capture Capabilities",
+        "json_path": "sections.capture_capabilities",
+        "json_section": "capture_capabilities",
+        "requires_timeline_trace": false,
+        "section_kind": "capture_metadata"
+      },
+      {
+        "claim_boundary": "requested_controls_not_recorded_evidence",
+        "heading": "Trace Config Rows",
+        "json_path": "sections.trace_config_rows",
+        "json_section": "trace_config_rows",
+        "requires_timeline_trace": false,
+        "section_kind": "capture_configuration"
+      },
+      {
+        "claim_boundary": "answerability_gate",
+        "heading": "Preflight",
+        "json_path": "sections.preflight",
+        "json_section": "preflight",
+        "requires_timeline_trace": false,
+        "section_kind": "preflight"
+      },
+      {
+        "claim_boundary": "reproduction_commands",
+        "heading": "Analysis Commands",
+        "json_path": "sections.analysis_commands",
+        "json_section": "analysis_commands",
+        "requires_timeline_trace": false,
+        "section_kind": "reproduction"
+      },
+      {
+        "claim_boundary": "report_schema_discovery",
+        "heading": "Report JSON Section Inventory",
+        "json_path": "sections.report_json_section_inventory",
+        "json_section": "report_json_section_inventory",
+        "requires_timeline_trace": false,
+        "section_kind": "inventory"
+      },
+      {
+        "claim_boundary": "timeline_query_discovery",
+        "heading": "Report Section Inventory",
+        "json_path": "sections.report_section_inventory",
+        "json_section": "report_section_inventory",
+        "requires_timeline_trace": true,
+        "section_kind": "timeline_inventory"
+      },
+      {
+        "claim_boundary": "answerability_gate",
+        "heading": "Preflight Findings",
+        "json_path": "sections.preflight_findings",
+        "json_section": "preflight_findings",
+        "requires_timeline_trace": false,
+        "section_kind": "preflight"
+      },
+      {
+        "claim_boundary": "classification_not_promotion",
+        "heading": "Evidence Classification",
+        "json_path": "sections.evidence_classification",
+        "json_section": "evidence_classification",
+        "requires_timeline_trace": false,
+        "section_kind": "evidence"
+      },
+      {
+        "claim_boundary": "external_evidence_only",
+        "heading": "Correctness Evidence",
+        "json_path": "sections.correctness_evidence",
+        "json_section": "correctness_evidence",
+        "requires_timeline_trace": false,
+        "section_kind": "evidence"
+      },
+      {
+        "claim_boundary": "external_evidence_only",
+        "heading": "Evidence Artifact Checks",
+        "json_path": "sections.evidence_artifact_checks",
+        "json_section": "evidence_artifact_checks",
+        "requires_timeline_trace": false,
+        "section_kind": "evidence"
+      },
+      {
+        "claim_boundary": "diagnostic_unless_gates_establish_more",
+        "heading": "Report Grade",
+        "json_path": "sections.report_grade",
+        "json_section": "report_grade",
+        "requires_timeline_trace": false,
+        "section_kind": "promotion_gate"
+      },
+      {
+        "claim_boundary": "comparison_guardrail",
+        "heading": "Trace Mode Guardrails",
+        "json_path": "sections.trace_mode_guardrails",
+        "json_section": "trace_mode_guardrails",
+        "requires_timeline_trace": false,
+        "section_kind": "promotion_gate"
+      },
+      {
+        "claim_boundary": "comparison_provenance",
+        "heading": "A/B Provenance",
+        "json_path": "sections.ab_provenance",
+        "json_section": "ab_provenance",
+        "requires_timeline_trace": false,
+        "section_kind": "comparison"
+      },
+      {
+        "claim_boundary": "comparison_gate",
+        "heading": "A/B Comparability",
+        "json_path": "sections.ab_comparability",
+        "json_section": "ab_comparability",
+        "requires_timeline_trace": false,
+        "section_kind": "comparison"
+      },
+      {
+        "claim_boundary": "comparison_coverage",
+        "heading": "A/B Coverage",
+        "json_path": "sections.ab_coverage",
+        "json_section": "ab_coverage",
+        "requires_timeline_trace": false,
+        "section_kind": "comparison"
+      },
+      {
+        "claim_boundary": "comparison_repeatability",
+        "heading": "A/B Repeatability",
+        "json_path": "sections.ab_repeatability",
+        "json_section": "ab_repeatability",
+        "requires_timeline_trace": false,
+        "section_kind": "comparison"
+      },
+      {
+        "claim_boundary": "promotion_requires_external_evidence",
+        "heading": "Promotion Gate Summary",
+        "json_path": "sections.promotion_gate_summary",
+        "json_section": "promotion_gate_summary",
+        "requires_timeline_trace": false,
+        "section_kind": "promotion_gate"
+      },
+      {
+        "claim_boundary": "answerability_gate",
+        "heading": "Answerability",
+        "json_path": "sections.answerability",
+        "json_section": "answerability",
+        "requires_timeline_trace": false,
+        "section_kind": "preflight"
+      },
+      {
+        "claim_boundary": "supported_by_report_inputs",
+        "heading": "Supported Claims",
+        "json_path": "sections.supported_claims",
+        "json_section": "supported_claims",
+        "requires_timeline_trace": false,
+        "section_kind": "claim_boundary"
+      },
+      {
+        "claim_boundary": "unsupported_by_report_inputs",
+        "heading": "Unsupported Claims",
+        "json_path": "sections.unsupported_claims",
+        "json_section": "unsupported_claims",
+        "requires_timeline_trace": false,
+        "section_kind": "claim_boundary"
+      },
+      {
+        "claim_boundary": "next_action_not_evidence",
+        "heading": "Next Measurements",
+        "json_path": "sections.next_measurements",
+        "json_section": "next_measurements",
+        "requires_timeline_trace": false,
+        "section_kind": "measurement_guidance"
+      },
+      {
+        "claim_boundary": "system_under_test_diagnostic",
+        "heading": "Backend Event Artifacts",
+        "json_path": "sections.backend_event_artifacts",
+        "json_section": "backend_event_artifacts",
+        "requires_timeline_trace": false,
+        "section_kind": "backend_diagnostic"
+      },
+      {
+        "claim_boundary": "system_under_test_diagnostic",
+        "heading": "Trace Event Artifacts",
+        "json_path": "sections.trace_event_artifacts",
+        "json_section": "trace_event_artifacts",
+        "requires_timeline_trace": false,
+        "section_kind": "trace_diagnostic"
+      },
+      {
+        "claim_boundary": "system_under_test_diagnostic",
+        "heading": "Introspection Artifacts",
+        "json_path": "sections.introspection_artifacts",
+        "json_section": "introspection_artifacts",
+        "requires_timeline_trace": false,
+        "section_kind": "introspection"
+      },
+      {
+        "claim_boundary": "system_under_test_diagnostic",
+        "heading": "Introspection Artifact Summary Rows",
+        "json_path": "sections.introspection_artifact_summary_rows",
+        "json_section": "introspection_artifact_summary_rows",
+        "requires_timeline_trace": false,
+        "section_kind": "introspection"
+      },
+      {
+        "claim_boundary": "capability_presence_not_payload_evidence",
+        "heading": "Introspection Capability Rows",
+        "json_path": "sections.introspection_capability_rows",
+        "json_section": "introspection_capability_rows",
+        "requires_timeline_trace": false,
+        "section_kind": "introspection"
+      },
+      {
+        "claim_boundary": "introspection_section_discovery",
+        "heading": "Introspection Section Inventory",
+        "json_path": "sections.introspection_section_inventory",
+        "json_section": "introspection_section_inventory",
+        "requires_timeline_trace": false,
+        "section_kind": "introspection_inventory"
+      },
+      {
+        "claim_boundary": "debug_payloads_can_perturb_timing",
+        "heading": "Debug Payload Artifact Summary Rows",
+        "json_path": "sections.debug_payload_artifact_summary_rows",
+        "json_section": "debug_payload_artifact_summary_rows",
+        "requires_timeline_trace": false,
+        "section_kind": "introspection"
+      },
+      {
+        "claim_boundary": "planning_decision_diagnostic_not_model_evidence",
+        "heading": "Planning Decision Sidecar Rows",
+        "json_path": "sections.planning_decision_sidecar_rows",
+        "json_section": "planning_decision_sidecar_rows",
+        "requires_timeline_trace": false,
+        "section_kind": "sidecar"
+      },
+      {
+        "claim_boundary": "system_under_test_diagnostic_not_oracle",
+        "heading": "Token Quality Sidecar Rows",
+        "json_path": "sections.token_quality_sidecar_rows",
+        "json_section": "token_quality_sidecar_rows",
+        "requires_timeline_trace": false,
+        "section_kind": "sidecar"
+      },
+      {
+        "claim_boundary": "system_under_test_diagnostic_not_oracle",
+        "heading": "Token Quality Summary Rows",
+        "json_path": "sections.token_quality_summary_rows",
+        "json_section": "token_quality_summary_rows",
+        "requires_timeline_trace": false,
+        "section_kind": "sidecar"
+      },
+      {
+        "claim_boundary": "external_oracle_reference_anchor_not_sut_oracle_evidence",
+        "heading": "Oracle Reference Summary Rows",
+        "json_path": "sections.oracle_reference_summary_rows",
+        "json_section": "oracle_reference_summary_rows",
+        "requires_timeline_trace": false,
+        "section_kind": "sidecar"
+      },
+      {
+        "claim_boundary": "system_under_test_topk_diagnostic_not_oracle",
+        "heading": "Top-K Token Sidecar Rows",
+        "json_path": "sections.topk_token_sidecar_rows",
+        "json_section": "topk_token_sidecar_rows",
+        "requires_timeline_trace": false,
+        "section_kind": "sidecar"
+      },
+      {
+        "claim_boundary": "system_under_test_scheduler_diagnostic",
+        "heading": "Scheduler Packet Lineage Sidecar Rows",
+        "json_path": "sections.scheduler_packet_lineage_sidecar_rows",
+        "json_section": "scheduler_packet_lineage_sidecar_rows",
+        "requires_timeline_trace": false,
+        "section_kind": "sidecar"
+      },
+      {
+        "claim_boundary": "system_under_test_scheduler_diagnostic",
+        "heading": "Scheduler K/V Shard Lifecycle Sidecar Rows",
+        "json_path": "sections.scheduler_kv_shard_lifecycle_sidecar_rows",
+        "json_section": "scheduler_kv_shard_lifecycle_sidecar_rows",
+        "requires_timeline_trace": false,
+        "section_kind": "sidecar"
+      },
+      {
+        "claim_boundary": "system_under_test_scheduler_diagnostic",
+        "heading": "Scheduler Listener Sparse Logit Sidecar Rows",
+        "json_path": "sections.scheduler_listener_sparse_logit_sidecar_rows",
+        "json_section": "scheduler_listener_sparse_logit_sidecar_rows",
+        "requires_timeline_trace": false,
+        "section_kind": "sidecar"
+      },
+      {
+        "claim_boundary": "system_under_test_device_diagnostic",
+        "heading": "Device DMA Lifecycle Sidecar Rows",
+        "json_path": "sections.device_dma_lifecycle_sidecar_rows",
+        "json_section": "device_dma_lifecycle_sidecar_rows",
+        "requires_timeline_trace": false,
+        "section_kind": "sidecar"
+      },
+      {
+        "claim_boundary": "system_under_test_numeric_localization_diagnostic",
+        "heading": "Attention Page Trace Sidecar Rows",
+        "json_path": "sections.attention_page_trace_sidecar_rows",
+        "json_section": "attention_page_trace_sidecar_rows",
+        "requires_timeline_trace": false,
+        "section_kind": "sidecar"
+      },
+      {
+        "claim_boundary": "system_under_test_payload_diagnostic",
+        "heading": "Tensor Payload Sidecar Rows",
+        "json_path": "sections.tensor_payload_sidecar_rows",
+        "json_section": "tensor_payload_sidecar_rows",
+        "requires_timeline_trace": false,
+        "section_kind": "sidecar"
+      },
+      {
+        "claim_boundary": "system_under_test_final_logit_diagnostic",
+        "heading": "Logit Slice Sidecar Rows",
+        "json_path": "sections.logit_slice_sidecar_rows",
+        "json_section": "logit_slice_sidecar_rows",
+        "requires_timeline_trace": false,
+        "section_kind": "sidecar"
+      },
+      {
+        "claim_boundary": "system_under_test_activation_digest_diagnostic",
+        "heading": "Activation Digest Sidecar Rows",
+        "json_path": "sections.activation_digest_sidecar_rows",
+        "json_section": "activation_digest_sidecar_rows",
+        "requires_timeline_trace": false,
+        "section_kind": "sidecar"
+      },
+      {
+        "claim_boundary": "system_under_test_scheduler_kv_payload_diagnostic",
+        "heading": "K/V Payload Digest Sidecar Rows",
+        "json_path": "sections.kv_payload_digest_sidecar_rows",
+        "json_section": "kv_payload_digest_sidecar_rows",
+        "requires_timeline_trace": false,
+        "section_kind": "sidecar"
+      },
+      {
+        "claim_boundary": "system_under_test_diagnostic",
+        "heading": "Backend Event Rows",
+        "json_path": "sections.backend_event_rows",
+        "json_section": "backend_event_rows",
+        "requires_timeline_trace": false,
+        "section_kind": "backend_diagnostic"
+      },
+      {
+        "claim_boundary": "provider_boundary_diagnostic",
+        "heading": "Backend Provider Boundaries",
+        "json_path": "sections.backend_provider_boundaries",
+        "json_section": "backend_provider_boundaries",
+        "requires_timeline_trace": false,
+        "section_kind": "backend_diagnostic"
+      },
+      {
+        "claim_boundary": "provider_boundary_diagnostic",
+        "heading": "Backend Fail-Closed Root Causes",
+        "json_path": "sections.backend_fail_closed_root_causes",
+        "json_section": "backend_fail_closed_root_causes",
+        "requires_timeline_trace": false,
+        "section_kind": "backend_diagnostic"
+      },
+      {
+        "claim_boundary": "timeline_query_diagnostic",
+        "heading": "Timeline Query Summary",
+        "json_path": "sections.timeline_query_summary",
+        "json_section": "timeline_query_summary",
+        "requires_timeline_trace": true,
+        "section_kind": "timeline_summary"
+      }
+    ],
+    "report_section_inventory": [
+      {
+        "heading": "Run Summary",
+        "native_sql": true,
+        "native_sql_command": "",
+        "portable_command": "",
+        "query": "run-summary"
+      },
+      {
+        "heading": "Run Lifecycle",
+        "native_sql": true,
+        "native_sql_command": "",
+        "portable_command": "",
+        "query": "run-lifecycle"
+      },
+      {
+        "heading": "Trace Phases",
+        "native_sql": true,
+        "native_sql_command": "",
+        "portable_command": "",
+        "query": "trace-phases"
+      },
+      {
+        "heading": "Data Loss Indicators",
+        "native_sql": true,
+        "native_sql_command": "",
+        "portable_command": "",
+        "query": "data-loss"
+      },
+      {
+        "heading": "Span Anomalies",
+        "native_sql": true,
+        "native_sql_command": "",
+        "portable_command": "",
+        "query": "span-anomalies"
+      },
+      {
+        "heading": "Event Coverage",
+        "native_sql": true,
+        "native_sql_command": "",
+        "portable_command": "",
+        "query": "discover-events"
+      },
+      {
+        "heading": "Field Coverage",
+        "native_sql": true,
+        "native_sql_command": "",
+        "portable_command": "",
+        "query": "discover-fields"
+      },
+      {
+        "heading": "Join Key Coverage",
+        "native_sql": true,
+        "native_sql_command": "",
+        "portable_command": "",
+        "query": "join-key-coverage"
+      },
+      {
+        "heading": "Pipeline Stage Summary",
+        "native_sql": true,
+        "native_sql_command": "",
+        "portable_command": "",
+        "query": "pipeline-stage-summary"
+      },
+      {
+        "heading": "Pipeline Profile Coverage Summary",
+        "native_sql": true,
+        "native_sql_command": "",
+        "portable_command": "",
+        "query": "pipeline-profile-coverage-summary"
+      },
+      {
+        "heading": "Pipeline Profile Coverage",
+        "native_sql": true,
+        "native_sql_command": "",
+        "portable_command": "",
+        "query": "pipeline-profile-coverage"
+      },
+      {
+        "heading": "Pipeline Profile Buckets",
+        "native_sql": true,
+        "native_sql_command": "",
+        "portable_command": "",
+        "query": "pipeline-profile-buckets"
+      },
+      {
+        "heading": "Pipeline Profile Summary",
+        "native_sql": true,
+        "native_sql_command": "",
+        "portable_command": "",
+        "query": "pipeline-profile-summary"
+      },
+      {
+        "heading": "Pipeline Profile Gaps",
+        "native_sql": true,
+        "native_sql_command": "",
+        "portable_command": "",
+        "query": "pipeline-profile-gaps"
+      },
+      {
+        "heading": "Pipeline Window Summary",
+        "native_sql": true,
+        "native_sql_command": "",
+        "portable_command": "",
+        "query": "pipeline-window-summary"
+      },
+      {
+        "heading": "Pipeline Waterfall",
+        "native_sql": true,
+        "native_sql_command": "",
+        "portable_command": "",
+        "query": "pipeline-waterfall"
+      },
+      {
+        "heading": "Top Spans",
+        "native_sql": true,
+        "native_sql_command": "",
+        "portable_command": "",
+        "query": "top-spans"
+      },
+      {
+        "heading": "Planning Artifact Summary",
+        "native_sql": true,
+        "native_sql_command": "",
+        "portable_command": "",
+        "query": "planning-artifact-summary"
+      },
+      {
+        "heading": "Artifact Load Summary",
+        "native_sql": true,
+        "native_sql_command": "",
+        "portable_command": "",
+        "query": "artifact-load-summary"
+      },
+      {
+        "heading": "Artifact Loads",
+        "native_sql": true,
+        "native_sql_command": "",
+        "portable_command": "",
+        "query": "artifact-loads"
+      },
+      {
+        "heading": "Fail-Closed Summary",
+        "native_sql": true,
+        "native_sql_command": "",
+        "portable_command": "",
+        "query": "fail-closed-summary"
+      },
+      {
+        "heading": "Fail-Closed Boundaries",
+        "native_sql": true,
+        "native_sql_command": "",
+        "portable_command": "",
+        "query": "fail-closed-boundaries"
+      },
+      {
+        "heading": "TargetPlan Device Stage",
+        "native_sql": true,
+        "native_sql_command": "",
+        "portable_command": "",
+        "query": "targetplan-device-stage"
+      },
+      {
+        "heading": "TargetPlan Device Critical Stage",
+        "native_sql": true,
+        "native_sql_command": "",
+        "portable_command": "",
+        "query": "targetplan-device-critical-stage"
+      },
+      {
+        "heading": "TargetPlan Device Stage Coverage",
+        "native_sql": true,
+        "native_sql_command": "",
+        "portable_command": "",
+        "query": "targetplan-device-stage-coverage"
+      },
+      {
+        "heading": "TargetPlan Device Stage Sequence",
+        "native_sql": true,
+        "native_sql_command": "",
+        "portable_command": "",
+        "query": "targetplan-device-stage-sequence"
+      },
+      {
+        "heading": "TargetPlan Device Stage Gaps",
+        "native_sql": true,
+        "native_sql_command": "",
+        "portable_command": "",
+        "query": "targetplan-device-stage-gaps"
+      },
+      {
+        "heading": "Scheduler Cache Reuse",
+        "native_sql": true,
+        "native_sql_command": "",
+        "portable_command": "",
+        "query": "scheduler-cache-reuse"
+      },
+      {
+        "heading": "Scheduler Forward Handoff",
+        "native_sql": true,
+        "native_sql_command": "",
+        "portable_command": "",
+        "query": "scheduler-forward-handoff"
+      },
+      {
+        "heading": "Scheduler Stage Gaps",
+        "native_sql": true,
+        "native_sql_command": "",
+        "portable_command": "",
+        "query": "scheduler-stage-gaps"
+      },
+      {
+        "heading": "Scheduler Device Handoff",
+        "native_sql": true,
+        "native_sql_command": "",
+        "portable_command": "",
+        "query": "scheduler-device-handoff"
+      },
+      {
+        "heading": "Scheduler Span Summary",
+        "native_sql": true,
+        "native_sql_command": "",
+        "portable_command": "",
+        "query": "scheduler-span-summary"
+      },
+      {
+        "heading": "Scheduler Spans",
+        "native_sql": true,
+        "native_sql_command": "",
+        "portable_command": "",
+        "query": "scheduler-spans"
+      },
+      {
+        "heading": "Device Spans",
+        "native_sql": true,
+        "native_sql_command": "",
+        "portable_command": "",
+        "query": "device-spans"
+      },
+      {
+        "heading": "Device Stage Summary",
+        "native_sql": true,
+        "native_sql_command": "",
+        "portable_command": "",
+        "query": "device-stage-summary"
+      },
+      {
+        "heading": "Device Stage Gaps",
+        "native_sql": true,
+        "native_sql_command": "",
+        "portable_command": "",
+        "query": "device-stage-gaps"
+      },
+      {
+        "heading": "Device Queue Latency",
+        "native_sql": true,
+        "native_sql_command": "",
+        "portable_command": "",
+        "query": "device-queue-latency"
+      },
+      {
+        "heading": "Device Transfer Summary",
+        "native_sql": true,
+        "native_sql_command": "",
+        "portable_command": "",
+        "query": "device-transfer-summary"
+      },
+      {
+        "heading": "Device Card Summary",
+        "native_sql": true,
+        "native_sql_command": "",
+        "portable_command": "",
+        "query": "device-card-summary"
+      },
+      {
+        "heading": "Device Counters",
+        "native_sql": true,
+        "native_sql_command": "",
+        "portable_command": "",
+        "query": "device-counters"
+      },
+      {
+        "heading": "Device Counter Summary",
+        "native_sql": true,
+        "native_sql_command": "",
+        "portable_command": "",
+        "query": "device-counter-summary"
+      },
+      {
+        "heading": "Device Counter Rates",
+        "native_sql": true,
+        "native_sql_command": "",
+        "portable_command": "",
+        "query": "device-counter-rate"
+      },
+      {
+        "heading": "Planning Phase Summary",
+        "native_sql": true,
+        "native_sql_command": "",
+        "portable_command": "",
+        "query": "planning-phase-summary"
+      },
+      {
+        "heading": "Planning Phases",
+        "native_sql": true,
+        "native_sql_command": "",
+        "portable_command": "",
+        "query": "planning-phases"
+      },
+      {
+        "heading": "Request Lifecycle Summary",
+        "native_sql": true,
+        "native_sql_command": "",
+        "portable_command": "",
+        "query": "request-lifecycle-summary"
+      },
+      {
+        "heading": "Request Lifecycle",
+        "native_sql": true,
+        "native_sql_command": "",
+        "portable_command": "",
+        "query": "request-lifecycle"
+      },
+      {
+        "heading": "Generation Callbacks",
+        "native_sql": true,
+        "native_sql_command": "",
+        "portable_command": "",
+        "query": "generation-callbacks"
+      },
+      {
+        "heading": "First Token",
+        "native_sql": true,
+        "native_sql_command": "",
+        "portable_command": "",
+        "query": "first-token"
+      },
+      {
+        "heading": "Token Gaps",
+        "native_sql": true,
+        "native_sql_command": "",
+        "portable_command": "",
+        "query": "token-gaps"
+      },
+      {
+        "heading": "Token Latency",
+        "native_sql": true,
+        "native_sql_command": "",
+        "portable_command": "",
+        "query": "token-latency"
+      },
+      {
+        "heading": "Streaming Lag",
+        "native_sql": true,
+        "native_sql_command": "",
+        "portable_command": "",
+        "query": "streaming-lag"
+      },
+      {
+        "heading": "Streaming Channel Lag",
+        "native_sql": true,
+        "native_sql_command": "",
+        "portable_command": "",
+        "query": "streaming-channel-lag"
+      },
+      {
+        "heading": "Streaming Body Lag",
+        "native_sql": true,
+        "native_sql_command": "",
+        "portable_command": "",
+        "query": "streaming-body-lag"
+      },
+      {
+        "heading": "Streaming Handoff Anomalies",
+        "native_sql": true,
+        "native_sql_command": "",
+        "portable_command": "",
+        "query": "streaming-handoff-anomalies"
+      },
+      {
+        "heading": "Streaming Handoff Gaps",
+        "native_sql": true,
+        "native_sql_command": "",
+        "portable_command": "",
+        "query": "streaming-handoff-gaps"
+      },
+      {
+        "heading": "Streaming Handoff Coverage",
+        "native_sql": true,
+        "native_sql_command": "",
+        "portable_command": "",
+        "query": "streaming-handoff-coverage"
+      },
+      {
+        "heading": "Streaming Handoff Summary",
+        "native_sql": true,
+        "native_sql_command": "",
+        "portable_command": "",
+        "query": "streaming-handoff-summary"
+      },
+      {
+        "heading": "Streaming Cancellation Summary",
+        "native_sql": true,
+        "native_sql_command": "",
+        "portable_command": "",
+        "query": "streaming-cancellation-summary"
+      },
+      {
+        "heading": "Streaming Frame Summary",
+        "native_sql": true,
+        "native_sql_command": "",
+        "portable_command": "",
+        "query": "streaming-frame-summary"
+      },
+      {
+        "heading": "Streaming Frames",
+        "native_sql": true,
+        "native_sql_command": "",
+        "portable_command": "",
+        "query": "streaming-frames"
+      },
+      {
+        "heading": "TargetPlan Action Summary",
+        "native_sql": true,
+        "native_sql_command": "",
+        "portable_command": "",
+        "query": "targetplan-action-summary"
+      },
+      {
+        "heading": "TargetPlan Operations",
+        "native_sql": true,
+        "native_sql_command": "",
+        "portable_command": "",
+        "query": "targetplan-ops"
+      },
+      {
+        "heading": "Top TargetPlan Operations",
+        "native_sql": true,
+        "native_sql_command": "",
+        "portable_command": "",
+        "query": "top-targetplan-ops"
+      },
+      {
+        "heading": "TargetPlan Placement",
+        "native_sql": true,
+        "native_sql_command": "",
+        "portable_command": "",
+        "query": "targetplan-placement"
+      },
+      {
+        "heading": "Forward Requests",
+        "native_sql": true,
+        "native_sql_command": "",
+        "portable_command": "",
+        "query": "forward-requests"
+      },
+      {
+        "heading": "Rinzler Lifecycle",
+        "native_sql": true,
+        "native_sql_command": "",
+        "portable_command": "",
+        "query": "rinzler-lifecycle"
+      }
+    ],
+    "run_provenance": [
+      {
+        "binary": "tools/ares-trace/fixtures/introspection",
+        "git_sha": "",
+        "hardware_card_count": 0,
+        "hardware_cards": "",
+        "provenance_boundary": "clean promotion evidence requires a git SHA, clean worktree state, binary identity, artifact hashes, and hardware identity when hardware is involved",
+        "source_state": "unknown",
+        "worktree_dirty": ""
+      }
+    ],
+    "scheduler_kv_shard_lifecycle_sidecar_rows": [
+      {
+        "artifact_index": 1,
+        "attention_mode": "software_attention",
+        "evidence_role": "system_under_test",
+        "executor_shape": "fullscheduler_forward_batch_v1",
+        "executor_status": "executed_fullscheduler_forward_batch_v1",
+        "failure_reason": "",
+        "generation_id": "rinzler-7002",
+        "hw_gof_page_infos": "1",
+        "hw_shard_allocation_requests": "1",
+        "kv_context_rows": "64",
+        "kv_job_count": "1",
+        "kv_lifecycle_status": "observed",
+        "kv_page_count": "1",
+        "kv_save_rows": "64",
+        "location_id": "4",
+        "parent_location_id": "3",
+        "prior_host_gof_cacheblock_dma_plans": "1",
+        "prior_host_gof_dma_completions": "1",
+        "prior_host_gof_materialized_cacheblocks": "1",
+        "prior_host_gof_page_infos": "1",
+        "prior_host_gof_pending_dma_rows": "1",
+        "prior_host_gof_ready_rows": "1",
+        "prior_host_gof_staging_status": "page_info_published",
+        "prior_hw_shard_allocation_requests": "1",
+        "request_id": "7002",
+        "row_index": 0,
+        "status": "ok",
+        "token_job_count": "2",
+        "visible_token_slots": "2"
+      }
+    ],
+    "scheduler_listener_sparse_logit_sidecar_rows": [
+      {
+        "artifact_index": 1,
+        "attention_mode": "software_attention",
+        "evidence_role": "system_under_test",
+        "executor_shape": "fullscheduler_forward_batch_v1",
+        "executor_status": "executed_fullscheduler_forward_batch_v1",
+        "failure_reason": "",
+        "generation_id": "rinzler-7002",
+        "listener_sparse_rows": "1",
+        "listener_sparse_status": "observed",
+        "listener_sparse_tokens": "3",
+        "location_id": "4",
+        "minibatch_count": "1",
+        "request_id": "7002",
+        "row_index": 0,
+        "runtime_request_token_count": "2",
+        "sparse_topk_rows": "1",
+        "sparse_topk_token_count": "3",
+        "status": "ok",
+        "token_job_count": "2",
+        "tokens_reused": "5"
+      }
+    ],
+    "scheduler_packet_lineage_sidecar_rows": [
+      {
+        "artifact_index": 1,
+        "attention_mode": "software_attention",
+        "evidence_role": "system_under_test",
+        "executor_shape": "fullscheduler_forward_batch_v1",
+        "executor_status": "executed_fullscheduler_forward_batch_v1",
+        "failure_reason": "",
+        "generation_id": "rinzler-7002",
+        "hw_gof_page_infos": "1",
+        "hw_shard_allocation_requests": "1",
+        "kv_context_rows": "64",
+        "kv_job_count": "1",
+        "kv_page_count": "1",
+        "kv_save_rows": "64",
+        "listener_sparse_rows": "1",
+        "listener_sparse_tokens": "3",
+        "location_id": "4",
+        "minibatch_count": "1",
+        "parent_location_id": "3",
+        "prior_host_gof_cacheblock_dma_plans": "1",
+        "prior_host_gof_dma_completions": "1",
+        "prior_host_gof_materialized_cacheblocks": "1",
+        "prior_host_gof_page_infos": "1",
+        "prior_host_gof_pending_dma_rows": "1",
+        "prior_host_gof_ready_rows": "1",
+        "prior_host_gof_staging_status": "page_info_published",
+        "prior_hw_shard_allocation_requests": "1",
+        "request_id": "7002",
+        "row_index": 0,
+        "row_kind": "scheduler_forward_batch",
+        "runtime_request_token_count": "2",
+        "sparse_topk_rows": "1",
+        "sparse_topk_token_count": "3",
+        "status": "ok",
+        "token_job_count": "2",
+        "tokens_reused": "5",
+        "visible_token_slots": "2"
+      }
+    ],
+    "supported_claims": [
+      {
+        "basis": "metadata.capture_capabilities.deep_introspection=true; introspection_artifacts: 8 artifact(s)",
+        "claim": "deep introspection sidecars is answerable from the supplied artifacts.",
+        "evidence_grade": "diagnostic"
+      }
+    ],
+    "tensor_payload_sidecar_rows": [
+      {
+        "artifact_index": 4,
+        "backend_id": "fpga",
+        "digest_sha256": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+        "element_count": "32000",
+        "element_type": "f32",
+        "evidence_role": "system_under_test",
+        "failure_reason": "",
+        "generation_id": "rinzler-7005",
+        "intrinsic": "topk",
+        "layer": "31",
+        "request_id": "7005",
+        "row_index": 0,
+        "row_kind": "tensor_payload_summary",
+        "sample_max": "0.5",
+        "sample_min": "-0.25",
+        "sample_nan_count": "1",
+        "sample_neg_inf_count": "1",
+        "sample_pos_inf_count": "0",
+        "sample_start": "7",
+        "sample_stride": "1",
+        "sample_value_count": "4",
+        "sample_values": "[0.5, \"-Infinity\", \"NaN\", -0.25]",
+        "shape": "[1, 32000]",
+        "status": "ok",
+        "targetplan_action": "final_logits",
+        "targetplan_op_id": "tp.logits.0",
+        "tensor_name": "ares_logits",
+        "tensor_payload_kind": "logit_slice",
+        "tensor_role": "logits",
+        "token_index": "0"
+      }
+    ],
+    "timeline_query_summary": [
+      {
+        "native_sql": false,
+        "native_sql_command": "",
+        "portable_command": "",
+        "query": "",
+        "rendered_rows": 0,
+        "row_count": 0,
+        "section": "Timeline Queries",
+        "status": "not_available"
+      }
+    ],
+    "token_quality_sidecar_rows": [
+      {
+        "artifact_index": 0,
+        "eos_policy": "stop_on_stop_token",
+        "evidence_role": "system_under_test",
+        "finish_reason": "stop",
+        "generation_id": "rinzler-7001",
+        "oracle_reference": "external_hf_cpu_reference",
+        "request_id": "7001",
+        "row_index": 0,
+        "selected_token_id": "42",
+        "status": "present",
+        "temperature": "0.7",
+        "token_index": "0",
+        "top_k": "8",
+        "top_p": "0.9",
+        "topk_count": "2"
+      }
+    ],
+    "token_quality_summary_rows": [
+      {
+        "artifact_index": 0,
+        "claim_boundary": "external_oracle_reference_present; row_remains_system_under_test",
+        "evidence_role": "system_under_test",
+        "generation_id": "rinzler-7001",
+        "num_logprobs": "2",
+        "oracle_artifact_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "oracle_reference": "external_hf_cpu_reference",
+        "request_id": "7001",
+        "row_index": 0,
+        "runner_up_score": "-1.5",
+        "runner_up_token_id": "7",
+        "runtime_request_token_count": "4",
+        "score_kind": "logprob",
+        "selected_token_id": "42",
+        "selected_topk_status": "selected_is_top1",
+        "status": "present",
+        "temperature": "0.7",
+        "token_index": "0",
+        "tokens_reused": "2",
+        "top1_margin": "1.4",
+        "top1_score": "-0.1",
+        "top1_token_id": "42",
+        "top_k": "8",
+        "top_p": "0.9"
+      }
+    ],
+    "topk_token_sidecar_rows": [
+      {
+        "artifact_index": 0,
+        "candidate_rank": "0",
+        "candidate_score": "-0.1",
+        "candidate_token_id": "42",
+        "claim_boundary": "external_oracle_reference_present; row_remains_system_under_test",
+        "evidence_role": "system_under_test",
+        "generation_id": "rinzler-7001",
+        "oracle_reference": "external_hf_cpu_reference",
+        "request_id": "7001",
+        "row_index": 0,
+        "score_kind": "logprob",
+        "selected_candidate_status": "selected_token",
+        "selected_token_id": "42",
+        "status": "present",
+        "temperature": "0.7",
+        "token_index": "0",
+        "top_k": "8",
+        "top_p": "0.9",
+        "topk_row_index": 0
+      }
+    ],
+    "trace_config_rows": [
+      {
+        "artifact_dir_present": false,
+        "compile_feature_trace_introspection": true,
+        "config_present": true,
+        "config_status": "requested_and_recorded",
+        "deep_introspection_effective": true,
+        "device_counters_requested": false,
+        "from_token": "",
+        "introspection_level": "payload",
+        "introspection_requested": true,
+        "json_section": "trace_config_rows",
+        "max_payload_bytes": "4096",
+        "next_action": "inspect_matching_introspection_report_sections",
+        "payload_dir_present": true,
+        "record_tokens_requested": true,
+        "recorded_sidecar_capabilities": "token_quality,topk_rows,logit_slices,tensor_payloads,activation_digests,kv_payload_digests,scheduler_packet_lineage,device_dma_lifecycle,attention_page_trace",
+        "requested_categories": "run,artifact,request,scheduler,generation,forward,targetplan,device,streaming,frontend,planning,debug_detail",
+        "requested_sidecar_controls": "topk,logit_slices,tensor_payloads,activation_digests,kv_payload_digests",
+        "sample_rate": "1",
+        "sched_requested": false,
+        "token_window": "0:1"
+      }
+    ],
+    "trace_event_artifacts": [],
+    "trace_mode_guardrails": [
+      {
+        "claim_guardrail": "Use only for narrow diagnostics; do not treat debug-heavy timing as final performance proof.",
+        "overhead_boundary": "heavy_diagnostic",
+        "role": "report",
+        "trace_mode": "debug-heavy",
+        "trace_sinks": "jsonl"
+      },
+      {
+        "claim_guardrail": "No complete A/B inputs; timing rows remain diagnostic single-capture evidence.",
+        "overhead_boundary": "single_capture",
+        "role": "comparison",
+        "trace_mode": "not_applicable",
+        "trace_sinks": ""
+      }
+    ],
+    "unsupported_claims": [
+      {
+        "basis": "metadata.artifacts: 0 row(s)",
+        "claim": "metadata artifact identity is not supported by this report.",
+        "reason": "not_present"
+      },
+      {
+        "basis": "backend_event_artifacts: 0 matching row(s)",
+        "claim": "backend JSONL evidence is not supported by this report.",
+        "reason": "not_present"
+      },
+      {
+        "basis": "no timeline trace supplied",
+        "claim": "run lifecycle/config is not supported by this report.",
+        "reason": "not_answerable"
+      },
+      {
+        "basis": "no timeline trace supplied",
+        "claim": "capture phase/window is not supported by this report.",
+        "reason": "not_answerable"
+      },
+      {
+        "basis": "no timeline trace supplied",
+        "claim": "data-loss indicators is not supported by this report.",
+        "reason": "not_answerable"
+      },
+      {
+        "basis": "no timeline trace supplied",
+        "claim": "span anomaly diagnostics is not supported by this report.",
+        "reason": "not_answerable"
+      },
+      {
+        "basis": "no timeline trace supplied",
+        "claim": "artifact load status summary is not supported by this report.",
+        "reason": "not_answerable"
+      },
+      {
+        "basis": "no timeline trace supplied",
+        "claim": "artifact load identity is not supported by this report.",
+        "reason": "not_answerable"
+      },
+      {
+        "basis": "no timeline trace supplied",
+        "claim": "trace join-key coverage is not supported by this report.",
+        "reason": "not_answerable"
+      },
+      {
+        "basis": "no timeline trace supplied",
+        "claim": "pipeline stage duration summary is not supported by this report.",
+        "reason": "not_answerable"
+      },
+      {
+        "basis": "no timeline trace supplied",
+        "claim": "required pipeline profile coverage summary is not supported by this report.",
+        "reason": "not_answerable"
+      },
+      {
+        "basis": "no timeline trace supplied",
+        "claim": "required pipeline profile coverage is not supported by this report.",
+        "reason": "not_answerable"
+      },
+      {
+        "basis": "no timeline trace supplied",
+        "claim": "pipeline profile bucket summary is not supported by this report.",
+        "reason": "not_answerable"
+      },
+      {
+        "basis": "no timeline trace supplied",
+        "claim": "pipeline profile summary is not supported by this report.",
+        "reason": "not_answerable"
+      },
+      {
+        "basis": "no timeline trace supplied",
+        "claim": "pipeline profile stage gaps is not supported by this report.",
+        "reason": "not_answerable"
+      },
+      {
+        "basis": "no timeline trace supplied",
+        "claim": "pipeline wall-clock/overlap summary is not supported by this report.",
+        "reason": "not_answerable"
+      },
+      {
+        "basis": "no timeline trace supplied",
+        "claim": "pipeline waterfall is not supported by this report.",
+        "reason": "not_answerable"
+      },
+      {
+        "basis": "no timeline trace supplied",
+        "claim": "top span timing is not supported by this report.",
+        "reason": "not_answerable"
+      },
+      {
+        "basis": "no timeline trace supplied",
+        "claim": "planning artifact/cache identity is not supported by this report.",
+        "reason": "not_answerable"
+      },
+      {
+        "basis": "no timeline trace supplied",
+        "claim": "frontend/planning phase summary is not supported by this report.",
+        "reason": "not_answerable"
+      },
+      {
+        "basis": "no timeline trace supplied",
+        "claim": "frontend/planning latency is not supported by this report.",
+        "reason": "not_answerable"
+      },
+      {
+        "basis": "no timeline trace supplied",
+        "claim": "request/generation/streaming lifecycle summary is not supported by this report.",
+        "reason": "not_answerable"
+      },
+      {
+        "basis": "no timeline trace supplied",
+        "claim": "request/generation/streaming lifecycle is not supported by this report.",
+        "reason": "not_answerable"
+      },
+      {
+        "basis": "no timeline trace supplied",
+        "claim": "TargetPlan operation timeline is not supported by this report.",
+        "reason": "not_answerable"
+      },
+      {
+        "basis": "no timeline trace supplied",
+        "claim": "TargetPlan action/intrinsic timing is not supported by this report.",
+        "reason": "not_answerable"
+      },
+      {
+        "basis": "no timeline trace supplied",
+        "claim": "TargetPlan operation timing is not supported by this report.",
+        "reason": "not_answerable"
+      },
+      {
+        "basis": "no timeline trace supplied",
+        "claim": "TargetPlan scheduler/device placement is not supported by this report.",
+        "reason": "not_answerable"
+      },
+      {
+        "basis": "no timeline trace supplied",
+        "claim": "TargetPlan device stage timing is not supported by this report.",
+        "reason": "not_answerable"
+      },
+      {
+        "basis": "no timeline trace supplied",
+        "claim": "TargetPlan device critical stage is not supported by this report.",
+        "reason": "not_answerable"
+      },
+      {
+        "basis": "no timeline trace supplied",
+        "claim": "TargetPlan device stage coverage is not supported by this report.",
+        "reason": "not_answerable"
+      },
+      {
+        "basis": "no timeline trace supplied",
+        "claim": "TargetPlan device stage sequence is not supported by this report.",
+        "reason": "not_answerable"
+      },
+      {
+        "basis": "no timeline trace supplied",
+        "claim": "TargetPlan device stage transition gaps is not supported by this report.",
+        "reason": "not_answerable"
+      },
+      {
+        "basis": "no timeline trace supplied",
+        "claim": "fail-closed boundary summary is not supported by this report.",
+        "reason": "not_answerable"
+      },
+      {
+        "basis": "no timeline trace supplied",
+        "claim": "fail-closed boundary diagnosis is not supported by this report.",
+        "reason": "not_answerable"
+      },
+      {
+        "basis": "no timeline trace supplied",
+        "claim": "generation callback timing is not supported by this report.",
+        "reason": "not_answerable"
+      },
+      {
+        "basis": "no timeline trace supplied",
+        "claim": "first recorded token latency is not supported by this report.",
+        "reason": "not_answerable"
+      },
+      {
+        "basis": "no timeline trace supplied",
+        "claim": "first recorded token and token gaps is not supported by this report.",
+        "reason": "not_answerable"
+      },
+      {
+        "basis": "no timeline trace supplied",
+        "claim": "token-indexed runtime latency is not supported by this report.",
+        "reason": "not_answerable"
+      },
+      {
+        "basis": "no timeline trace supplied",
+        "claim": "forward request timing is not supported by this report.",
+        "reason": "not_answerable"
+      },
+      {
+        "basis": "no timeline trace supplied",
+        "claim": "scheduler cache reuse/location context is not supported by this report.",
+        "reason": "not_answerable"
+      },
+      {
+        "basis": "no timeline trace supplied",
+        "claim": "scheduler to backend forward handoff is not supported by this report.",
+        "reason": "not_answerable"
+      },
+      {
+        "basis": "no timeline trace supplied",
+        "claim": "scheduler stage transition gaps is not supported by this report.",
+        "reason": "not_answerable"
+      },
+      {
+        "basis": "no timeline trace supplied",
+        "claim": "scheduler to device handoff is not supported by this report.",
+        "reason": "not_answerable"
+      },
+      {
+        "basis": "no timeline trace supplied",
+        "claim": "scheduler wall-clock summary is not supported by this report.",
+        "reason": "not_answerable"
+      },
+      {
+        "basis": "no timeline trace supplied",
+        "claim": "scheduler wall-clock timing is not supported by this report.",
+        "reason": "not_answerable"
+      },
+      {
+        "basis": "no timeline trace supplied",
+        "claim": "device wall-clock timing is not supported by this report.",
+        "reason": "not_answerable"
+      },
+      {
+        "basis": "no timeline trace supplied",
+        "claim": "device stage timing summary is not supported by this report.",
+        "reason": "not_answerable"
+      },
+      {
+        "basis": "no timeline trace supplied",
+        "claim": "device stage transition gaps is not supported by this report.",
+        "reason": "not_answerable"
+      },
+      {
+        "basis": "no timeline trace supplied",
+        "claim": "device queue wait/launch latency is not supported by this report.",
+        "reason": "not_answerable"
+      },
+      {
+        "basis": "no timeline trace supplied",
+        "claim": "device transfer bytes/time summary is not supported by this report.",
+        "reason": "not_answerable"
+      },
+      {
+        "basis": "no timeline trace supplied",
+        "claim": "per-card device timing/counter summary is not supported by this report.",
+        "reason": "not_answerable"
+      },
+      {
+        "basis": "no timeline trace supplied",
+        "claim": "sampled device counters is not supported by this report.",
+        "reason": "not_answerable"
+      },
+      {
+        "basis": "no timeline trace supplied",
+        "claim": "sampled device counter summary is not supported by this report.",
+        "reason": "not_answerable"
+      },
+      {
+        "basis": "no timeline trace supplied",
+        "claim": "sampled device counter rate diagnostics is not supported by this report.",
+        "reason": "not_answerable"
+      },
+      {
+        "basis": "no timeline trace supplied",
+        "claim": "generation-to-SSE streaming lag is not supported by this report.",
+        "reason": "not_answerable"
+      },
+      {
+        "basis": "no timeline trace supplied",
+        "claim": "SSE write to channel enqueue lag is not supported by this report.",
+        "reason": "not_answerable"
+      },
+      {
+        "basis": "no timeline trace supplied",
+        "claim": "channel enqueue to body dequeue lag is not supported by this report.",
+        "reason": "not_answerable"
+      },
+      {
+        "basis": "no timeline trace supplied",
+        "claim": "streaming handoff anomaly diagnostics is not supported by this report.",
+        "reason": "not_answerable"
+      },
+      {
+        "basis": "no timeline trace supplied",
+        "claim": "incomplete streaming handoff diagnostics is not supported by this report.",
+        "reason": "not_answerable"
+      },
+      {
+        "basis": "no timeline trace supplied",
+        "claim": "streaming handoff stage coverage is not supported by this report.",
+        "reason": "not_answerable"
+      },
+      {
+        "basis": "no timeline trace supplied",
+        "claim": "streaming handoff summary is not supported by this report.",
+        "reason": "not_answerable"
+      },
+      {
+        "basis": "no timeline trace supplied",
+        "claim": "streaming cancellation summary is not supported by this report.",
+        "reason": "not_answerable"
+      },
+      {
+        "basis": "no timeline trace supplied",
+        "claim": "streaming frame timing summary is not supported by this report.",
+        "reason": "not_answerable"
+      },
+      {
+        "basis": "no timeline trace supplied",
+        "claim": "streaming frame send/close timing is not supported by this report.",
+        "reason": "not_answerable"
+      },
+      {
+        "basis": "no timeline trace supplied",
+        "claim": "Rinzler lifecycle timing is not supported by this report.",
+        "reason": "not_answerable"
+      },
+      {
+        "basis": "metadata.capture_capabilities.device_counters is absent or false",
+        "claim": "counter-dependent device utilization is not supported by this report.",
+        "reason": "not_answerable"
+      },
+      {
+        "basis": "trace metadata does not record HuggingFace CPU oracle token/logit artifacts",
+        "claim": "HF CPU oracle token/logit correctness is not supported by this report.",
+        "reason": "hf_cpu_oracle_tokens_logits_not_recorded"
+      },
+      {
+        "basis": "trace metadata does not record dense-logit TVD results or artifact identities",
+        "claim": "dense-logit TVD correctness is not supported by this report.",
+        "reason": "dense_logit_tvd_not_recorded"
+      },
+      {
+        "basis": "trace metadata does not record external C++ comparison sidecars",
+        "claim": "C++ comparison, rollback, or supported-model parity claims are not supported by this report.",
+        "reason": "cpp_tron_rinzler_comparison_not_recorded"
+      },
+      {
+        "basis": "metadata.known_limitations",
+        "claim": "metadata limitation: Synthetic introspection sidecar fixture; token-quality, scheduler packet-lineage, device DMA lifecycle, attention page trace, tensor payload logit-slice rows, generic tensor payload rows, tensor payload activation-digest rows, and tensor payload K/V digest rows are system-under-test diagnostics, not model correctness or performance evidence.",
+        "reason": "known_limitation"
+      },
+      {
+        "basis": "metadata.known_limitations",
+        "claim": "metadata limitation: Debug-heavy payload sidecars can perturb timing and require separate production-performance recapture.",
+        "reason": "known_limitation"
+      },
+      {
+        "basis": "Rust/Ares traces are system-under-test evidence only.",
+        "claim": "model correctness is not established by Rust/Ares trace artifacts.",
+        "reason": "not_a_correctness_oracle"
+      }
+    ]
+  },
+  "summary": "This report is diagnostic unless it is tied to the relevant correctness, provenance, and comparison gates. Rust/Ares trace artifacts are system-under-test evidence, not correctness oracles.",
+  "timeline_sections": [],
+  "title": "Ares Trace Performance Report"
+}
