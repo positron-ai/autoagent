@@ -60,6 +60,22 @@ INTROSPECTION_TRACE_ARTIFACT_FIELDS = (
     "stage_event_summaries",
     "perfetto_summaries",
 )
+TRACE_REPORT_REQUIRED_SECTIONS = (
+    "preflight",
+    "analysis_commands",
+    "report_grade",
+    "answerability",
+    "unsupported_claims",
+    "next_measurements",
+)
+TRACE_REPORT_JSON_SECTION_SAMPLE_KEYS = (
+    "trace_config_rows",
+    "introspection_capability_rows",
+    "introspection_artifact_summary_rows",
+    "answerability",
+    "unsupported_claims",
+    "next_measurements",
+)
 
 FLOATING_REVISION_NAMES = {
     "@",
@@ -341,6 +357,45 @@ def introspection_ladder_gate(
         path=path,
     )
     gate["sha256"] = _sha256_file(path)
+    return gate
+
+
+def trace_report_gate(
+    path: Path, *, label: str = "Ares trace report JSON"
+) -> dict[str, Any]:
+    if not path.is_file():
+        return {
+            "label": label,
+            "artifact_validator": "trace_report",
+            "path": str(path),
+            "exists": path.exists(),
+            "passed": False,
+            "score": 0.0,
+            "errors": ["trace report JSON file is missing"],
+        }
+    digest = _sha256_file(path)
+    try:
+        payload = json.loads(path.read_text())
+    except json.JSONDecodeError as exc:
+        return {
+            "label": label,
+            "artifact_validator": "trace_report",
+            "path": str(path),
+            "exists": True,
+            "passed": False,
+            "score": 0.0,
+            "detail": {"sha256": digest},
+            "errors": [f"invalid JSON: {exc}"],
+        }
+    validation = validate_trace_report_json(payload)
+    gate = validation.as_gate(
+        label=label,
+        validator_name="trace_report",
+        path=path,
+    )
+    detail = gate.setdefault("detail", {})
+    if isinstance(detail, dict):
+        detail["sha256"] = digest
     return gate
 
 
@@ -1491,6 +1546,196 @@ def validate_artifact_consistency(
     return _validation(not errors, errors, detail)
 
 
+def validate_trace_report_json(report: Any) -> ArtifactValidation:
+    errors: list[str] = []
+    if not isinstance(report, dict):
+        return _validation(False, ["trace report must be a JSON object"], {})
+
+    if report.get("schema_version") != 1:
+        errors.append("trace report schema_version must be 1")
+    _require_non_empty_string(errors, report.get("title"), "trace report title")
+    inputs = _expect_object(errors, report.get("inputs"), "trace report inputs")
+    sections = _expect_object(errors, report.get("sections"), "trace report sections")
+
+    section_names: list[str] = []
+    report_grade_rows: list[dict[str, Any]] = []
+    preflight_rows: list[dict[str, Any]] = []
+    analysis_command_rows: list[dict[str, Any]] = []
+    answerability_rows: list[dict[str, Any]] = []
+    unsupported_claim_rows: list[dict[str, Any]] = []
+    next_measurement_rows: list[dict[str, Any]] = []
+    report_json_section_rows: list[dict[str, Any]] = []
+    trace_config_rows: list[dict[str, Any]] = []
+    introspection_capability_rows: list[dict[str, Any]] = []
+    introspection_artifact_summary_rows: list[dict[str, Any]] = []
+    if sections is not None:
+        section_names = sorted(str(name) for name in sections)
+        for name in TRACE_REPORT_REQUIRED_SECTIONS:
+            if name not in sections:
+                errors.append(f"trace report sections missing required section: {name}")
+        preflight_rows = _trace_report_section_rows(errors, sections, "preflight")
+        analysis_command_rows = _trace_report_section_rows(
+            errors, sections, "analysis_commands"
+        )
+        report_grade_rows = _trace_report_section_rows(errors, sections, "report_grade")
+        answerability_rows = _trace_report_section_rows(
+            errors, sections, "answerability"
+        )
+        unsupported_claim_rows = _trace_report_section_rows(
+            errors, sections, "unsupported_claims"
+        )
+        next_measurement_rows = _trace_report_section_rows(
+            errors, sections, "next_measurements"
+        )
+        report_json_section_rows = _trace_report_section_rows(
+            errors,
+            sections,
+            "report_json_section_inventory",
+            required=False,
+        )
+        trace_config_rows = _trace_report_section_rows(
+            errors,
+            sections,
+            "trace_config_rows",
+            required=False,
+        )
+        introspection_capability_rows = _trace_report_section_rows(
+            errors,
+            sections,
+            "introspection_capability_rows",
+            required=False,
+        )
+        introspection_artifact_summary_rows = _trace_report_section_rows(
+            errors,
+            sections,
+            "introspection_artifact_summary_rows",
+            required=False,
+        )
+
+    if not preflight_rows:
+        errors.append("trace report sections.preflight must include at least one row")
+    if not analysis_command_rows:
+        errors.append(
+            "trace report sections.analysis_commands must include at least one row"
+        )
+    if not report_grade_rows:
+        errors.append(
+            "trace report sections.report_grade must include at least one row"
+        )
+    if not answerability_rows:
+        errors.append(
+            "trace report sections.answerability must include at least one row"
+        )
+
+    first_grade = report_grade_rows[0] if report_grade_rows else {}
+    first_preflight = preflight_rows[0] if preflight_rows else {}
+    answerability_status_counts = _trace_report_value_counts(
+        answerability_rows,
+        "status",
+    )
+    report_json_section_sample_rows = [
+        row
+        for row in report_json_section_rows
+        if row.get("json_section") in TRACE_REPORT_JSON_SECTION_SAMPLE_KEYS
+    ]
+    if not report_json_section_sample_rows:
+        report_json_section_sample_rows = report_json_section_rows
+
+    detail = {
+        "schema_version": report.get("schema_version"),
+        "title": report.get("title"),
+        "metadata": inputs.get("metadata") if inputs is not None else None,
+        "trace": inputs.get("trace") if inputs is not None else None,
+        "section_count": len(section_names),
+        "section_names": section_names,
+        "preflight_status": first_preflight.get("status"),
+        "report_grade": first_grade.get("report_grade"),
+        "proof_grade_status": first_grade.get("proof_grade_status"),
+        "answerability_count": len(answerability_rows),
+        "answerability_status_counts": dict(
+            sorted(answerability_status_counts.items())
+        ),
+        "unsupported_claim_count": len(unsupported_claim_rows),
+        "next_measurement_count": len(next_measurement_rows),
+        "report_json_section_count": len(report_json_section_rows),
+        "report_json_section_kind_counts": _trace_report_value_counts(
+            report_json_section_rows,
+            "section_kind",
+        ),
+        "trace_config_count": len(trace_config_rows),
+        "trace_config_status_counts": _trace_report_value_counts(
+            trace_config_rows,
+            "config_status",
+        ),
+        "introspection_capability_count": len(introspection_capability_rows),
+        "introspection_capability_status_counts": _trace_report_value_counts(
+            introspection_capability_rows,
+            "capability_status",
+        ),
+        "introspection_artifact_summary_count": len(
+            introspection_artifact_summary_rows
+        ),
+        "introspection_artifact_summary_status_counts": _trace_report_value_counts(
+            introspection_artifact_summary_rows,
+            "summary_status",
+        ),
+        "unsupported_claim_samples": _trace_report_samples(
+            unsupported_claim_rows,
+            ("claim", "reason", "basis"),
+        ),
+        "next_measurement_samples": _trace_report_samples(
+            next_measurement_rows,
+            ("priority", "next_measurement", "reason", "command_hint"),
+        ),
+        "analysis_command_samples": _trace_report_samples(
+            analysis_command_rows,
+            ("purpose", "command"),
+        ),
+        "report_json_section_samples": _trace_report_samples(
+            report_json_section_sample_rows,
+            ("json_path", "json_section", "section_kind", "claim_boundary"),
+            limit=6,
+        ),
+        "trace_config_samples": _trace_report_samples(
+            trace_config_rows,
+            (
+                "config_status",
+                "requested_sidecar_controls",
+                "recorded_sidecar_capabilities",
+                "introspection_level",
+                "compile_feature_trace_introspection",
+                "deep_introspection_effective",
+                "next_action",
+            ),
+        ),
+        "introspection_capability_samples": _trace_report_samples(
+            introspection_capability_rows,
+            (
+                "capture_capability",
+                "capability_status",
+                "matching_artifact_count",
+                "claim_boundary",
+                "next_action",
+            ),
+        ),
+        "introspection_artifact_summary_samples": _trace_report_samples(
+            introspection_artifact_summary_rows,
+            (
+                "artifact_kind",
+                "summary_status",
+                "artifact_count",
+                "local_present_count",
+                "local_missing_count",
+                "local_missing_path_count",
+                "row_count_total",
+                "report_sections",
+                "claim_boundaries",
+            ),
+        ),
+    }
+    return _validation(not errors, errors, detail)
+
+
 def _sha256_file(path: Path) -> str:
     digest = hashlib.sha256()
     with path.open("rb") as handle:
@@ -1768,6 +2013,60 @@ def _validation(
     detail: dict[str, Any],
 ) -> ArtifactValidation:
     return ArtifactValidation(passed=passed, errors=tuple(errors), detail=detail)
+
+
+def _trace_report_section_rows(
+    errors: list[str],
+    sections: Mapping[str, Any],
+    name: str,
+    *,
+    required: bool = True,
+) -> list[dict[str, Any]]:
+    rows = sections.get(name)
+    if rows is None and not required:
+        return []
+    if not isinstance(rows, list):
+        errors.append(f"trace report sections.{name} must be a list")
+        return []
+    typed_rows: list[dict[str, Any]] = []
+    for index, row in enumerate(rows):
+        if isinstance(row, dict):
+            typed_rows.append(row)
+        else:
+            errors.append(f"trace report sections.{name}[{index}] must be an object")
+    return typed_rows
+
+
+def _trace_report_value_counts(
+    rows: list[dict[str, Any]],
+    key: str,
+) -> dict[str, int]:
+    counts: dict[str, int] = {}
+    for row in rows:
+        value = row.get(key)
+        if isinstance(value, str) and value:
+            counts[value] = counts.get(value, 0) + 1
+    return dict(sorted(counts.items()))
+
+
+def _trace_report_samples(
+    rows: list[dict[str, Any]],
+    keys: tuple[str, ...],
+    *,
+    limit: int = 3,
+) -> list[dict[str, str]]:
+    samples: list[dict[str, str]] = []
+    for row in rows[:limit]:
+        sample: dict[str, str] = {}
+        for key in keys:
+            value = row.get(key)
+            if isinstance(value, str) and value.strip():
+                sample[key] = value.strip()
+            elif isinstance(value, (int, float, bool)):
+                sample[key] = str(value)
+        if sample:
+            samples.append(sample)
+    return samples
 
 
 def _read_json_or_jsonl(path: Path) -> Any:

@@ -106,6 +106,111 @@ def write_introspection_ladder(root: Path) -> Path:
     return ladder
 
 
+def trace_report_payload() -> dict:
+    return {
+        "schema_version": 1,
+        "title": "Synthetic Ares Trace Report",
+        "summary": "diagnostic trace report",
+        "inputs": {
+            "metadata": "run.trace-meta.json",
+            "trace": "run.chrome.json",
+        },
+        "sections": {
+            "preflight": [{"status": "pass", "ok": 2, "warn": 0}],
+            "analysis_commands": [
+                {
+                    "purpose": "report",
+                    "command": "bin/ares-trace-report --format json",
+                }
+            ],
+            "report_grade": [
+                {
+                    "report_grade": "diagnostic",
+                    "proof_grade_status": "not_established_by_report",
+                }
+            ],
+            "answerability": [
+                {
+                    "question": "backend JSONL evidence",
+                    "status": "not_present",
+                    "basis": "missing backend_event_artifacts",
+                }
+            ],
+            "unsupported_claims": [
+                {
+                    "claim": "backend JSONL evidence is unsupported",
+                    "reason": "not_present",
+                }
+            ],
+            "next_measurements": [
+                {
+                    "priority": "backend_jsonl",
+                    "next_measurement": "Capture backend event JSONL",
+                    "reason": "backend JSONL evidence not present",
+                    "command_hint": "set ARES_BACKEND_EVENT_ARTIFACT_DIR",
+                }
+            ],
+            "report_json_section_inventory": [
+                {
+                    "heading": "Trace Config Rows",
+                    "json_path": "sections.trace_config_rows",
+                    "json_section": "trace_config_rows",
+                    "section_kind": "capture_configuration",
+                    "claim_boundary": "requested_controls_not_recorded_evidence",
+                },
+                {
+                    "heading": "Introspection Capability Rows",
+                    "json_path": "sections.introspection_capability_rows",
+                    "json_section": "introspection_capability_rows",
+                    "section_kind": "introspection",
+                    "claim_boundary": "capability_presence_not_payload_evidence",
+                },
+                {
+                    "heading": "Next Measurements",
+                    "json_path": "sections.next_measurements",
+                    "json_section": "next_measurements",
+                    "section_kind": "measurement_guidance",
+                    "claim_boundary": "next_action_not_evidence",
+                },
+            ],
+            "trace_config_rows": [
+                {
+                    "config_status": "requested_and_recorded",
+                    "requested_sidecar_controls": "tensor_payloads",
+                    "recorded_sidecar_capabilities": "tensor_payloads",
+                    "introspection_level": "payload",
+                    "compile_feature_trace_introspection": True,
+                    "deep_introspection_effective": True,
+                    "next_action": "inspect_matching_introspection_report_sections",
+                }
+            ],
+            "introspection_capability_rows": [
+                {
+                    "capture_capability": "token_quality",
+                    "capability_status": "recorded",
+                    "matching_artifact_count": 1,
+                    "claim_boundary": "system_under_test_diagnostic_not_oracle",
+                    "next_action": "inspect_token_quality_rows",
+                }
+            ],
+            "introspection_artifact_summary_rows": [
+                {
+                    "artifact_kind": "token_quality",
+                    "summary_status": "recorded_and_locally_present",
+                    "artifact_count": 1,
+                    "local_present_count": 1,
+                    "local_missing_count": 0,
+                    "row_count_total": 1,
+                    "report_sections": (
+                        "token_quality_summary_rows,oracle_reference_summary_rows"
+                    ),
+                    "claim_boundaries": "system_under_test_diagnostic_not_oracle",
+                }
+            ],
+        },
+    }
+
+
 class AresIngestCliTest(unittest.TestCase):
     def test_slugify_provider_model(self) -> None:
         self.assertEqual(
@@ -217,6 +322,91 @@ class AresIngestCliTest(unittest.TestCase):
             self.assertIn("## Workflow Skills", handoff)
             self.assertIn("`ares-python`", handoff)
             self.assertIn("validate-jsonl", handoff)
+
+    def test_trace_report_json_is_recorded_in_state_handoff_and_prompt(self) -> None:
+        with TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            run_dir = root / "run"
+            run_dir.mkdir()
+            report_path = run_dir / "trace-report.json"
+            report_path.write_text(json.dumps(trace_report_payload()))
+            (run_dir / "model_spec.json").write_text(
+                json.dumps(
+                    {
+                        "model": "Provider/Model",
+                        "trace_report_json": "trace-report.json",
+                    }
+                )
+            )
+            cfg = config_from_args(
+                build_parser().parse_args(
+                    [
+                        "--ares-repo",
+                        str(root),
+                        "--run-dir",
+                        str(run_dir),
+                        "--setup-only",
+                        "Provider/Model",
+                    ]
+                )
+            )
+
+            state = initialize_run(cfg)
+
+            self.assertEqual(state["reward"]["first_failed_gate"], "hf_cpu_oracle")
+            self.assertEqual(state["trace_report"]["path"], str(report_path.resolve()))
+            self.assertEqual(len(state["trace_report"]["sha256"]), 64)
+            self.assertEqual(state["trace_report"]["report_grade"], "diagnostic")
+            self.assertEqual(
+                state["trace_report"]["introspection_capability_status_counts"],
+                {"recorded": 1},
+            )
+            self.assertEqual(
+                state["trace_report"]["trace_config_status_counts"],
+                {"requested_and_recorded": 1},
+            )
+            self.assertEqual(state["trace_report"]["report_json_section_count"], 3)
+            self.assertEqual(
+                state["trace_report"]["report_json_section_kind_counts"],
+                {
+                    "capture_configuration": 1,
+                    "introspection": 1,
+                    "measurement_guidance": 1,
+                },
+            )
+            spec = json.loads((run_dir / "model_spec.json").read_text())
+            trace_gate = spec["validated_gates"]["trace_report"]
+            self.assertTrue(trace_gate["passed"])
+            self.assertEqual(
+                trace_gate["detail"]["sha256"], state["trace_report"]["sha256"]
+            )
+            handoff = (run_dir / "handoff.md").read_text()
+            self.assertIn("## Trace Report", handoff)
+            self.assertIn("Report JSON sections", handoff)
+            self.assertIn("Report JSON section: sections.trace_config_rows", handoff)
+            self.assertIn("Trace config: requested_and_recorded", handoff)
+            self.assertIn("recorded=tensor_payloads", handoff)
+            self.assertIn("Capture backend event JSONL", handoff)
+            self.assertIn("Introspection capability: token_quality", handoff)
+            self.assertIn("set ARES_BACKEND_EVENT_ARTIFACT_DIR", handoff)
+
+            reward = json.loads((run_dir / "reward.json").read_text())
+            prompt = write_refinement_prompt(
+                cfg,
+                iteration=1,
+                spec=spec,
+                reward=reward,
+            ).read_text()
+            self.assertIn("Trace report JSON:", prompt)
+            self.assertIn("## Trace Report Summary", prompt)
+            self.assertIn("sections.answerability", prompt)
+            self.assertIn("sections.report_json_section_inventory", prompt)
+            self.assertIn("sections.trace_config_rows", prompt)
+            self.assertIn("inspect_matching_introspection_report_sections", prompt)
+            self.assertIn("sections.introspection_capability_rows", prompt)
+            self.assertIn("sections.introspection_artifact_summary_rows", prompt)
+            self.assertIn("Introspection artifact: token_quality", prompt)
+            self.assertIn("set ARES_BACKEND_EVENT_ARTIFACT_DIR", prompt)
 
     def test_no_refiner_blocks_below_target(self) -> None:
         with TemporaryDirectory() as tmp:
