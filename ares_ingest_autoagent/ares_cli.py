@@ -98,8 +98,8 @@ def build_model_spec(cfg: AresIngestConfig) -> dict[str, Any]:
         "expected_model_ids": [cfg.model_slug],
         "safe_model": cfg.safe_model,
         "ares_repo": str(cfg.ares_repo),
-        "frontend": "fx",
-        "backend": "tron",
+        "frontend": "hf-export",
+        "backend": "fpga",
         "gate_profile": cfg.gate_profile,
         "required_gates": list(required_gates_for_profile(cfg.gate_profile)),
         "explicit_gates": {
@@ -117,6 +117,18 @@ def build_model_spec(cfg: AresIngestConfig) -> dict[str, Any]:
             "no_hand_authored_rust_model_plugins": True,
             "no_runtime_generated_execution_sidecars": True,
             "runtime_path": "frontend -> Lean ingest -> AresPlan -> TargetPlan -> backend provider",
+            "hf_cpu_goldens": "capture_once_per_stable_oracle_tuple",
+            "ordinary_backend_loop_reference": "cached_hf_cpu_token_logit_goldens",
+            "debug_loop_priority": [
+                "cached_hf_cpu_logit_comparison",
+                "focused_backend_or_module_slice",
+                "short_depth_backend_generation",
+                "longer_depth_backend_generation",
+                "explicit_late_cpp_comparison_milestone",
+            ],
+            "fastest_verifier_first": True,
+            "avoid_recapturing_unchanged_hf_logits": True,
+            "defer_cpp_comparison_until_milestone_candidate": True,
         },
     }
 
@@ -745,7 +757,7 @@ def selected_workflow_skills(
         "cpp_tvd": {
             "name": "ares-evidence",
             "gate": "cpp_tvd",
-            "why": "Keep C++ Tron/Rinzler classified as comparison and rollback evidence.",
+            "why": "Keep C++ Tron/Rinzler classified as comparison and rollback evidence, and run the slow lane only after HF-backed Ares backend quality and performance look competitive.",
             "allowed_scope": [
                 str(cfg.run_dir / "artifacts"),
                 str(cfg.model_spec_path),
@@ -977,8 +989,21 @@ Latest refinement prompt: `{latest_prompt or "none"}`
 ## Rules
 
 - HF Transformers on PyTorch CPU is the model-correctness oracle.
+- Cache HF CPU token/logit artifacts once for the exact model/checkpoint,
+  tokenizer, prompt-token context, decode depth, dtype/quantization policy,
+  deterministic settings, and oracle/exporter code tuple; reuse those goldens
+  for the fast Ares backend debug loop until that tuple changes.
+- Prefer the cheapest verifier that proves the first failing gate. Do not
+  recapture HF logits or run slower comparison lanes for ordinary Ares backend
+  code changes.
+- Order the debug loop by wall-clock cost: cached HF logit comparison first,
+  focused backend/module slices next, short-depth generation after that, then
+  longer-depth generation, with C++ comparison reserved for an explicit late
+  milestone.
 - Ares/Rust output is system-under-test evidence.
-- C++ Tron/Rinzler is comparison and rollback evidence only.
+- C++ Tron/Rinzler is comparison and rollback evidence only. Do not involve
+  that slow lane until the selected Ares backend has a competitive candidate
+  against the cached HF goldens.
 - Runtime execution must flow through frontend artifacts, Lean ingest,
   generated AresPlan, Lean TargetPlan, and a backend provider.
 - Do not add hand-authored Rust model plugins or runtime-generated plan
@@ -1118,8 +1143,8 @@ def evaluate_run(cfg: AresIngestConfig) -> tuple[dict[str, Any], dict[str, Any]]
     spec.setdefault("model", cfg.model_slug)
     spec.setdefault("safe_model", cfg.safe_model)
     spec.setdefault("ares_repo", str(cfg.ares_repo))
-    spec.setdefault("frontend", "fx")
-    spec.setdefault("backend", "tron")
+    spec.setdefault("frontend", "hf-export")
+    spec.setdefault("backend", "fpga")
     spec.setdefault("gate_profile", cfg.gate_profile)
     spec.setdefault(
         "required_gates", list(required_gates_for_profile(cfg.gate_profile))
@@ -1315,10 +1340,11 @@ def gate_guidance(
             "- Capture or attach a real HF Transformers + PyTorch CPU oracle record.",
             "- Do not use Ares/Rust, C++ Tron, mocks, or generated fixtures as the oracle.",
             "- Record model/tokenizer revisions, prompt tokens, generated ids, and logit slices.",
+            "- Treat the captured token/logit rows as reusable goldens for this exact model/checkpoint, tokenizer, prompt-token context, decode depth, dtype/quantization policy, deterministic settings, and oracle/exporter code tuple.",
         ],
         "frontend_export": [
             "- Produce or select the frontend artifact declared by the model spec.",
-            "- Keep `frontend/fx` as the default route unless this task explicitly asks for HF export.",
+            "- Use `frontend/hf-export` by default for current production-readiness work; keep `frontend/fx` as an explicit fallback.",
         ],
         "lean_ingest": [
             "- Run the Lean ingest path on the frontend artifact and keep logs in this run directory.",
@@ -1354,11 +1380,13 @@ def gate_guidance(
         ],
         "cpp_tvd": [
             "- Treat C++ Tron/Rinzler as comparison/rollback evidence, not correctness oracle.",
+            "- Do not spend this slow comparison loop until cached-HF correctness and Ares backend performance suggest a competitive candidate.",
             "- Require matching replay context and dense-logit TVD artifacts.",
         ],
         "depth_performance": [
-            "- Follow the 8 -> 64 -> 512 ladder and keep correctness gates green before speed claims.",
-            "- Record throughput, latency, TTFT, memory, and artifact hashes.",
+            "- Follow the 8 -> 64 -> 512 ladder against cached HF CPU token/logit goldens and keep correctness gates green before speed claims.",
+            "- Record throughput, latency, TTFT, memory, and artifact hashes from the selected Ares backend without launching C++ comparison in the normal iteration loop.",
+            "- Keep this loop HF-backed until short-depth correctness and performance justify a separate comparison checkpoint.",
         ],
         "mmlu_pro": [
             "- Run MMLU Pro through `third_party/systems_test` against an OpenAI-compatible Ares endpoint for the selected backend.",
@@ -1451,7 +1479,11 @@ def write_refinement_prompt(
             "## Ares Rules",
             "",
             "- HF Transformers on PyTorch CPU is the only model-correctness oracle.",
+            "- Capture HF CPU token/logit artifacts once per exact model/checkpoint, tokenizer, prompt-token context, decode depth, dtype/quantization policy, deterministic settings, and oracle/exporter code tuple; reuse those goldens for fast backend iteration until that tuple changes.",
+            "- Prefer the fastest verifier that can prove the first failing gate; do not recapture HF logits or launch C++ comparison for ordinary Ares backend code changes.",
+            "- Order the debug loop by wall-clock cost: cached HF logit comparison, focused backend/module slices, short-depth generation, longer-depth generation, then explicit late C++ comparison milestones.",
             "- C++ Tron/Rinzler is comparison, compliance, performance, and rollback evidence only.",
+            "- Keep C++ Tron/Rinzler out of the normal debug loop; run it as an explicit milestone comparison after the selected Ares backend has HF-backed quality and competitive performance evidence.",
             "- Ares/Rust output is system-under-test evidence.",
             "- Runtime execution must flow through frontend artifacts, Lean ingest, generated AresPlan, Lean TargetPlan, and a backend provider.",
             "- Do not add hand-authored Rust model plugins or runtime-generated AresPlan/TargetPlan sidecars.",

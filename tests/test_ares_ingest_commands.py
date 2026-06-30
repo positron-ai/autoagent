@@ -37,6 +37,26 @@ class AresIngestCommandWrapperTest(unittest.TestCase):
             self.assertEqual(wrapper.evidence_class, "system_under_test")
             self.assertFalse(wrapper.promotion_eligible)
 
+    def test_wrapper_plan_defaults_missing_backend_to_fpga(self) -> None:
+        with TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            plan = build_command_wrapper_plan(
+                {
+                    "model": "synthetic/model",
+                    "weights": "/weights/synthetic",
+                    "ares_plan": "artifacts/ares-plan.json",
+                    "required_gates": ["backend_open"],
+                },
+                run_dir=root / "run",
+                ares_repo=root / "ares",
+            )
+
+            self.assertEqual(plan["backend"], "fpga")
+            self.assertIn(
+                "ARES_RINZLER_FULL_INFERENCE_BACKEND=fpga",
+                plan["wrappers"][1]["command"],
+            )
+
     def test_backend_wrapper_requires_generated_artifact_inputs(self) -> None:
         with TemporaryDirectory() as tmp:
             wrapper = rinzler_chat_wrapper(
@@ -208,6 +228,35 @@ class AresIngestCommandWrapperTest(unittest.TestCase):
             wrappers = {wrapper["name"]: wrapper for wrapper in plan["wrappers"]}
             self.assertIn("systems_test_mmlu_pro", wrappers)
             self.assertTrue(wrappers["systems_test_mmlu_pro"]["enabled"])
+
+    def test_depth_performance_does_not_add_cpp_wrapper(self) -> None:
+        with TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            plan = build_command_wrapper_plan(
+                {
+                    "model": "synthetic/model",
+                    "backend": "fpga",
+                    "weights": "/weights/synthetic",
+                    "ares_plan": "artifacts/ares-plan.json",
+                    "required_gates": [
+                        "backend_open",
+                        "one_token_logits",
+                        "eight_token_greedy",
+                        "depth_performance",
+                    ],
+                    "comparison": {
+                        "cpp_rinzler_bin": "/tron/gen/rinzler",
+                        "rust_model_path": "/weights/synthetic-with-plans",
+                    },
+                },
+                run_dir=root / "run",
+                ares_repo=root / "ares",
+            )
+
+            wrappers = {wrapper["name"]: wrapper for wrapper in plan["wrappers"]}
+            self.assertIn("rinzler_chat_one_token", wrappers)
+            self.assertIn("rinzler_full_inference_smoke", wrappers)
+            self.assertNotIn("cpp_rinzler_side_by_side", wrappers)
 
 
 if __name__ == "__main__":

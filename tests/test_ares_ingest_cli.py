@@ -223,6 +223,32 @@ class AresIngestCliTest(unittest.TestCase):
                 "shortcut_scan",
             )
             self.assertEqual(
+                spec["policy"]["hf_cpu_goldens"],
+                "capture_once_per_stable_oracle_tuple",
+            )
+            self.assertEqual(
+                spec["policy"]["ordinary_backend_loop_reference"],
+                "cached_hf_cpu_token_logit_goldens",
+            )
+            self.assertEqual(
+                spec["policy"]["debug_loop_priority"],
+                [
+                    "cached_hf_cpu_logit_comparison",
+                    "focused_backend_or_module_slice",
+                    "short_depth_backend_generation",
+                    "longer_depth_backend_generation",
+                    "explicit_late_cpp_comparison_milestone",
+                ],
+            )
+            self.assertEqual(spec["policy"]["fastest_verifier_first"], True)
+            self.assertEqual(
+                spec["policy"]["avoid_recapturing_unchanged_hf_logits"], True
+            )
+            self.assertEqual(
+                spec["policy"]["defer_cpp_comparison_until_milestone_candidate"],
+                True,
+            )
+            self.assertEqual(
                 state["reward"]["gates"]["shortcut_scan"]["passed"],
                 True,
             )
