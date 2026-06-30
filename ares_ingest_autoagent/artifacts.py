@@ -51,6 +51,8 @@ TRACE_REPORT_JSON_SECTION_SAMPLE_KEYS = (
     "kv_payload_digest_sidecar_rows",
     "scheduler_packet_lineage_sidecar_rows",
     "scheduler_kv_shard_lifecycle_sidecar_rows",
+    "device_dma_lifecycle_sidecar_rows",
+    "attention_page_trace_sidecar_rows",
     "introspection_capability_rows",
     "introspection_artifact_summary_rows",
     "introspection_section_inventory",
@@ -1382,6 +1384,8 @@ def validate_trace_report_json(report: Any) -> ArtifactValidation:
     kv_payload_digest_sidecar_rows: list[dict[str, Any]] = []
     scheduler_packet_lineage_sidecar_rows: list[dict[str, Any]] = []
     scheduler_kv_shard_lifecycle_sidecar_rows: list[dict[str, Any]] = []
+    device_dma_lifecycle_sidecar_rows: list[dict[str, Any]] = []
+    attention_page_trace_sidecar_rows: list[dict[str, Any]] = []
     introspection_capability_rows: list[dict[str, Any]] = []
     introspection_artifact_summary_rows: list[dict[str, Any]] = []
     introspection_section_inventory_rows: list[dict[str, Any]] = []
@@ -1462,6 +1466,18 @@ def validate_trace_report_json(report: Any) -> ArtifactValidation:
             errors,
             sections,
             "scheduler_kv_shard_lifecycle_sidecar_rows",
+            required=False,
+        )
+        device_dma_lifecycle_sidecar_rows = _trace_report_section_rows(
+            errors,
+            sections,
+            "device_dma_lifecycle_sidecar_rows",
+            required=False,
+        )
+        attention_page_trace_sidecar_rows = _trace_report_section_rows(
+            errors,
+            sections,
+            "attention_page_trace_sidecar_rows",
             required=False,
         )
         introspection_capability_rows = _trace_report_section_rows(
@@ -1620,6 +1636,28 @@ def validate_trace_report_json(report: Any) -> ArtifactValidation:
                 "kv_lifecycle_status",
             )
         ),
+        "device_dma_lifecycle_sidecar_count": len(device_dma_lifecycle_sidecar_rows),
+        "device_dma_lifecycle_sidecar_status_counts": _trace_report_value_counts(
+            device_dma_lifecycle_sidecar_rows,
+            "status",
+        ),
+        "device_dma_lifecycle_sidecar_stage_counts": _trace_report_value_counts(
+            device_dma_lifecycle_sidecar_rows,
+            "device_stage",
+        ),
+        "device_dma_lifecycle_sidecar_queue_counts": _trace_report_value_counts(
+            device_dma_lifecycle_sidecar_rows,
+            "queue_id",
+        ),
+        "attention_page_trace_sidecar_count": len(attention_page_trace_sidecar_rows),
+        "attention_page_trace_sidecar_status_counts": _trace_report_value_counts(
+            attention_page_trace_sidecar_rows,
+            "status",
+        ),
+        "attention_page_trace_sidecar_action_counts": _trace_report_value_counts(
+            attention_page_trace_sidecar_rows,
+            "targetplan_action",
+        ),
         "introspection_capability_count": len(introspection_capability_rows),
         "introspection_capability_status_counts": _trace_report_value_counts(
             introspection_capability_rows,
@@ -1660,7 +1698,7 @@ def validate_trace_report_json(report: Any) -> ArtifactValidation:
         "report_json_section_samples": _trace_report_samples(
             report_json_section_sample_rows,
             ("json_path", "json_section", "section_kind", "claim_boundary"),
-            limit=16,
+            limit=24,
         ),
         "trace_config_samples": _trace_report_samples(
             trace_config_rows,
@@ -1863,6 +1901,67 @@ def validate_trace_report_json(report: Any) -> ArtifactValidation:
                 "hw_gof_page_infos",
                 "prior_host_gof_staging_status",
                 "prior_host_gof_dma_completions",
+                "failure_reason",
+            ),
+        ),
+        "device_dma_lifecycle_sidecar_samples": _trace_report_samples(
+            device_dma_lifecycle_sidecar_rows,
+            (
+                "status",
+                "evidence_role",
+                "backend_id",
+                "request_id",
+                "generation_id",
+                "targetplan_op_id",
+                "targetplan_action",
+                "location_id",
+                "device_stage",
+                "queue_id",
+                "device_index",
+                "card_bus",
+                "dma_direction",
+                "descriptor_count",
+                "byte_count",
+                "counter_name",
+                "counter_value_delta",
+                "cacheblock_dma_shard_id",
+                "cacheblock_dma_gof_start_in_shard",
+                "cacheblock_dma_k_transfer_count",
+                "cacheblock_dma_v_transfer_count",
+                "cacheblock_dma_transfer_byte_count",
+                "cacheblock_gof_start_position",
+                "cacheblock_k_word_checksum",
+                "cacheblock_v_word_checksum",
+                "queue_depth_before",
+                "queue_depth_after",
+                "failure_reason",
+            ),
+        ),
+        "attention_page_trace_sidecar_samples": _trace_report_samples(
+            attention_page_trace_sidecar_rows,
+            (
+                "status",
+                "evidence_role",
+                "backend_id",
+                "request_id",
+                "generation_id",
+                "targetplan_op_id",
+                "targetplan_action",
+                "layer",
+                "head",
+                "kv_head",
+                "attention_row_index",
+                "batch",
+                "visible_tokens",
+                "page_start",
+                "page_count",
+                "page_v_count",
+                "scaled_score_count",
+                "exp_score_count",
+                "v_star_count",
+                "m_star",
+                "s_star",
+                "was_valid",
                 "failure_reason",
             ),
         ),

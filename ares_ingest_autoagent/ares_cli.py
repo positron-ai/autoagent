@@ -251,6 +251,27 @@ def trace_report_summary_from_spec(spec: Mapping[str, Any]) -> dict[str, Any] | 
         "scheduler_kv_shard_lifecycle_sidecar_lifecycle_counts": detail.get(
             "scheduler_kv_shard_lifecycle_sidecar_lifecycle_counts"
         ),
+        "device_dma_lifecycle_sidecar_count": detail.get(
+            "device_dma_lifecycle_sidecar_count"
+        ),
+        "device_dma_lifecycle_sidecar_status_counts": detail.get(
+            "device_dma_lifecycle_sidecar_status_counts"
+        ),
+        "device_dma_lifecycle_sidecar_stage_counts": detail.get(
+            "device_dma_lifecycle_sidecar_stage_counts"
+        ),
+        "device_dma_lifecycle_sidecar_queue_counts": detail.get(
+            "device_dma_lifecycle_sidecar_queue_counts"
+        ),
+        "attention_page_trace_sidecar_count": detail.get(
+            "attention_page_trace_sidecar_count"
+        ),
+        "attention_page_trace_sidecar_status_counts": detail.get(
+            "attention_page_trace_sidecar_status_counts"
+        ),
+        "attention_page_trace_sidecar_action_counts": detail.get(
+            "attention_page_trace_sidecar_action_counts"
+        ),
         "introspection_capability_count": detail.get("introspection_capability_count"),
         "introspection_capability_status_counts": detail.get(
             "introspection_capability_status_counts"
@@ -294,6 +315,12 @@ def trace_report_summary_from_spec(spec: Mapping[str, Any]) -> dict[str, Any] | 
         ),
         "scheduler_kv_shard_lifecycle_sidecar_samples": detail.get(
             "scheduler_kv_shard_lifecycle_sidecar_samples"
+        ),
+        "device_dma_lifecycle_sidecar_samples": detail.get(
+            "device_dma_lifecycle_sidecar_samples"
+        ),
+        "attention_page_trace_sidecar_samples": detail.get(
+            "attention_page_trace_sidecar_samples"
         ),
         "introspection_capability_samples": detail.get(
             "introspection_capability_samples"
@@ -474,6 +501,46 @@ def render_trace_report_lines(summary: Mapping[str, Any]) -> list[str]:
             "`"
             + json.dumps(
                 summary["scheduler_kv_shard_lifecycle_sidecar_lifecycle_counts"],
+                sort_keys=True,
+            )
+            + "`"
+        )
+    if summary.get("device_dma_lifecycle_sidecar_status_counts"):
+        lines.append(
+            "- Device DMA lifecycle: "
+            "`"
+            + json.dumps(
+                summary["device_dma_lifecycle_sidecar_status_counts"],
+                sort_keys=True,
+            )
+            + "`"
+        )
+    if summary.get("device_dma_lifecycle_sidecar_stage_counts"):
+        lines.append(
+            "- Device DMA stages: "
+            "`"
+            + json.dumps(
+                summary["device_dma_lifecycle_sidecar_stage_counts"],
+                sort_keys=True,
+            )
+            + "`"
+        )
+    if summary.get("attention_page_trace_sidecar_status_counts"):
+        lines.append(
+            "- Attention page traces: "
+            "`"
+            + json.dumps(
+                summary["attention_page_trace_sidecar_status_counts"],
+                sort_keys=True,
+            )
+            + "`"
+        )
+    if summary.get("attention_page_trace_sidecar_action_counts"):
+        lines.append(
+            "- Attention page actions: "
+            "`"
+            + json.dumps(
+                summary["attention_page_trace_sidecar_action_counts"],
                 sort_keys=True,
             )
             + "`"
@@ -866,6 +933,161 @@ def render_trace_report_lines(summary: Mapping[str, Any]) -> list[str]:
         if parts:
             line += " " + " ".join(parts)
         lines.append(line)
+    for sample in summary.get("device_dma_lifecycle_sidecar_samples", [])[:3]:
+        if not isinstance(sample, Mapping):
+            continue
+        request_id = sample.get("request_id")
+        generation_id = sample.get("generation_id")
+        status = sample.get("status")
+        backend_id = sample.get("backend_id")
+        targetplan_op_id = sample.get("targetplan_op_id")
+        targetplan_action = sample.get("targetplan_action")
+        device_stage = sample.get("device_stage")
+        queue_id = sample.get("queue_id")
+        device_index = sample.get("device_index")
+        card_bus = sample.get("card_bus")
+        dma_direction = sample.get("dma_direction")
+        descriptor_count = sample.get("descriptor_count")
+        byte_count = sample.get("byte_count")
+        counter_name = sample.get("counter_name")
+        counter_delta = sample.get("counter_value_delta")
+        cacheblock_shard = sample.get("cacheblock_dma_shard_id")
+        cacheblock_gof = sample.get("cacheblock_dma_gof_start_in_shard")
+        cacheblock_bytes = sample.get("cacheblock_dma_transfer_byte_count")
+        queue_depth_before = sample.get("queue_depth_before")
+        queue_depth_after = sample.get("queue_depth_after")
+        failure_reason = sample.get("failure_reason")
+        label = (
+            request_id
+            if _trace_report_sample_value_present(request_id)
+            else generation_id
+            if _trace_report_sample_value_present(generation_id)
+            else "unknown"
+        )
+        parts = []
+        if _trace_report_sample_value_present(generation_id):
+            parts.append(f"generation={generation_id}")
+        if status:
+            parts.append(f"status={status}")
+        if backend_id:
+            parts.append(f"backend={backend_id}")
+        if targetplan_op_id:
+            parts.append(f"op={targetplan_op_id}")
+        if targetplan_action:
+            parts.append(f"action={targetplan_action}")
+        if device_stage:
+            parts.append(f"stage={device_stage}")
+        if queue_id:
+            parts.append(f"queue={queue_id}")
+        if _trace_report_sample_value_present(device_index):
+            parts.append(f"device_index={device_index}")
+        if card_bus:
+            parts.append(f"card_bus={card_bus}")
+        if dma_direction:
+            parts.append(f"direction={dma_direction}")
+        if _trace_report_sample_value_present(descriptor_count):
+            parts.append(f"descriptors={descriptor_count}")
+        if _trace_report_sample_value_present(byte_count):
+            parts.append(f"bytes={byte_count}")
+        if counter_name:
+            parts.append(f"counter={counter_name}")
+        if _trace_report_sample_value_present(counter_delta):
+            parts.append(f"counter_delta={counter_delta}")
+        if _trace_report_sample_value_present(cacheblock_shard):
+            parts.append(f"cacheblock_shard={cacheblock_shard}")
+        if _trace_report_sample_value_present(cacheblock_gof):
+            parts.append(f"cacheblock_gof_start={cacheblock_gof}")
+        if _trace_report_sample_value_present(cacheblock_bytes):
+            parts.append(f"cacheblock_bytes={cacheblock_bytes}")
+        if _trace_report_sample_value_present(queue_depth_before):
+            parts.append(f"queue_before={queue_depth_before}")
+        if _trace_report_sample_value_present(queue_depth_after):
+            parts.append(f"queue_after={queue_depth_after}")
+        if failure_reason:
+            parts.append(f"failure={failure_reason}")
+        line = f"- Device DMA lifecycle: request={label}"
+        if parts:
+            line += " " + " ".join(parts)
+        lines.append(line)
+    for sample in summary.get("attention_page_trace_sidecar_samples", [])[:3]:
+        if not isinstance(sample, Mapping):
+            continue
+        request_id = sample.get("request_id")
+        generation_id = sample.get("generation_id")
+        status = sample.get("status")
+        backend_id = sample.get("backend_id")
+        targetplan_op_id = sample.get("targetplan_op_id")
+        targetplan_action = sample.get("targetplan_action")
+        layer = sample.get("layer")
+        head = sample.get("head")
+        kv_head = sample.get("kv_head")
+        attention_row_index = sample.get("attention_row_index")
+        batch = sample.get("batch")
+        visible_tokens = sample.get("visible_tokens")
+        page_start = sample.get("page_start")
+        page_count = sample.get("page_count")
+        page_v_count = sample.get("page_v_count")
+        scaled_score_count = sample.get("scaled_score_count")
+        exp_score_count = sample.get("exp_score_count")
+        v_star_count = sample.get("v_star_count")
+        m_star = sample.get("m_star")
+        s_star = sample.get("s_star")
+        was_valid = sample.get("was_valid")
+        failure_reason = sample.get("failure_reason")
+        label = (
+            request_id
+            if _trace_report_sample_value_present(request_id)
+            else generation_id
+            if _trace_report_sample_value_present(generation_id)
+            else "unknown"
+        )
+        parts = []
+        if _trace_report_sample_value_present(generation_id):
+            parts.append(f"generation={generation_id}")
+        if status:
+            parts.append(f"status={status}")
+        if backend_id:
+            parts.append(f"backend={backend_id}")
+        if targetplan_op_id:
+            parts.append(f"op={targetplan_op_id}")
+        if targetplan_action:
+            parts.append(f"action={targetplan_action}")
+        if _trace_report_sample_value_present(layer):
+            parts.append(f"layer={layer}")
+        if _trace_report_sample_value_present(head):
+            parts.append(f"head={head}")
+        if _trace_report_sample_value_present(kv_head):
+            parts.append(f"kv_head={kv_head}")
+        if _trace_report_sample_value_present(attention_row_index):
+            parts.append(f"attention_row={attention_row_index}")
+        if _trace_report_sample_value_present(batch):
+            parts.append(f"batch={batch}")
+        if _trace_report_sample_value_present(visible_tokens):
+            parts.append(f"visible_tokens={visible_tokens}")
+        if _trace_report_sample_value_present(page_start):
+            parts.append(f"page_start={page_start}")
+        if _trace_report_sample_value_present(page_count):
+            parts.append(f"pages={page_count}")
+        if _trace_report_sample_value_present(page_v_count):
+            parts.append(f"page_v={page_v_count}")
+        if _trace_report_sample_value_present(scaled_score_count):
+            parts.append(f"scaled_scores={scaled_score_count}")
+        if _trace_report_sample_value_present(exp_score_count):
+            parts.append(f"exp_scores={exp_score_count}")
+        if _trace_report_sample_value_present(v_star_count):
+            parts.append(f"v_star={v_star_count}")
+        if _trace_report_sample_value_present(m_star):
+            parts.append(f"m_star={m_star}")
+        if _trace_report_sample_value_present(s_star):
+            parts.append(f"s_star={s_star}")
+        if _trace_report_sample_value_present(was_valid):
+            parts.append(f"was_valid={was_valid}")
+        if failure_reason:
+            parts.append(f"failure={failure_reason}")
+        line = f"- Attention page trace: request={label}"
+        if parts:
+            line += " " + " ".join(parts)
+        lines.append(line)
     for sample in summary.get("token_quality_summary_samples", [])[:3]:
         if not isinstance(sample, Mapping):
             continue
@@ -1092,7 +1314,11 @@ def trace_report_prompt_section(spec: Mapping[str, Any]) -> list[str]:
         "`sections.scheduler_kv_shard_lifecycle_sidecar_rows` to inspect",
         "scheduler packet shape, sparse-listener delivery, and K/V shard",
         "lifecycle diagnostics without treating scheduler metadata as",
-        "hardware-counter evidence.",
+        "hardware-counter evidence. Also read",
+        "`sections.device_dma_lifecycle_sidecar_rows` and",
+        "`sections.attention_page_trace_sidecar_rows` to inspect compact",
+        "device DMA/queue lifecycle and attention page diagnostics without",
+        "treating debug payload rows as performance proof.",
         "If the current trace cannot answer the failing gate, run the named",
         "next-measurement query or capture command before editing production code.",
         "",
@@ -2021,7 +2247,7 @@ def gate_guidance(
             [
                 f"- Trace report JSON: `{resolve_run_path(str(value), cfg)}`",
                 "- Inspect `sections.answerability`, `sections.unsupported_claims`, and `sections.next_measurements` before ad hoc parsing.",
-                "- Read `sections.report_json_section_inventory` to discover available report sections, then read `sections.trace_config_rows`, `sections.provider_payload_boundary_inventory_rows`, `sections.debug_payload_artifact_summary_rows`, `sections.tensor_payload_sidecar_rows`, `sections.kv_payload_digest_sidecar_rows`, `sections.token_quality_summary_rows`, `sections.oracle_reference_summary_rows`, `sections.introspection_capability_rows`, `sections.introspection_artifact_summary_rows`, and `sections.introspection_section_inventory` before choosing sidecar-specific report sections.",
+                "- Read `sections.report_json_section_inventory` to discover available report sections, then read `sections.trace_config_rows`, `sections.provider_payload_boundary_inventory_rows`, `sections.debug_payload_artifact_summary_rows`, `sections.token_quality_summary_rows`, `sections.oracle_reference_summary_rows`, `sections.introspection_capability_rows`, `sections.introspection_artifact_summary_rows`, and `sections.introspection_section_inventory` before choosing sidecar-specific report sections such as `sections.tensor_payload_sidecar_rows`, `sections.kv_payload_digest_sidecar_rows`, `sections.scheduler_packet_lineage_sidecar_rows`, `sections.scheduler_kv_shard_lifecycle_sidecar_rows`, `sections.device_dma_lifecycle_sidecar_rows`, and `sections.attention_page_trace_sidecar_rows`.",
             ]
         )
     if value := spec.get("command_wrapper_plan"):

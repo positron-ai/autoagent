@@ -462,6 +462,33 @@ class AresIngestArtifactTest(unittest.TestCase):
                                     ),
                                 },
                                 {
+                                    "heading": "Device DMA Lifecycle Sidecar Rows",
+                                    "json_path": (
+                                        "sections.device_dma_lifecycle_sidecar_rows"
+                                    ),
+                                    "json_section": (
+                                        "device_dma_lifecycle_sidecar_rows"
+                                    ),
+                                    "section_kind": "sidecar",
+                                    "claim_boundary": (
+                                        "system_under_test_device_dma_diagnostic"
+                                    ),
+                                },
+                                {
+                                    "heading": "Attention Page Trace Sidecar Rows",
+                                    "json_path": (
+                                        "sections.attention_page_trace_sidecar_rows"
+                                    ),
+                                    "json_section": (
+                                        "attention_page_trace_sidecar_rows"
+                                    ),
+                                    "section_kind": "sidecar",
+                                    "claim_boundary": (
+                                        "system_under_test_numeric_"
+                                        "localization_diagnostic"
+                                    ),
+                                },
+                                {
                                     "heading": "Next Measurements",
                                     "json_path": "sections.next_measurements",
                                     "json_section": "next_measurements",
@@ -701,6 +728,63 @@ class AresIngestArtifactTest(unittest.TestCase):
                                     "prior_host_gof_dma_completions": "1",
                                 }
                             ],
+                            "device_dma_lifecycle_sidecar_rows": [
+                                {
+                                    "status": "ok",
+                                    "evidence_role": "system_under_test",
+                                    "backend_id": "fpga",
+                                    "request_id": "7002",
+                                    "generation_id": "rinzler-7002",
+                                    "targetplan_op_id": "tp.device.load_weights.0",
+                                    "targetplan_action": "device_load",
+                                    "location_id": "4",
+                                    "device_stage": "dma_completion",
+                                    "queue_id": "load_weight_q",
+                                    "device_index": "0",
+                                    "card_bus": "0xe1",
+                                    "dma_direction": "host_to_device",
+                                    "descriptor_count": "5",
+                                    "byte_count": "65536",
+                                    "counter_name": "rx_completions",
+                                    "counter_value_delta": "5",
+                                    "cacheblock_dma_shard_id": "9",
+                                    "cacheblock_dma_gof_start_in_shard": "12",
+                                    "cacheblock_dma_k_transfer_count": "4",
+                                    "cacheblock_dma_v_transfer_count": "6",
+                                    "cacheblock_dma_transfer_byte_count": "8192",
+                                    "cacheblock_gof_start_position": "48",
+                                    "cacheblock_k_word_checksum": "123456",
+                                    "cacheblock_v_word_checksum": "654321",
+                                    "queue_depth_before": "5",
+                                    "queue_depth_after": "0",
+                                }
+                            ],
+                            "attention_page_trace_sidecar_rows": [
+                                {
+                                    "status": "ok",
+                                    "evidence_role": "system_under_test",
+                                    "backend_id": "fpga",
+                                    "request_id": "7004",
+                                    "generation_id": "rinzler-7004",
+                                    "targetplan_op_id": "tp.attention.0",
+                                    "targetplan_action": "attention",
+                                    "layer": "2",
+                                    "head": "17",
+                                    "kv_head": "4",
+                                    "attention_row_index": "7",
+                                    "batch": "8",
+                                    "visible_tokens": "65",
+                                    "page_start": "64",
+                                    "page_count": "1",
+                                    "page_v_count": "1",
+                                    "scaled_score_count": "2",
+                                    "exp_score_count": "2",
+                                    "v_star_count": "1",
+                                    "m_star": "3.0",
+                                    "s_star": "5.0",
+                                    "was_valid": "True",
+                                }
+                            ],
                             "introspection_capability_rows": [
                                 {
                                     "capture_capability": "token_quality",
@@ -848,7 +932,27 @@ class AresIngestArtifactTest(unittest.TestCase):
                 gate["detail"]["scheduler_kv_shard_lifecycle_sidecar_lifecycle_counts"],
                 {"observed": 1},
             )
-            self.assertEqual(gate["detail"]["report_json_section_count"], 12)
+            self.assertEqual(
+                gate["detail"]["device_dma_lifecycle_sidecar_status_counts"],
+                {"ok": 1},
+            )
+            self.assertEqual(
+                gate["detail"]["device_dma_lifecycle_sidecar_stage_counts"],
+                {"dma_completion": 1},
+            )
+            self.assertEqual(
+                gate["detail"]["device_dma_lifecycle_sidecar_queue_counts"],
+                {"load_weight_q": 1},
+            )
+            self.assertEqual(
+                gate["detail"]["attention_page_trace_sidecar_status_counts"],
+                {"ok": 1},
+            )
+            self.assertEqual(
+                gate["detail"]["attention_page_trace_sidecar_action_counts"],
+                {"attention": 1},
+            )
+            self.assertEqual(gate["detail"]["report_json_section_count"], 14)
             self.assertEqual(
                 gate["detail"]["report_json_section_kind_counts"],
                 {
@@ -857,7 +961,7 @@ class AresIngestArtifactTest(unittest.TestCase):
                     "introspection": 1,
                     "introspection_inventory": 2,
                     "measurement_guidance": 1,
-                    "sidecar": 6,
+                    "sidecar": 8,
                 },
             )
             self.assertEqual(
@@ -960,6 +1064,30 @@ class AresIngestArtifactTest(unittest.TestCase):
                     "kv_context_rows"
                 ],
                 "64",
+            )
+            self.assertEqual(
+                gate["detail"]["device_dma_lifecycle_sidecar_samples"][0][
+                    "device_stage"
+                ],
+                "dma_completion",
+            )
+            self.assertEqual(
+                gate["detail"]["device_dma_lifecycle_sidecar_samples"][0][
+                    "cacheblock_dma_transfer_byte_count"
+                ],
+                "8192",
+            )
+            self.assertEqual(
+                gate["detail"]["attention_page_trace_sidecar_samples"][0][
+                    "attention_row_index"
+                ],
+                "7",
+            )
+            self.assertEqual(
+                gate["detail"]["attention_page_trace_sidecar_samples"][0][
+                    "visible_tokens"
+                ],
+                "65",
             )
             self.assertEqual(
                 gate["detail"]["introspection_capability_samples"][0][
@@ -1097,6 +1225,26 @@ class AresIngestArtifactTest(unittest.TestCase):
             gate["detail"]["scheduler_kv_shard_lifecycle_sidecar_lifecycle_counts"],
             {"observed": 1},
         )
+        self.assertEqual(
+            gate["detail"]["device_dma_lifecycle_sidecar_status_counts"],
+            {"ok": 1},
+        )
+        self.assertEqual(
+            gate["detail"]["device_dma_lifecycle_sidecar_stage_counts"],
+            {"dma_completion": 1},
+        )
+        self.assertEqual(
+            gate["detail"]["device_dma_lifecycle_sidecar_queue_counts"],
+            {"load_weight_q": 1},
+        )
+        self.assertEqual(
+            gate["detail"]["attention_page_trace_sidecar_status_counts"],
+            {"ok": 1},
+        )
+        self.assertEqual(
+            gate["detail"]["attention_page_trace_sidecar_action_counts"],
+            {"attention": 1},
+        )
         section_paths = {
             sample["json_path"]
             for sample in gate["detail"]["report_json_section_samples"]
@@ -1112,6 +1260,8 @@ class AresIngestArtifactTest(unittest.TestCase):
             "sections.scheduler_kv_shard_lifecycle_sidecar_rows",
             section_paths,
         )
+        self.assertIn("sections.device_dma_lifecycle_sidecar_rows", section_paths)
+        self.assertIn("sections.attention_page_trace_sidecar_rows", section_paths)
         self.assertIn("sections.introspection_capability_rows", section_paths)
         self.assertIn("sections.introspection_artifact_summary_rows", section_paths)
         self.assertIn("sections.introspection_section_inventory", section_paths)
@@ -1216,6 +1366,24 @@ class AresIngestArtifactTest(unittest.TestCase):
                 "prior_host_gof_staging_status"
             ],
             "page_info_published",
+        )
+        self.assertEqual(
+            gate["detail"]["device_dma_lifecycle_sidecar_samples"][0]["queue_id"],
+            "load_weight_q",
+        )
+        self.assertEqual(
+            gate["detail"]["device_dma_lifecycle_sidecar_samples"][0][
+                "counter_value_delta"
+            ],
+            "5",
+        )
+        self.assertEqual(
+            gate["detail"]["attention_page_trace_sidecar_samples"][0]["head"],
+            "17",
+        )
+        self.assertEqual(
+            gate["detail"]["attention_page_trace_sidecar_samples"][0]["m_star"],
+            "3.0",
         )
         self.assertEqual(
             gate["detail"]["introspection_section_inventory_samples"][0][

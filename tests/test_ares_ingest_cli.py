@@ -153,6 +153,22 @@ def trace_report_payload() -> dict:
                     ),
                 },
                 {
+                    "heading": "Device DMA Lifecycle Sidecar Rows",
+                    "json_path": "sections.device_dma_lifecycle_sidecar_rows",
+                    "json_section": "device_dma_lifecycle_sidecar_rows",
+                    "section_kind": "sidecar",
+                    "claim_boundary": "system_under_test_device_dma_diagnostic",
+                },
+                {
+                    "heading": "Attention Page Trace Sidecar Rows",
+                    "json_path": "sections.attention_page_trace_sidecar_rows",
+                    "json_section": "attention_page_trace_sidecar_rows",
+                    "section_kind": "sidecar",
+                    "claim_boundary": (
+                        "system_under_test_numeric_localization_diagnostic"
+                    ),
+                },
+                {
                     "heading": "Next Measurements",
                     "json_path": "sections.next_measurements",
                     "json_section": "next_measurements",
@@ -365,6 +381,63 @@ def trace_report_payload() -> dict:
                     "hw_gof_page_infos": "1",
                     "prior_host_gof_staging_status": "page_info_published",
                     "prior_host_gof_dma_completions": "1",
+                }
+            ],
+            "device_dma_lifecycle_sidecar_rows": [
+                {
+                    "status": "ok",
+                    "evidence_role": "system_under_test",
+                    "backend_id": "fpga",
+                    "request_id": "7002",
+                    "generation_id": "rinzler-7002",
+                    "targetplan_op_id": "tp.device.load_weights.0",
+                    "targetplan_action": "device_load",
+                    "location_id": "4",
+                    "device_stage": "dma_completion",
+                    "queue_id": "load_weight_q",
+                    "device_index": "0",
+                    "card_bus": "0xe1",
+                    "dma_direction": "host_to_device",
+                    "descriptor_count": "5",
+                    "byte_count": "65536",
+                    "counter_name": "rx_completions",
+                    "counter_value_delta": "5",
+                    "cacheblock_dma_shard_id": "9",
+                    "cacheblock_dma_gof_start_in_shard": "12",
+                    "cacheblock_dma_k_transfer_count": "4",
+                    "cacheblock_dma_v_transfer_count": "6",
+                    "cacheblock_dma_transfer_byte_count": "8192",
+                    "cacheblock_gof_start_position": "48",
+                    "cacheblock_k_word_checksum": "123456",
+                    "cacheblock_v_word_checksum": "654321",
+                    "queue_depth_before": "5",
+                    "queue_depth_after": "0",
+                }
+            ],
+            "attention_page_trace_sidecar_rows": [
+                {
+                    "status": "ok",
+                    "evidence_role": "system_under_test",
+                    "backend_id": "fpga",
+                    "request_id": "7004",
+                    "generation_id": "rinzler-7004",
+                    "targetplan_op_id": "tp.attention.0",
+                    "targetplan_action": "attention",
+                    "layer": "2",
+                    "head": "17",
+                    "kv_head": "4",
+                    "attention_row_index": "7",
+                    "batch": "8",
+                    "visible_tokens": "65",
+                    "page_start": "64",
+                    "page_count": "1",
+                    "page_v_count": "1",
+                    "scaled_score_count": "2",
+                    "exp_score_count": "2",
+                    "v_star_count": "1",
+                    "m_star": "3.0",
+                    "s_star": "5.0",
+                    "was_valid": "True",
                 }
             ],
             "introspection_section_inventory": [
@@ -656,6 +729,26 @@ class AresIngestCliTest(unittest.TestCase):
                 {"observed": 1},
             )
             self.assertEqual(
+                state["trace_report"]["device_dma_lifecycle_sidecar_status_counts"],
+                {"ok": 1},
+            )
+            self.assertEqual(
+                state["trace_report"]["device_dma_lifecycle_sidecar_stage_counts"],
+                {"dma_completion": 1},
+            )
+            self.assertEqual(
+                state["trace_report"]["device_dma_lifecycle_sidecar_queue_counts"],
+                {"load_weight_q": 1},
+            )
+            self.assertEqual(
+                state["trace_report"]["attention_page_trace_sidecar_status_counts"],
+                {"ok": 1},
+            )
+            self.assertEqual(
+                state["trace_report"]["attention_page_trace_sidecar_action_counts"],
+                {"attention": 1},
+            )
+            self.assertEqual(
                 state["trace_report"]["introspection_section_inventory_status_counts"],
                 {"available": 1, "capability_without_artifact": 1},
             )
@@ -665,7 +758,7 @@ class AresIngestCliTest(unittest.TestCase):
                 ],
                 {"deep_introspection": 1, "token_quality": 1},
             )
-            self.assertEqual(state["trace_report"]["report_json_section_count"], 12)
+            self.assertEqual(state["trace_report"]["report_json_section_count"], 14)
             self.assertEqual(
                 state["trace_report"]["report_json_section_kind_counts"],
                 {
@@ -674,7 +767,7 @@ class AresIngestCliTest(unittest.TestCase):
                     "introspection": 1,
                     "introspection_inventory": 2,
                     "measurement_guidance": 1,
-                    "sidecar": 6,
+                    "sidecar": 8,
                 },
             )
             spec = json.loads((run_dir / "model_spec.json").read_text())
@@ -722,6 +815,16 @@ class AresIngestCliTest(unittest.TestCase):
             self.assertIn("lifecycle=observed", handoff)
             self.assertIn("kv_context_rows=64", handoff)
             self.assertIn("staging=page_info_published", handoff)
+            self.assertIn("Device DMA lifecycle", handoff)
+            self.assertIn("Device DMA stages", handoff)
+            self.assertIn("Device DMA lifecycle: request=7002", handoff)
+            self.assertIn("queue=load_weight_q", handoff)
+            self.assertIn("cacheblock_bytes=8192", handoff)
+            self.assertIn("Attention page traces", handoff)
+            self.assertIn("Attention page actions", handoff)
+            self.assertIn("Attention page trace: request=7004", handoff)
+            self.assertIn("attention_row=7", handoff)
+            self.assertIn("m_star=3.0", handoff)
             self.assertIn("Token quality summaries", handoff)
             self.assertIn("Token quality top-k status", handoff)
             self.assertIn("Token quality summary: request=7001", handoff)
@@ -770,6 +873,8 @@ class AresIngestCliTest(unittest.TestCase):
                 "sections.scheduler_kv_shard_lifecycle_sidecar_rows",
                 prompt,
             )
+            self.assertIn("sections.device_dma_lifecycle_sidecar_rows", prompt)
+            self.assertIn("sections.attention_page_trace_sidecar_rows", prompt)
             self.assertIn("sections.token_quality_summary_rows", prompt)
             self.assertIn("sections.oracle_reference_summary_rows", prompt)
             self.assertIn("sections.introspection_section_inventory", prompt)
@@ -788,6 +893,12 @@ class AresIngestCliTest(unittest.TestCase):
             self.assertIn("scheduler packet shape", prompt)
             self.assertIn("Scheduler K/V lifecycle: request=7002", prompt)
             self.assertIn("hardware-counter evidence", prompt)
+            self.assertIn("Device DMA lifecycle: request=7002", prompt)
+            self.assertIn("stage=dma_completion", prompt)
+            self.assertIn("counter_delta=5", prompt)
+            self.assertIn("Attention page trace: request=7004", prompt)
+            self.assertIn("visible_tokens=65", prompt)
+            self.assertIn("debug payload rows as performance proof", prompt)
             self.assertIn("without treating", prompt)
             self.assertIn("oracle evidence", prompt)
             self.assertIn("Token quality summary: request=7001", prompt)
