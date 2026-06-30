@@ -116,6 +116,11 @@ def build_model_spec(cfg: AresIngestConfig) -> dict[str, Any]:
             "no_hand_authored_rust_model_plugins": True,
             "no_runtime_generated_execution_sidecars": True,
             "runtime_path": "frontend -> Lean ingest -> AresPlan -> TargetPlan -> backend provider",
+            "hf_cpu_goldens": "capture_once_per_stable_oracle_tuple",
+            "ordinary_backend_loop_reference": "cached_hf_cpu_token_logit_goldens",
+            "fastest_verifier_first": True,
+            "avoid_recapturing_unchanged_hf_logits": True,
+            "defer_cpp_comparison_until_milestone_candidate": True,
         },
     }
 
