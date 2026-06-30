@@ -722,6 +722,9 @@ Latest refinement prompt: `{latest_prompt or "none"}`
   tokenizer, prompt-token context, decode depth, and deterministic settings;
   reuse those goldens for the fast Ares backend debug loop until that tuple
   changes.
+- Prefer the cheapest verifier that proves the first failing gate. Do not
+  recapture HF logits or run slower comparison lanes for ordinary Ares backend
+  code changes.
 - Ares/Rust output is system-under-test evidence.
 - C++ Tron/Rinzler is comparison and rollback evidence only. Do not involve
   that slow lane until the selected Ares backend has a competitive candidate
@@ -1090,6 +1093,7 @@ def gate_guidance(
         "depth_performance": [
             "- Follow the 8 -> 64 -> 512 ladder against cached HF CPU token/logit goldens and keep correctness gates green before speed claims.",
             "- Record throughput, latency, TTFT, memory, and artifact hashes from the selected Ares backend without launching C++ comparison in the normal iteration loop.",
+            "- Keep this loop HF-backed until short-depth correctness and performance justify a separate comparison checkpoint.",
         ],
         "mmlu_pro": [
             "- Run MMLU Pro through `third_party/systems_test` against an OpenAI-compatible Ares endpoint for the selected backend.",
@@ -1182,6 +1186,7 @@ def write_refinement_prompt(
             "",
             "- HF Transformers on PyTorch CPU is the only model-correctness oracle.",
             "- Capture HF CPU token/logit artifacts once per exact model/checkpoint, tokenizer, prompt-token context, decode depth, and deterministic setting tuple; reuse those goldens for fast backend iteration until that tuple changes.",
+            "- Prefer the fastest verifier that can prove the first failing gate; do not recapture HF logits or launch C++ comparison for ordinary Ares backend code changes.",
             "- C++ Tron/Rinzler is comparison, compliance, performance, and rollback evidence only.",
             "- Keep C++ Tron/Rinzler out of the normal debug loop; run it as an explicit milestone comparison after the selected Ares backend has HF-backed quality and competitive performance evidence.",
             "- Ares/Rust output is system-under-test evidence.",

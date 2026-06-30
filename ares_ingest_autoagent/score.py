@@ -73,7 +73,8 @@ GATE_PROFILES: dict[str, tuple[str, ...]] = {
     "cpu-only": CPU_ONLY_GATES,
     "backend": BACKEND_GATES,
     # The fast production-candidate loop stays on HF CPU oracle artifacts and
-    # the selected Ares backend. C++ comparison is an explicit late checkpoint.
+    # the selected Ares backend. Recompute HF goldens only when the oracle tuple
+    # changes; C++ comparison is an explicit late checkpoint.
     "full": FULL_GATES,
     "comparison": COMPARISON_GATES,
 }
