@@ -22,6 +22,7 @@ from ares_ingest_autoagent.artifacts import (
     build_greedy_token_evidence,
     cpp_tvd_gate,
     depth_performance_gate,
+    introspection_ladder_gate,
     mmlu_pro_gate,
     one_token_logits_gate,
     target_plan_gate,
@@ -2013,8 +2014,7 @@ def steering_prompt_lines(cfg: AresIngestConfig) -> list[str]:
         lines.append("- Operator notes:")
         for note in notes[-5:]:
             lines.append(
-                f"  - iteration `{note.get('iteration', 'unknown')}`: "
-                f"{note.get('text', '')}"
+                f"  - iteration `{note.get('iteration', 'unknown')}`: {note.get('text', '')}"
             )
     else:
         lines.append("- Operator notes: none recorded.")
@@ -2190,10 +2190,16 @@ def selected_workflow_skills(
             "verification_commands": [verify],
         },
         "one_token_logits": {
-            "name": "ares-rust",
+            "name": "ares-introspection",
             "gate": "one_token_logits",
-            "why": "Debug Ares system-under-test logits evidence against HF CPU oracle rows.",
+            "why": (
+                "Use the semantic-localization ladder before assigning "
+                "one-token logit drift to a backend/runtime owner."
+            ),
             "allowed_scope": [
+                "frontend/hf-export/",
+                "ingest/lean/",
+                "bin/ares-introspect",
                 "runtime/",
                 "backend/",
                 str(cfg.run_dir / "artifacts"),
@@ -2202,10 +2208,16 @@ def selected_workflow_skills(
             "verification_commands": [verify],
         },
         "eight_token_greedy": {
-            "name": "ares-rust",
+            "name": "ares-introspection",
             "gate": "eight_token_greedy",
-            "why": "Debug greedy generated-token evidence before widening decode depth.",
+            "why": (
+                "Localize token drift across source, Lean, AresPlan, "
+                "TargetPlan, and backend stages before widening decode depth."
+            ),
             "allowed_scope": [
+                "frontend/hf-export/",
+                "ingest/lean/",
+                "bin/ares-introspect",
                 "runtime/",
                 "backend/",
                 str(cfg.run_dir / "artifacts"),
@@ -2393,6 +2405,55 @@ def generated_payload(payload: Any) -> Any:
     ):
         return {"tokens": generation["generated_token_ids"]}
     return payload
+
+
+def introspection_ladder_prompt_lines(spec: Mapping[str, Any]) -> list[str]:
+    validated_gates = spec.get("validated_gates")
+    if not isinstance(validated_gates, Mapping):
+        return []
+    gate = validated_gates.get("introspection_ladder")
+    if not isinstance(gate, Mapping):
+        return []
+    detail = gate.get("detail")
+    if not isinstance(detail, Mapping):
+        detail = {}
+    lines = ["- Validated introspection ladder:"]
+    if path := gate.get("path"):
+        lines.append(f"  - report path: `{path}`")
+    if digest := gate.get("sha256"):
+        lines.append(f"  - report sha256: `{digest}`")
+    if evidence_class := detail.get("evidence_class"):
+        lines.append(f"  - evidence class: `{evidence_class}`")
+    if first_stage := detail.get("first_failing_stage"):
+        lines.append(f"  - first failing introspection stage: `{first_stage}`")
+    if next_owner := detail.get("next_owner"):
+        lines.append(f"  - next owner: `{next_owner}`")
+    trace_context = detail.get("trace_context")
+    if isinstance(trace_context, Mapping):
+        trace_labels = trace_context.get("trace_labels")
+        if isinstance(trace_labels, list) and trace_labels:
+            rendered = ", ".join(f"`{label}`" for label in trace_labels[:5])
+            suffix = " ..." if len(trace_labels) > 5 else ""
+            lines.append(f"  - trace labels: {rendered}{suffix}")
+        for field, label in (
+            ("backend_events", "backend events"),
+            ("perfetto_traces", "Perfetto traces"),
+            ("stage_event_summaries", "stage-event summaries"),
+            ("perfetto_summaries", "Perfetto summaries"),
+            ("trace_metadata", "Ares trace metadata"),
+        ):
+            refs = trace_context.get(field)
+            if isinstance(refs, list) and refs:
+                paths = [
+                    ref.get("path")
+                    for ref in refs
+                    if isinstance(ref, Mapping) and isinstance(ref.get("path"), str)
+                ]
+                if paths:
+                    rendered = ", ".join(f"`{path}`" for path in paths[:3])
+                    suffix = " ..." if len(paths) > 3 else ""
+                    lines.append(f"  - {label}: {rendered}{suffix}")
+    return lines
 
 
 def write_handoff(
@@ -2696,6 +2757,10 @@ def evaluate_run(cfg: AresIngestConfig) -> tuple[dict[str, Any], dict[str, Any]]
             resolve_run_path(str(mmlu_pro), cfg),
             **mmlu_pro_expectations(spec),
         )
+    if introspection_ladder := spec.get("introspection_ladder"):
+        validated_gates["introspection_ladder"] = introspection_ladder_gate(
+            resolve_run_path(str(introspection_ladder), cfg)
+        )
     trace_report_spec = spec.get("trace_report_json") or spec.get("trace_report")
     if trace_report_spec:
         if not isinstance(trace_report_spec, str):
@@ -2779,7 +2844,7 @@ def gate_guidance(
         f"- Verifier/refiner logs: `{cfg.logs_dir}`",
         f"- This iteration's refiner log: `{cfg.logs_dir / f'{iteration:02d}-refiner.log'}`",
     ]
-    for field in ("oracle_records", "ares_plan", "target_plan"):
+    for field in ("oracle_records", "ares_plan", "target_plan", "introspection_ladder"):
         if value := spec.get(field):
             common.append(
                 f"- `{field}` artifact: `{resolve_run_path(str(value), cfg)}`"
@@ -2794,6 +2859,7 @@ def gate_guidance(
         )
     if value := spec.get("command_wrapper_plan"):
         common.append(f"- Command wrapper plan: `{resolve_run_path(str(value), cfg)}`")
+    common.extend(introspection_ladder_prompt_lines(spec))
     specific: dict[str, list[str]] = {
         "hf_cpu_oracle": [
             "- Capture or attach a real HF Transformers + PyTorch CPU oracle record.",
@@ -2833,9 +2899,20 @@ def gate_guidance(
         "one_token_logits": [
             "- Compare one-token dense logits against the HF CPU oracle with replay metadata.",
             "- Ares/Rust output is system-under-test evidence, never the oracle.",
+            (
+                "- If HF CPU oracle and stage snapshots are available, run "
+                "`bin/ares-introspect ladder --graph ...` and attach "
+                "`introspection_ladder` in `model_spec.json` before generic "
+                "backend debugging."
+            ),
         ],
         "eight_token_greedy": [
             "- Prove 8-token greedy identity before considering 64-token or 512-token gates.",
+            (
+                "- If tokens drift after a valid HF CPU oracle, inspect or "
+                "produce `ares.introspection.ladder.v1` and work only the "
+                "first failing introspection stage."
+            ),
         ],
         "cpp_tvd": [
             "- Treat C++ Tron/Rinzler as comparison/rollback evidence, not correctness oracle.",
@@ -2998,8 +3075,7 @@ def run_refiner(
     log = cfg.logs_dir / f"{iteration:02d}-refiner.log"
     if cfg.cockpit:
         print(
-            "ares-ingest-agent cockpit "
-            f"iteration={iteration} driver={cfg.driver} log={log}",
+            f"ares-ingest-agent cockpit iteration={iteration} driver={cfg.driver} log={log}",
             flush=True,
         )
     rc = run_command(
@@ -3079,9 +3155,7 @@ def print_cockpit_dashboard(
         flush=True,
     )
     print(
-        "  gate: "
-        f"{reward.get('first_failed_gate')} "
-        f"stage_cap={reward.get('stage_cap')}",
+        f"  gate: {reward.get('first_failed_gate')} stage_cap={reward.get('stage_cap')}",
         flush=True,
     )
     print(f"  driver: {cfg.driver}", flush=True)
