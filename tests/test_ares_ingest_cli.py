@@ -84,6 +84,13 @@ def trace_report_payload() -> dict:
                     "claim_boundary": "capability_presence_not_payload_evidence",
                 },
                 {
+                    "heading": "Introspection Section Inventory",
+                    "json_path": "sections.introspection_section_inventory",
+                    "json_section": "introspection_section_inventory",
+                    "section_kind": "introspection_inventory",
+                    "claim_boundary": "introspection_section_discovery",
+                },
+                {
                     "heading": "Provider Payload Boundary Inventory Rows",
                     "json_path": "sections.provider_payload_boundary_inventory_rows",
                     "json_section": "provider_payload_boundary_inventory_rows",
@@ -292,6 +299,30 @@ def trace_report_payload() -> dict:
                     "sample_neg_inf_count": "0",
                     "sample_values": "[0.125, 0.25, 0.375, 0.5]",
                 }
+            ],
+            "introspection_section_inventory": [
+                {
+                    "capture_capability": "token_quality",
+                    "artifact_kind": "token_quality",
+                    "heading": "Token Quality Summary Rows",
+                    "json_section": "token_quality_summary_rows",
+                    "capability_present": True,
+                    "artifact_count": 1,
+                    "section_status": "available",
+                    "claim_boundary": "system_under_test_diagnostic_not_oracle",
+                },
+                {
+                    "capture_capability": "deep_introspection",
+                    "artifact_kind": "planning_decisions",
+                    "heading": "Planning Decision Sidecar Rows",
+                    "json_section": "planning_decision_sidecar_rows",
+                    "capability_present": True,
+                    "artifact_count": 0,
+                    "section_status": "capability_without_artifact",
+                    "claim_boundary": (
+                        "planning_decision_diagnostic_not_model_evidence"
+                    ),
+                },
             ],
             "introspection_artifact_summary_rows": [
                 {
@@ -535,14 +566,24 @@ class AresIngestCliTest(unittest.TestCase):
                 state["trace_report"]["kv_payload_digest_sidecar_role_counts"],
                 {"kv_key": 1},
             )
-            self.assertEqual(state["trace_report"]["report_json_section_count"], 9)
+            self.assertEqual(
+                state["trace_report"]["introspection_section_inventory_status_counts"],
+                {"available": 1, "capability_without_artifact": 1},
+            )
+            self.assertEqual(
+                state["trace_report"][
+                    "introspection_section_inventory_capability_counts"
+                ],
+                {"deep_introspection": 1, "token_quality": 1},
+            )
+            self.assertEqual(state["trace_report"]["report_json_section_count"], 10)
             self.assertEqual(
                 state["trace_report"]["report_json_section_kind_counts"],
                 {
                     "capture_configuration": 1,
                     "debug_payload_diagnostic": 1,
                     "introspection": 1,
-                    "introspection_inventory": 1,
+                    "introspection_inventory": 2,
                     "measurement_guidance": 1,
                     "sidecar": 4,
                 },
@@ -594,6 +635,19 @@ class AresIngestCliTest(unittest.TestCase):
             self.assertIn("correctness=not_oracle_evidence", handoff)
             self.assertIn("sut=system_under_test", handoff)
             self.assertIn("Introspection capability: token_quality", handoff)
+            self.assertIn("Introspection sections", handoff)
+            self.assertIn(
+                "Introspection section: token_quality_summary_rows",
+                handoff,
+            )
+            self.assertIn("status=available", handoff)
+            self.assertIn("capability=token_quality", handoff)
+            self.assertIn("artifacts=1", handoff)
+            self.assertIn(
+                "Introspection section: planning_decision_sidecar_rows",
+                handoff,
+            )
+            self.assertIn("status=capability_without_artifact", handoff)
             self.assertIn("set ARES_BACKEND_EVENT_ARTIFACT_DIR", handoff)
 
             reward = json.loads((run_dir / "reward.json").read_text())
@@ -614,6 +668,7 @@ class AresIngestCliTest(unittest.TestCase):
             self.assertIn("sections.kv_payload_digest_sidecar_rows", prompt)
             self.assertIn("sections.token_quality_summary_rows", prompt)
             self.assertIn("sections.oracle_reference_summary_rows", prompt)
+            self.assertIn("sections.introspection_section_inventory", prompt)
             self.assertIn("Provider payload boundary: fpga/kv_payload_digests", prompt)
             self.assertIn("provider_artifacts=2", prompt)
             self.assertIn("same_kind_artifacts=2", prompt)
@@ -638,6 +693,11 @@ class AresIngestCliTest(unittest.TestCase):
             self.assertIn("inspect_matching_introspection_report_sections", prompt)
             self.assertIn("sections.introspection_capability_rows", prompt)
             self.assertIn("sections.introspection_artifact_summary_rows", prompt)
+            self.assertIn(
+                "Introspection section: token_quality_summary_rows",
+                prompt,
+            )
+            self.assertIn("capability=token_quality", prompt)
             self.assertIn("Introspection artifact: token_quality", prompt)
             self.assertIn("set ARES_BACKEND_EVENT_ARTIFACT_DIR", prompt)
 

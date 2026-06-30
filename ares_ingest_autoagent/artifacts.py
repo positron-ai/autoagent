@@ -51,6 +51,7 @@ TRACE_REPORT_JSON_SECTION_SAMPLE_KEYS = (
     "kv_payload_digest_sidecar_rows",
     "introspection_capability_rows",
     "introspection_artifact_summary_rows",
+    "introspection_section_inventory",
     "answerability",
     "unsupported_claims",
     "next_measurements",
@@ -1379,6 +1380,7 @@ def validate_trace_report_json(report: Any) -> ArtifactValidation:
     kv_payload_digest_sidecar_rows: list[dict[str, Any]] = []
     introspection_capability_rows: list[dict[str, Any]] = []
     introspection_artifact_summary_rows: list[dict[str, Any]] = []
+    introspection_section_inventory_rows: list[dict[str, Any]] = []
     if sections is not None:
         section_names = sorted(str(name) for name in sections)
         for name in TRACE_REPORT_REQUIRED_SECTIONS:
@@ -1456,6 +1458,12 @@ def validate_trace_report_json(report: Any) -> ArtifactValidation:
             errors,
             sections,
             "introspection_artifact_summary_rows",
+            required=False,
+        )
+        introspection_section_inventory_rows = _trace_report_section_rows(
+            errors,
+            sections,
+            "introspection_section_inventory",
             required=False,
         )
 
@@ -1578,6 +1586,19 @@ def validate_trace_report_json(report: Any) -> ArtifactValidation:
             introspection_artifact_summary_rows,
             "summary_status",
         ),
+        "introspection_section_inventory_count": len(
+            introspection_section_inventory_rows
+        ),
+        "introspection_section_inventory_status_counts": _trace_report_value_counts(
+            introspection_section_inventory_rows,
+            "section_status",
+        ),
+        "introspection_section_inventory_capability_counts": (
+            _trace_report_value_counts(
+                introspection_section_inventory_rows,
+                "capture_capability",
+            )
+        ),
         "unsupported_claim_samples": _trace_report_samples(
             unsupported_claim_rows,
             ("claim", "reason", "basis"),
@@ -1593,7 +1614,7 @@ def validate_trace_report_json(report: Any) -> ArtifactValidation:
         "report_json_section_samples": _trace_report_samples(
             report_json_section_sample_rows,
             ("json_path", "json_section", "section_kind", "claim_boundary"),
-            limit=12,
+            limit=16,
         ),
         "trace_config_samples": _trace_report_samples(
             trace_config_rows,
@@ -1767,6 +1788,20 @@ def validate_trace_report_json(report: Any) -> ArtifactValidation:
                 "report_sections",
                 "claim_boundaries",
             ),
+        ),
+        "introspection_section_inventory_samples": _trace_report_samples(
+            introspection_section_inventory_rows,
+            (
+                "capture_capability",
+                "artifact_kind",
+                "heading",
+                "json_section",
+                "capability_present",
+                "artifact_count",
+                "section_status",
+                "claim_boundary",
+            ),
+            limit=16,
         ),
     }
     return _validation(not errors, errors, detail)

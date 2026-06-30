@@ -243,6 +243,15 @@ def trace_report_summary_from_spec(spec: Mapping[str, Any]) -> dict[str, Any] | 
         "introspection_artifact_summary_status_counts": detail.get(
             "introspection_artifact_summary_status_counts"
         ),
+        "introspection_section_inventory_count": detail.get(
+            "introspection_section_inventory_count"
+        ),
+        "introspection_section_inventory_status_counts": detail.get(
+            "introspection_section_inventory_status_counts"
+        ),
+        "introspection_section_inventory_capability_counts": detail.get(
+            "introspection_section_inventory_capability_counts"
+        ),
         "next_measurement_samples": detail.get("next_measurement_samples"),
         "unsupported_claim_samples": detail.get("unsupported_claim_samples"),
         "analysis_command_samples": detail.get("analysis_command_samples"),
@@ -267,6 +276,9 @@ def trace_report_summary_from_spec(spec: Mapping[str, Any]) -> dict[str, Any] | 
         ),
         "introspection_artifact_summary_samples": detail.get(
             "introspection_artifact_summary_samples"
+        ),
+        "introspection_section_inventory_samples": detail.get(
+            "introspection_section_inventory_samples"
         ),
         "section_names": detail.get("section_names"),
     }
@@ -418,6 +430,16 @@ def render_trace_report_lines(summary: Mapping[str, Any]) -> list[str]:
             "`"
             + json.dumps(
                 summary["introspection_artifact_summary_status_counts"],
+                sort_keys=True,
+            )
+            + "`"
+        )
+    if summary.get("introspection_section_inventory_status_counts"):
+        lines.append(
+            "- Introspection sections: "
+            "`"
+            + json.dumps(
+                summary["introspection_section_inventory_status_counts"],
                 sort_keys=True,
             )
             + "`"
@@ -781,6 +803,29 @@ def render_trace_report_lines(summary: Mapping[str, Any]) -> list[str]:
             if any(parts):
                 line += " " + " ".join(part for part in parts if part)
             lines.append(line)
+    for sample in summary.get("introspection_section_inventory_samples", [])[:16]:
+        if not isinstance(sample, Mapping):
+            continue
+        json_section = sample.get("json_section")
+        status = sample.get("section_status")
+        capability = sample.get("capture_capability")
+        artifact_kind = sample.get("artifact_kind")
+        artifact_count = sample.get("artifact_count")
+        boundary = sample.get("claim_boundary")
+        if json_section:
+            parts = [f"status={status}" if status else ""]
+            if capability:
+                parts.append(f"capability={capability}")
+            if artifact_kind:
+                parts.append(f"artifact={artifact_kind}")
+            if _trace_report_sample_value_present(artifact_count):
+                parts.append(f"artifacts={artifact_count}")
+            if boundary:
+                parts.append(f"boundary={boundary}")
+            line = f"- Introspection section: {json_section}"
+            if any(parts):
+                line += " " + " ".join(part for part in parts if part)
+            lines.append(line)
     for sample in summary.get("next_measurement_samples", [])[:3]:
         if not isinstance(sample, Mapping):
             continue
@@ -844,7 +889,8 @@ def trace_report_prompt_section(spec: Mapping[str, Any]) -> list[str]:
         "top-k status and HF CPU reference anchors without treating",
         "system-under-test rows as oracle evidence. Then use",
         "`sections.introspection_capability_rows` and",
-        "`sections.introspection_artifact_summary_rows` to decide which tracing",
+        "`sections.introspection_artifact_summary_rows`, then",
+        "`sections.introspection_section_inventory`, to decide which tracing",
         "sidecars exist before opening heavier sidecar-specific sections.",
         "If the current trace cannot answer the failing gate, run the named",
         "next-measurement query or capture command before editing production code.",
@@ -1774,7 +1820,7 @@ def gate_guidance(
             [
                 f"- Trace report JSON: `{resolve_run_path(str(value), cfg)}`",
                 "- Inspect `sections.answerability`, `sections.unsupported_claims`, and `sections.next_measurements` before ad hoc parsing.",
-                "- Read `sections.report_json_section_inventory` to discover available report sections, then read `sections.trace_config_rows`, `sections.provider_payload_boundary_inventory_rows`, `sections.debug_payload_artifact_summary_rows`, `sections.tensor_payload_sidecar_rows`, `sections.kv_payload_digest_sidecar_rows`, `sections.token_quality_summary_rows`, and `sections.oracle_reference_summary_rows` before choosing sidecar-specific report sections.",
+                "- Read `sections.report_json_section_inventory` to discover available report sections, then read `sections.trace_config_rows`, `sections.provider_payload_boundary_inventory_rows`, `sections.debug_payload_artifact_summary_rows`, `sections.tensor_payload_sidecar_rows`, `sections.kv_payload_digest_sidecar_rows`, `sections.token_quality_summary_rows`, `sections.oracle_reference_summary_rows`, `sections.introspection_capability_rows`, `sections.introspection_artifact_summary_rows`, and `sections.introspection_section_inventory` before choosing sidecar-specific report sections.",
             ]
         )
     if value := spec.get("command_wrapper_plan"):

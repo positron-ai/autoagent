@@ -350,6 +350,15 @@ class AresIngestArtifactTest(unittest.TestCase):
                                     ),
                                 },
                                 {
+                                    "heading": "Introspection Section Inventory",
+                                    "json_path": (
+                                        "sections.introspection_section_inventory"
+                                    ),
+                                    "json_section": "introspection_section_inventory",
+                                    "section_kind": "introspection_inventory",
+                                    "claim_boundary": "introspection_section_discovery",
+                                },
+                                {
                                     "heading": (
                                         "Provider Payload Boundary Inventory Rows"
                                     ),
@@ -610,6 +619,32 @@ class AresIngestArtifactTest(unittest.TestCase):
                                     "next_action": "inspect_token_quality_rows",
                                 }
                             ],
+                            "introspection_section_inventory": [
+                                {
+                                    "capture_capability": "token_quality",
+                                    "artifact_kind": "token_quality",
+                                    "heading": "Token Quality Summary Rows",
+                                    "json_section": "token_quality_summary_rows",
+                                    "capability_present": True,
+                                    "artifact_count": 1,
+                                    "section_status": "available",
+                                    "claim_boundary": (
+                                        "system_under_test_diagnostic_not_oracle"
+                                    ),
+                                },
+                                {
+                                    "capture_capability": "deep_introspection",
+                                    "artifact_kind": "planning_decisions",
+                                    "heading": "Planning Decision Sidecar Rows",
+                                    "json_section": "planning_decision_sidecar_rows",
+                                    "capability_present": True,
+                                    "artifact_count": 0,
+                                    "section_status": "capability_without_artifact",
+                                    "claim_boundary": (
+                                        "planning_decision_diagnostic_not_model_evidence"
+                                    ),
+                                },
+                            ],
                             "introspection_artifact_summary_rows": [
                                 {
                                     "artifact_kind": "token_quality",
@@ -647,6 +682,14 @@ class AresIngestArtifactTest(unittest.TestCase):
             self.assertEqual(
                 gate["detail"]["introspection_artifact_summary_status_counts"],
                 {"recorded_and_locally_present": 1},
+            )
+            self.assertEqual(
+                gate["detail"]["introspection_section_inventory_status_counts"],
+                {"available": 1, "capability_without_artifact": 1},
+            )
+            self.assertEqual(
+                gate["detail"]["introspection_section_inventory_capability_counts"],
+                {"deep_introspection": 1, "token_quality": 1},
             )
             self.assertEqual(
                 gate["detail"]["trace_config_status_counts"],
@@ -696,14 +739,14 @@ class AresIngestArtifactTest(unittest.TestCase):
                 gate["detail"]["kv_payload_digest_sidecar_role_counts"],
                 {"kv_key": 1},
             )
-            self.assertEqual(gate["detail"]["report_json_section_count"], 9)
+            self.assertEqual(gate["detail"]["report_json_section_count"], 10)
             self.assertEqual(
                 gate["detail"]["report_json_section_kind_counts"],
                 {
                     "capture_configuration": 1,
                     "debug_payload_diagnostic": 1,
                     "introspection": 1,
-                    "introspection_inventory": 1,
+                    "introspection_inventory": 2,
                     "measurement_guidance": 1,
                     "sidecar": 4,
                 },
@@ -791,6 +834,24 @@ class AresIngestArtifactTest(unittest.TestCase):
                 ],
                 "1",
             )
+            self.assertEqual(
+                gate["detail"]["introspection_section_inventory_samples"][0][
+                    "json_section"
+                ],
+                "token_quality_summary_rows",
+            )
+            self.assertEqual(
+                gate["detail"]["introspection_section_inventory_samples"][0][
+                    "section_status"
+                ],
+                "available",
+            )
+            self.assertEqual(
+                gate["detail"]["introspection_section_inventory_samples"][1][
+                    "section_status"
+                ],
+                "capability_without_artifact",
+            )
             self.assertEqual(len(gate["detail"]["sha256"]), 64)
 
     def test_trace_report_gate_accepts_real_ares_trace_report_fixture(self) -> None:
@@ -826,6 +887,26 @@ class AresIngestArtifactTest(unittest.TestCase):
         self.assertEqual(
             gate["detail"]["introspection_artifact_summary_status_counts"],
             {"recorded_and_locally_present": 8},
+        )
+        self.assertEqual(
+            gate["detail"]["introspection_section_inventory_status_counts"],
+            {"available": 14, "capability_without_artifact": 1},
+        )
+        self.assertEqual(
+            gate["detail"]["introspection_section_inventory_capability_counts"],
+            {
+                "activation_digests": 1,
+                "attention_page_trace": 1,
+                "debug_payloads": 1,
+                "deep_introspection": 1,
+                "device_dma_lifecycle": 1,
+                "kv_payload_digests": 1,
+                "logit_slices": 1,
+                "scheduler_packet_lineage": 3,
+                "tensor_payloads": 1,
+                "token_quality": 3,
+                "topk_rows": 1,
+            },
         )
         self.assertEqual(
             gate["detail"]["debug_payload_artifact_summary_status_counts"],
@@ -879,6 +960,7 @@ class AresIngestArtifactTest(unittest.TestCase):
         self.assertIn("sections.kv_payload_digest_sidecar_rows", section_paths)
         self.assertIn("sections.introspection_capability_rows", section_paths)
         self.assertIn("sections.introspection_artifact_summary_rows", section_paths)
+        self.assertIn("sections.introspection_section_inventory", section_paths)
         self.assertIn(
             "provider_payload_boundary_inventory_rows",
             gate["detail"]["section_names"],
@@ -957,6 +1039,40 @@ class AresIngestArtifactTest(unittest.TestCase):
             gate["detail"]["kv_payload_digest_sidecar_samples"][0]["tensor_role"],
             "kv_key",
         )
+        self.assertEqual(
+            gate["detail"]["introspection_section_inventory_samples"][0][
+                "json_section"
+            ],
+            "planning_decision_sidecar_rows",
+        )
+        self.assertEqual(
+            gate["detail"]["introspection_section_inventory_samples"][0][
+                "section_status"
+            ],
+            "capability_without_artifact",
+        )
+        self.assertEqual(
+            gate["detail"]["introspection_section_inventory_samples"][1][
+                "json_section"
+            ],
+            "token_quality_sidecar_rows",
+        )
+        self.assertEqual(
+            gate["detail"]["introspection_section_inventory_samples"][1][
+                "section_status"
+            ],
+            "available",
+        )
+        introspection_sections = {
+            sample["json_section"]
+            for sample in gate["detail"]["introspection_section_inventory_samples"]
+        }
+        self.assertIn(
+            "scheduler_kv_shard_lifecycle_sidecar_rows", introspection_sections
+        )
+        self.assertIn("device_dma_lifecycle_sidecar_rows", introspection_sections)
+        self.assertIn("attention_page_trace_sidecar_rows", introspection_sections)
+        self.assertIn("kv_payload_digest_sidecar_rows", introspection_sections)
 
     def test_trace_report_gate_rejects_missing_file(self) -> None:
         with TemporaryDirectory() as tmp:
