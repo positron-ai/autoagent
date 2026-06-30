@@ -188,6 +188,12 @@ def trace_report_summary_from_spec(spec: Mapping[str, Any]) -> dict[str, Any] | 
         ),
         "trace_config_count": detail.get("trace_config_count"),
         "trace_config_status_counts": detail.get("trace_config_status_counts"),
+        "provider_payload_boundary_count": detail.get(
+            "provider_payload_boundary_count"
+        ),
+        "provider_payload_boundary_status_counts": detail.get(
+            "provider_payload_boundary_status_counts"
+        ),
         "introspection_capability_count": detail.get("introspection_capability_count"),
         "introspection_capability_status_counts": detail.get(
             "introspection_capability_status_counts"
@@ -203,6 +209,9 @@ def trace_report_summary_from_spec(spec: Mapping[str, Any]) -> dict[str, Any] | 
         "analysis_command_samples": detail.get("analysis_command_samples"),
         "report_json_section_samples": detail.get("report_json_section_samples"),
         "trace_config_samples": detail.get("trace_config_samples"),
+        "provider_payload_boundary_samples": detail.get(
+            "provider_payload_boundary_samples"
+        ),
         "introspection_capability_samples": detail.get(
             "introspection_capability_samples"
         ),
@@ -248,6 +257,16 @@ def render_trace_report_lines(summary: Mapping[str, Any]) -> list[str]:
         lines.append(
             "- Trace config: "
             f"`{json.dumps(summary['trace_config_status_counts'], sort_keys=True)}`"
+        )
+    if summary.get("provider_payload_boundary_status_counts"):
+        lines.append(
+            "- Provider payload boundaries: "
+            "`"
+            + json.dumps(
+                summary["provider_payload_boundary_status_counts"],
+                sort_keys=True,
+            )
+            + "`"
         )
     if summary.get("introspection_capability_status_counts"):
         lines.append(
@@ -310,6 +329,30 @@ def render_trace_report_lines(summary: Mapping[str, Any]) -> list[str]:
             line = f"- Trace config: {status}"
             if parts:
                 line += " " + " ".join(parts)
+            lines.append(line)
+        if next_action:
+            lines.append(f"  Next action: `{next_action}`")
+    for sample in summary.get("provider_payload_boundary_samples", [])[:3]:
+        if not isinstance(sample, Mapping):
+            continue
+        provider_id = sample.get("provider_id")
+        payload_lane = sample.get("payload_lane")
+        status = sample.get("capture_status")
+        artifact_count = sample.get("artifact_count")
+        report_section = sample.get("report_section")
+        boundary = sample.get("claim_boundary")
+        next_action = sample.get("next_action")
+        if provider_id and payload_lane:
+            parts = [f"status={status}" if status else ""]
+            if artifact_count is not None:
+                parts.append(f"artifacts={artifact_count}")
+            if report_section:
+                parts.append(f"section={report_section}")
+            if boundary:
+                parts.append(f"boundary={boundary}")
+            line = f"- Provider payload boundary: {provider_id}/{payload_lane}"
+            if any(parts):
+                line += " " + " ".join(part for part in parts if part)
             lines.append(line)
         if next_action:
             lines.append(f"  Next action: `{next_action}`")
@@ -399,6 +442,8 @@ def trace_report_prompt_section(spec: Mapping[str, Any]) -> list[str]:
         "`sections.report_json_section_inventory` to discover available JSON",
         "sections. Then read `sections.trace_config_rows` first to distinguish",
         "requested controls from recorded sidecars, then use",
+        "`sections.provider_payload_boundary_inventory_rows` to distinguish",
+        "available, recorded, and blocked provider/runtime payload lanes, and",
         "`sections.introspection_capability_rows` and",
         "`sections.introspection_artifact_summary_rows` to decide which tracing",
         "sidecars exist before opening heavier sidecar-specific sections.",
@@ -1330,7 +1375,7 @@ def gate_guidance(
             [
                 f"- Trace report JSON: `{resolve_run_path(str(value), cfg)}`",
                 "- Inspect `sections.answerability`, `sections.unsupported_claims`, and `sections.next_measurements` before ad hoc parsing.",
-                "- Read `sections.report_json_section_inventory` to discover available report sections, then read `sections.trace_config_rows` before choosing sidecar-specific report sections.",
+                "- Read `sections.report_json_section_inventory` to discover available report sections, then read `sections.trace_config_rows` and `sections.provider_payload_boundary_inventory_rows` before choosing sidecar-specific report sections.",
             ]
         )
     if value := spec.get("command_wrapper_plan"):

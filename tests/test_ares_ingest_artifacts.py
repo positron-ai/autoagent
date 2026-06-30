@@ -350,6 +350,22 @@ class AresIngestArtifactTest(unittest.TestCase):
                                     ),
                                 },
                                 {
+                                    "heading": (
+                                        "Provider Payload Boundary Inventory Rows"
+                                    ),
+                                    "json_path": (
+                                        "sections."
+                                        "provider_payload_boundary_inventory_rows"
+                                    ),
+                                    "json_section": (
+                                        "provider_payload_boundary_inventory_rows"
+                                    ),
+                                    "section_kind": "introspection_inventory",
+                                    "claim_boundary": (
+                                        "payload_boundary_inventory_not_evidence"
+                                    ),
+                                },
+                                {
                                     "heading": "Next Measurements",
                                     "json_path": "sections.next_measurements",
                                     "json_section": "next_measurements",
@@ -368,6 +384,23 @@ class AresIngestArtifactTest(unittest.TestCase):
                                     "next_action": (
                                         "inspect_matching_introspection_report_sections"
                                     ),
+                                }
+                            ],
+                            "provider_payload_boundary_inventory_rows": [
+                                {
+                                    "provider_id": "fpga",
+                                    "payload_lane": "kv_payload_digests",
+                                    "capture_status": "recorded_artifact",
+                                    "artifact_count": 2,
+                                    "report_section": "kv_payload_digest_sidecar_rows",
+                                    "boundary_status": (
+                                        "available_from_scheduler_protocol_boundary"
+                                    ),
+                                    "claim_boundary": (
+                                        "system_under_test_scheduler_kv_payload_"
+                                        "diagnostic"
+                                    ),
+                                    "next_action": "inspect_report_section",
                                 }
                             ],
                             "introspection_capability_rows": [
@@ -423,12 +456,17 @@ class AresIngestArtifactTest(unittest.TestCase):
                 gate["detail"]["trace_config_status_counts"],
                 {"requested_and_recorded": 1},
             )
-            self.assertEqual(gate["detail"]["report_json_section_count"], 3)
+            self.assertEqual(
+                gate["detail"]["provider_payload_boundary_status_counts"],
+                {"recorded_artifact": 1},
+            )
+            self.assertEqual(gate["detail"]["report_json_section_count"], 4)
             self.assertEqual(
                 gate["detail"]["report_json_section_kind_counts"],
                 {
                     "capture_configuration": 1,
                     "introspection": 1,
+                    "introspection_inventory": 1,
                     "measurement_guidance": 1,
                 },
             )
@@ -439,6 +477,10 @@ class AresIngestArtifactTest(unittest.TestCase):
             self.assertEqual(
                 gate["detail"]["trace_config_samples"][0]["requested_sidecar_controls"],
                 "tensor_payloads",
+            )
+            self.assertEqual(
+                gate["detail"]["provider_payload_boundary_samples"][0]["provider_id"],
+                "fpga",
             )
             self.assertEqual(
                 gate["detail"]["introspection_capability_samples"][0][
@@ -457,10 +499,18 @@ class AresIngestArtifactTest(unittest.TestCase):
         self.assertEqual(gate["artifact_validator"], "trace_report")
         self.assertEqual(gate["detail"]["report_grade"], "diagnostic")
         self.assertEqual(gate["detail"]["preflight_status"], "pass")
-        self.assertEqual(gate["detail"]["report_json_section_count"], 50)
+        self.assertEqual(gate["detail"]["report_json_section_count"], 51)
         self.assertEqual(
             gate["detail"]["trace_config_status_counts"],
             {"requested_and_recorded": 1},
+        )
+        self.assertEqual(
+            gate["detail"]["provider_payload_boundary_status_counts"],
+            {
+                "blocked_no_supported_boundary": 1,
+                "capability_without_matching_provider_artifact": 5,
+                "recorded_artifact": 5,
+            },
         )
         self.assertEqual(
             gate["detail"]["introspection_capability_status_counts"],
@@ -481,9 +531,17 @@ class AresIngestArtifactTest(unittest.TestCase):
         self.assertIn("sections.trace_config_rows", section_paths)
         self.assertIn("sections.introspection_capability_rows", section_paths)
         self.assertIn("sections.introspection_artifact_summary_rows", section_paths)
+        self.assertIn(
+            "provider_payload_boundary_inventory_rows",
+            gate["detail"]["section_names"],
+        )
         self.assertEqual(
             gate["detail"]["trace_config_samples"][0]["requested_sidecar_controls"],
             "topk,logit_slices,tensor_payloads,activation_digests,kv_payload_digests",
+        )
+        self.assertEqual(
+            gate["detail"]["provider_payload_boundary_samples"][0]["capture_status"],
+            "capability_without_matching_provider_artifact",
         )
         self.assertEqual(
             gate["detail"]["introspection_artifact_summary_samples"][0][

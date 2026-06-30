@@ -43,6 +43,7 @@ TRACE_REPORT_REQUIRED_SECTIONS = (
 )
 TRACE_REPORT_JSON_SECTION_SAMPLE_KEYS = (
     "trace_config_rows",
+    "provider_payload_boundary_inventory_rows",
     "introspection_capability_rows",
     "introspection_artifact_summary_rows",
     "answerability",
@@ -1365,6 +1366,7 @@ def validate_trace_report_json(report: Any) -> ArtifactValidation:
     next_measurement_rows: list[dict[str, Any]] = []
     report_json_section_rows: list[dict[str, Any]] = []
     trace_config_rows: list[dict[str, Any]] = []
+    provider_payload_boundary_rows: list[dict[str, Any]] = []
     introspection_capability_rows: list[dict[str, Any]] = []
     introspection_artifact_summary_rows: list[dict[str, Any]] = []
     if sections is not None:
@@ -1396,6 +1398,12 @@ def validate_trace_report_json(report: Any) -> ArtifactValidation:
             errors,
             sections,
             "trace_config_rows",
+            required=False,
+        )
+        provider_payload_boundary_rows = _trace_report_section_rows(
+            errors,
+            sections,
+            "provider_payload_boundary_inventory_rows",
             required=False,
         )
         introspection_capability_rows = _trace_report_section_rows(
@@ -1466,6 +1474,11 @@ def validate_trace_report_json(report: Any) -> ArtifactValidation:
             trace_config_rows,
             "config_status",
         ),
+        "provider_payload_boundary_count": len(provider_payload_boundary_rows),
+        "provider_payload_boundary_status_counts": _trace_report_value_counts(
+            provider_payload_boundary_rows,
+            "capture_status",
+        ),
         "introspection_capability_count": len(introspection_capability_rows),
         "introspection_capability_status_counts": _trace_report_value_counts(
             introspection_capability_rows,
@@ -1504,6 +1517,19 @@ def validate_trace_report_json(report: Any) -> ArtifactValidation:
                 "introspection_level",
                 "compile_feature_trace_introspection",
                 "deep_introspection_effective",
+                "next_action",
+            ),
+        ),
+        "provider_payload_boundary_samples": _trace_report_samples(
+            provider_payload_boundary_rows,
+            (
+                "provider_id",
+                "payload_lane",
+                "capture_status",
+                "artifact_count",
+                "report_section",
+                "boundary_status",
+                "claim_boundary",
                 "next_action",
             ),
         ),

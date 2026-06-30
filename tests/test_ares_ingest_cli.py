@@ -84,6 +84,13 @@ def trace_report_payload() -> dict:
                     "claim_boundary": "capability_presence_not_payload_evidence",
                 },
                 {
+                    "heading": "Provider Payload Boundary Inventory Rows",
+                    "json_path": "sections.provider_payload_boundary_inventory_rows",
+                    "json_section": "provider_payload_boundary_inventory_rows",
+                    "section_kind": "introspection_inventory",
+                    "claim_boundary": "payload_boundary_inventory_not_evidence",
+                },
+                {
                     "heading": "Next Measurements",
                     "json_path": "sections.next_measurements",
                     "json_section": "next_measurements",
@@ -109,6 +116,18 @@ def trace_report_payload() -> dict:
                     "matching_artifact_count": 1,
                     "claim_boundary": "system_under_test_diagnostic_not_oracle",
                     "next_action": "inspect_token_quality_rows",
+                }
+            ],
+            "provider_payload_boundary_inventory_rows": [
+                {
+                    "provider_id": "fpga",
+                    "payload_lane": "kv_payload_digests",
+                    "capture_status": "recorded_artifact",
+                    "artifact_count": 2,
+                    "report_section": "kv_payload_digest_sidecar_rows",
+                    "boundary_status": "available_from_scheduler_protocol_boundary",
+                    "claim_boundary": "system_under_test_scheduler_kv_payload_diagnostic",
+                    "next_action": "inspect_report_section",
                 }
             ],
             "introspection_artifact_summary_rows": [
@@ -309,12 +328,17 @@ class AresIngestCliTest(unittest.TestCase):
                 state["trace_report"]["trace_config_status_counts"],
                 {"requested_and_recorded": 1},
             )
-            self.assertEqual(state["trace_report"]["report_json_section_count"], 3)
+            self.assertEqual(
+                state["trace_report"]["provider_payload_boundary_status_counts"],
+                {"recorded_artifact": 1},
+            )
+            self.assertEqual(state["trace_report"]["report_json_section_count"], 4)
             self.assertEqual(
                 state["trace_report"]["report_json_section_kind_counts"],
                 {
                     "capture_configuration": 1,
                     "introspection": 1,
+                    "introspection_inventory": 1,
                     "measurement_guidance": 1,
                 },
             )
@@ -330,6 +354,8 @@ class AresIngestCliTest(unittest.TestCase):
             self.assertIn("Report JSON section: sections.trace_config_rows", handoff)
             self.assertIn("Trace config: requested_and_recorded", handoff)
             self.assertIn("recorded=tensor_payloads", handoff)
+            self.assertIn("Provider payload boundaries", handoff)
+            self.assertIn("Provider payload boundary: fpga/kv_payload_digests", handoff)
             self.assertIn("Capture backend event JSONL", handoff)
             self.assertIn("Introspection capability: token_quality", handoff)
             self.assertIn("set ARES_BACKEND_EVENT_ARTIFACT_DIR", handoff)
@@ -346,6 +372,8 @@ class AresIngestCliTest(unittest.TestCase):
             self.assertIn("sections.answerability", prompt)
             self.assertIn("sections.report_json_section_inventory", prompt)
             self.assertIn("sections.trace_config_rows", prompt)
+            self.assertIn("sections.provider_payload_boundary_inventory_rows", prompt)
+            self.assertIn("Provider payload boundary: fpga/kv_payload_digests", prompt)
             self.assertIn("inspect_matching_introspection_report_sections", prompt)
             self.assertIn("sections.introspection_capability_rows", prompt)
             self.assertIn("sections.introspection_artifact_summary_rows", prompt)
