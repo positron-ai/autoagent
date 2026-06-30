@@ -47,10 +47,16 @@ TRACE_REPORT_JSON_SECTION_SAMPLE_KEYS = (
     "debug_payload_artifact_summary_rows",
     "token_quality_summary_rows",
     "oracle_reference_summary_rows",
+    "planning_decision_sidecar_rows",
+    "token_quality_sidecar_rows",
+    "topk_token_sidecar_rows",
     "tensor_payload_sidecar_rows",
     "kv_payload_digest_sidecar_rows",
+    "logit_slice_sidecar_rows",
+    "activation_digest_sidecar_rows",
     "scheduler_packet_lineage_sidecar_rows",
     "scheduler_kv_shard_lifecycle_sidecar_rows",
+    "scheduler_listener_sparse_logit_sidecar_rows",
     "device_dma_lifecycle_sidecar_rows",
     "attention_page_trace_sidecar_rows",
     "introspection_capability_rows",
@@ -1380,10 +1386,16 @@ def validate_trace_report_json(report: Any) -> ArtifactValidation:
     debug_payload_artifact_summary_rows: list[dict[str, Any]] = []
     token_quality_summary_rows: list[dict[str, Any]] = []
     oracle_reference_summary_rows: list[dict[str, Any]] = []
+    planning_decision_sidecar_rows: list[dict[str, Any]] = []
+    token_quality_sidecar_rows: list[dict[str, Any]] = []
+    topk_token_sidecar_rows: list[dict[str, Any]] = []
     tensor_payload_sidecar_rows: list[dict[str, Any]] = []
     kv_payload_digest_sidecar_rows: list[dict[str, Any]] = []
+    logit_slice_sidecar_rows: list[dict[str, Any]] = []
+    activation_digest_sidecar_rows: list[dict[str, Any]] = []
     scheduler_packet_lineage_sidecar_rows: list[dict[str, Any]] = []
     scheduler_kv_shard_lifecycle_sidecar_rows: list[dict[str, Any]] = []
+    scheduler_listener_sparse_logit_sidecar_rows: list[dict[str, Any]] = []
     device_dma_lifecycle_sidecar_rows: list[dict[str, Any]] = []
     attention_page_trace_sidecar_rows: list[dict[str, Any]] = []
     introspection_capability_rows: list[dict[str, Any]] = []
@@ -1444,6 +1456,24 @@ def validate_trace_report_json(report: Any) -> ArtifactValidation:
             "oracle_reference_summary_rows",
             required=False,
         )
+        planning_decision_sidecar_rows = _trace_report_section_rows(
+            errors,
+            sections,
+            "planning_decision_sidecar_rows",
+            required=False,
+        )
+        token_quality_sidecar_rows = _trace_report_section_rows(
+            errors,
+            sections,
+            "token_quality_sidecar_rows",
+            required=False,
+        )
+        topk_token_sidecar_rows = _trace_report_section_rows(
+            errors,
+            sections,
+            "topk_token_sidecar_rows",
+            required=False,
+        )
         tensor_payload_sidecar_rows = _trace_report_section_rows(
             errors,
             sections,
@@ -1456,6 +1486,18 @@ def validate_trace_report_json(report: Any) -> ArtifactValidation:
             "kv_payload_digest_sidecar_rows",
             required=False,
         )
+        logit_slice_sidecar_rows = _trace_report_section_rows(
+            errors,
+            sections,
+            "logit_slice_sidecar_rows",
+            required=False,
+        )
+        activation_digest_sidecar_rows = _trace_report_section_rows(
+            errors,
+            sections,
+            "activation_digest_sidecar_rows",
+            required=False,
+        )
         scheduler_packet_lineage_sidecar_rows = _trace_report_section_rows(
             errors,
             sections,
@@ -1466,6 +1508,12 @@ def validate_trace_report_json(report: Any) -> ArtifactValidation:
             errors,
             sections,
             "scheduler_kv_shard_lifecycle_sidecar_rows",
+            required=False,
+        )
+        scheduler_listener_sparse_logit_sidecar_rows = _trace_report_section_rows(
+            errors,
+            sections,
+            "scheduler_listener_sparse_logit_sidecar_rows",
             required=False,
         )
         device_dma_lifecycle_sidecar_rows = _trace_report_section_rows(
@@ -1584,6 +1632,41 @@ def validate_trace_report_json(report: Any) -> ArtifactValidation:
             oracle_reference_summary_rows,
             "correctness_claim_status",
         ),
+        "planning_decision_sidecar_count": len(planning_decision_sidecar_rows),
+        "planning_decision_sidecar_status_counts": _trace_report_value_counts(
+            planning_decision_sidecar_rows,
+            "status",
+        ),
+        "planning_decision_sidecar_row_kind_counts": _trace_report_value_counts(
+            planning_decision_sidecar_rows,
+            "row_kind",
+        ),
+        "planning_decision_sidecar_phase_counts": _trace_report_value_counts(
+            planning_decision_sidecar_rows,
+            "planning_phase",
+        ),
+        "token_quality_sidecar_count": len(token_quality_sidecar_rows),
+        "token_quality_sidecar_status_counts": _trace_report_value_counts(
+            token_quality_sidecar_rows,
+            "status",
+        ),
+        "token_quality_sidecar_finish_reason_counts": _trace_report_value_counts(
+            token_quality_sidecar_rows,
+            "finish_reason",
+        ),
+        "topk_token_sidecar_count": len(topk_token_sidecar_rows),
+        "topk_token_sidecar_status_counts": _trace_report_value_counts(
+            topk_token_sidecar_rows,
+            "status",
+        ),
+        "topk_token_sidecar_selected_status_counts": _trace_report_value_counts(
+            topk_token_sidecar_rows,
+            "selected_candidate_status",
+        ),
+        "topk_token_sidecar_score_kind_counts": _trace_report_value_counts(
+            topk_token_sidecar_rows,
+            "score_kind",
+        ),
         "tensor_payload_sidecar_count": len(tensor_payload_sidecar_rows),
         "tensor_payload_sidecar_status_counts": _trace_report_value_counts(
             tensor_payload_sidecar_rows,
@@ -1605,6 +1688,32 @@ def validate_trace_report_json(report: Any) -> ArtifactValidation:
         "kv_payload_digest_sidecar_role_counts": _trace_report_value_counts(
             kv_payload_digest_sidecar_rows,
             "tensor_role",
+        ),
+        "logit_slice_sidecar_count": len(logit_slice_sidecar_rows),
+        "logit_slice_sidecar_status_counts": _trace_report_value_counts(
+            logit_slice_sidecar_rows,
+            "status",
+        ),
+        "logit_slice_sidecar_role_counts": _trace_report_value_counts(
+            logit_slice_sidecar_rows,
+            "tensor_role",
+        ),
+        "logit_slice_sidecar_action_counts": _trace_report_value_counts(
+            logit_slice_sidecar_rows,
+            "targetplan_action",
+        ),
+        "activation_digest_sidecar_count": len(activation_digest_sidecar_rows),
+        "activation_digest_sidecar_status_counts": _trace_report_value_counts(
+            activation_digest_sidecar_rows,
+            "status",
+        ),
+        "activation_digest_sidecar_role_counts": _trace_report_value_counts(
+            activation_digest_sidecar_rows,
+            "tensor_role",
+        ),
+        "activation_digest_sidecar_intrinsic_counts": _trace_report_value_counts(
+            activation_digest_sidecar_rows,
+            "intrinsic",
         ),
         "scheduler_packet_lineage_sidecar_count": len(
             scheduler_packet_lineage_sidecar_rows
@@ -1634,6 +1743,27 @@ def validate_trace_report_json(report: Any) -> ArtifactValidation:
             _trace_report_value_counts(
                 scheduler_kv_shard_lifecycle_sidecar_rows,
                 "kv_lifecycle_status",
+            )
+        ),
+        "scheduler_listener_sparse_logit_sidecar_count": len(
+            scheduler_listener_sparse_logit_sidecar_rows
+        ),
+        "scheduler_listener_sparse_logit_sidecar_status_counts": (
+            _trace_report_value_counts(
+                scheduler_listener_sparse_logit_sidecar_rows,
+                "status",
+            )
+        ),
+        "scheduler_listener_sparse_logit_sidecar_listener_status_counts": (
+            _trace_report_value_counts(
+                scheduler_listener_sparse_logit_sidecar_rows,
+                "listener_sparse_status",
+            )
+        ),
+        "scheduler_listener_sparse_logit_sidecar_executor_counts": (
+            _trace_report_value_counts(
+                scheduler_listener_sparse_logit_sidecar_rows,
+                "executor_status",
             )
         ),
         "device_dma_lifecycle_sidecar_count": len(device_dma_lifecycle_sidecar_rows),
@@ -1791,6 +1921,75 @@ def validate_trace_report_json(report: Any) -> ArtifactValidation:
                 "claim_boundary",
             ),
         ),
+        "planning_decision_sidecar_samples": _trace_report_samples(
+            planning_decision_sidecar_rows,
+            (
+                "row_kind",
+                "status",
+                "process_kind",
+                "frontend",
+                "target_backend",
+                "selection_source",
+                "source",
+                "logical_command",
+                "dispatch_command",
+                "runner_count",
+                "exit_code",
+                "duration_us",
+                "artifact_role",
+                "artifact_kind",
+                "artifact_path",
+                "artifact_sha256",
+                "artifact_byte_count",
+                "planning_phase",
+                "event_name",
+                "category",
+                "start_ms",
+                "duration_ms",
+                "planning_output_bytes",
+                "targetplan_op_count",
+                "claim_boundary",
+            ),
+        ),
+        "token_quality_sidecar_samples": _trace_report_samples(
+            token_quality_sidecar_rows,
+            (
+                "status",
+                "evidence_role",
+                "request_id",
+                "generation_id",
+                "token_index",
+                "selected_token_id",
+                "topk_count",
+                "temperature",
+                "top_p",
+                "top_k",
+                "eos_policy",
+                "finish_reason",
+                "oracle_reference",
+            ),
+        ),
+        "topk_token_sidecar_samples": _trace_report_samples(
+            topk_token_sidecar_rows,
+            (
+                "status",
+                "evidence_role",
+                "request_id",
+                "generation_id",
+                "token_index",
+                "selected_token_id",
+                "candidate_token_id",
+                "candidate_rank",
+                "candidate_score",
+                "score_kind",
+                "selected_candidate_status",
+                "temperature",
+                "top_p",
+                "top_k",
+                "oracle_reference",
+                "claim_boundary",
+            ),
+        ),
         "tensor_payload_sidecar_samples": _trace_report_samples(
             tensor_payload_sidecar_rows,
             (
@@ -1839,6 +2038,70 @@ def validate_trace_report_json(report: Any) -> ArtifactValidation:
                 "shape",
                 "element_count",
                 "digest_sha256",
+                "sample_value_count",
+                "sample_min",
+                "sample_max",
+                "sample_nan_count",
+                "sample_pos_inf_count",
+                "sample_neg_inf_count",
+                "sample_values",
+                "failure_reason",
+            ),
+        ),
+        "logit_slice_sidecar_samples": _trace_report_samples(
+            logit_slice_sidecar_rows,
+            (
+                "status",
+                "evidence_role",
+                "backend_id",
+                "request_id",
+                "generation_id",
+                "token_index",
+                "targetplan_op_id",
+                "targetplan_action",
+                "layer",
+                "intrinsic",
+                "tensor_payload_kind",
+                "tensor_name",
+                "tensor_role",
+                "element_type",
+                "shape",
+                "element_count",
+                "digest_sha256",
+                "sample_start",
+                "sample_stride",
+                "sample_value_count",
+                "sample_min",
+                "sample_max",
+                "sample_nan_count",
+                "sample_pos_inf_count",
+                "sample_neg_inf_count",
+                "sample_values",
+                "failure_reason",
+            ),
+        ),
+        "activation_digest_sidecar_samples": _trace_report_samples(
+            activation_digest_sidecar_rows,
+            (
+                "status",
+                "evidence_role",
+                "backend_id",
+                "request_id",
+                "generation_id",
+                "token_index",
+                "targetplan_op_id",
+                "targetplan_action",
+                "layer",
+                "intrinsic",
+                "tensor_payload_kind",
+                "tensor_name",
+                "tensor_role",
+                "element_type",
+                "shape",
+                "element_count",
+                "digest_sha256",
+                "sample_start",
+                "sample_stride",
                 "sample_value_count",
                 "sample_min",
                 "sample_max",
@@ -1901,6 +2164,29 @@ def validate_trace_report_json(report: Any) -> ArtifactValidation:
                 "hw_gof_page_infos",
                 "prior_host_gof_staging_status",
                 "prior_host_gof_dma_completions",
+                "failure_reason",
+            ),
+        ),
+        "scheduler_listener_sparse_logit_sidecar_samples": _trace_report_samples(
+            scheduler_listener_sparse_logit_sidecar_rows,
+            (
+                "status",
+                "listener_sparse_status",
+                "evidence_role",
+                "request_id",
+                "generation_id",
+                "location_id",
+                "executor_shape",
+                "executor_status",
+                "attention_mode",
+                "listener_sparse_rows",
+                "listener_sparse_tokens",
+                "sparse_topk_rows",
+                "sparse_topk_token_count",
+                "token_job_count",
+                "minibatch_count",
+                "runtime_request_token_count",
+                "tokens_reused",
                 "failure_reason",
             ),
         ),

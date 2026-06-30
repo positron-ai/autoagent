@@ -121,6 +121,29 @@ def trace_report_payload() -> dict:
                     ),
                 },
                 {
+                    "heading": "Planning Decision Sidecar Rows",
+                    "json_path": "sections.planning_decision_sidecar_rows",
+                    "json_section": "planning_decision_sidecar_rows",
+                    "section_kind": "sidecar",
+                    "claim_boundary": (
+                        "planning_decision_diagnostic_not_model_evidence"
+                    ),
+                },
+                {
+                    "heading": "Token Quality Sidecar Rows",
+                    "json_path": "sections.token_quality_sidecar_rows",
+                    "json_section": "token_quality_sidecar_rows",
+                    "section_kind": "sidecar",
+                    "claim_boundary": "system_under_test_diagnostic_not_oracle",
+                },
+                {
+                    "heading": "Top-K Token Sidecar Rows",
+                    "json_path": "sections.topk_token_sidecar_rows",
+                    "json_section": "topk_token_sidecar_rows",
+                    "section_kind": "sidecar",
+                    "claim_boundary": ("system_under_test_topk_diagnostic_not_oracle"),
+                },
+                {
                     "heading": "Tensor Payload Sidecar Rows",
                     "json_path": "sections.tensor_payload_sidecar_rows",
                     "json_section": "tensor_payload_sidecar_rows",
@@ -134,6 +157,22 @@ def trace_report_payload() -> dict:
                     "section_kind": "sidecar",
                     "claim_boundary": (
                         "system_under_test_scheduler_kv_payload_diagnostic"
+                    ),
+                },
+                {
+                    "heading": "Logit Slice Sidecar Rows",
+                    "json_path": "sections.logit_slice_sidecar_rows",
+                    "json_section": "logit_slice_sidecar_rows",
+                    "section_kind": "sidecar",
+                    "claim_boundary": "system_under_test_final_logit_diagnostic",
+                },
+                {
+                    "heading": "Activation Digest Sidecar Rows",
+                    "json_path": "sections.activation_digest_sidecar_rows",
+                    "json_section": "activation_digest_sidecar_rows",
+                    "section_kind": "sidecar",
+                    "claim_boundary": (
+                        "system_under_test_activation_digest_diagnostic"
                     ),
                 },
                 {
@@ -151,6 +190,15 @@ def trace_report_payload() -> dict:
                     "claim_boundary": (
                         "system_under_test_scheduler_kv_lifecycle_diagnostic"
                     ),
+                },
+                {
+                    "heading": "Scheduler Listener Sparse Logit Sidecar Rows",
+                    "json_path": (
+                        "sections.scheduler_listener_sparse_logit_sidecar_rows"
+                    ),
+                    "json_section": ("scheduler_listener_sparse_logit_sidecar_rows"),
+                    "section_kind": "sidecar",
+                    "claim_boundary": "system_under_test_scheduler_diagnostic",
                 },
                 {
                     "heading": "Device DMA Lifecycle Sidecar Rows",
@@ -279,6 +327,77 @@ def trace_report_payload() -> dict:
                     ),
                 }
             ],
+            "planning_decision_sidecar_rows": [
+                {
+                    "row_kind": "lean_planning_phase",
+                    "status": "present",
+                    "process_kind": "lean_ingest",
+                    "frontend": "hf-export",
+                    "target_backend": "fpga",
+                    "selection_source": "cli",
+                    "source": "ares-ingest-planning-introspection",
+                    "logical_command": "lake env lean",
+                    "dispatch_command": "bin/ares-ingest",
+                    "runner_count": "1",
+                    "exit_code": "0",
+                    "duration_us": "1200",
+                    "artifact_role": "targetplan",
+                    "artifact_kind": "target_plan_json",
+                    "artifact_path": "plans/fpga.target_plan.json",
+                    "artifact_sha256": "b" * 64,
+                    "artifact_byte_count": "4096",
+                    "planning_phase": "lean.target_plan_lower",
+                    "event_name": "targetplan_lowered",
+                    "category": "planning",
+                    "start_ms": "1.5",
+                    "duration_ms": "2.5",
+                    "planning_output_bytes": "4096",
+                    "targetplan_op_count": "4",
+                    "claim_boundary": (
+                        "planning_decision_diagnostic_not_model_evidence"
+                    ),
+                }
+            ],
+            "token_quality_sidecar_rows": [
+                {
+                    "status": "present",
+                    "evidence_role": "system_under_test",
+                    "request_id": "7001",
+                    "generation_id": "rinzler-7001",
+                    "token_index": "0",
+                    "selected_token_id": "42",
+                    "topk_count": "2",
+                    "temperature": "0.7",
+                    "top_p": "0.9",
+                    "top_k": "8",
+                    "eos_policy": "stop_on_stop_token",
+                    "finish_reason": "stop",
+                    "oracle_reference": "external_hf_cpu_reference",
+                }
+            ],
+            "topk_token_sidecar_rows": [
+                {
+                    "status": "present",
+                    "evidence_role": "system_under_test",
+                    "request_id": "7001",
+                    "generation_id": "rinzler-7001",
+                    "token_index": "0",
+                    "selected_token_id": "42",
+                    "candidate_token_id": "42",
+                    "candidate_rank": "0",
+                    "candidate_score": "-0.1",
+                    "score_kind": "logprob",
+                    "selected_candidate_status": "selected_token",
+                    "temperature": "0.7",
+                    "top_p": "0.9",
+                    "top_k": "8",
+                    "oracle_reference": "external_hf_cpu_reference",
+                    "claim_boundary": (
+                        "external_oracle_reference_present; "
+                        "row_remains_system_under_test"
+                    ),
+                }
+            ],
             "tensor_payload_sidecar_rows": [
                 {
                     "status": "ok",
@@ -332,6 +451,66 @@ def trace_report_payload() -> dict:
                     "sample_values": "[0.125, 0.25, 0.375, 0.5]",
                 }
             ],
+            "logit_slice_sidecar_rows": [
+                {
+                    "status": "ok",
+                    "evidence_role": "system_under_test",
+                    "backend_id": "fpga",
+                    "request_id": "7005",
+                    "generation_id": "rinzler-7005",
+                    "token_index": "0",
+                    "targetplan_op_id": "tp.logits.0",
+                    "targetplan_action": "final_logits",
+                    "layer": "31",
+                    "intrinsic": "topk",
+                    "tensor_payload_kind": "logit_slice",
+                    "tensor_name": "ares_logits",
+                    "tensor_role": "logits",
+                    "element_type": "f32",
+                    "shape": "[1, 32000]",
+                    "element_count": "32000",
+                    "digest_sha256": "a" * 64,
+                    "sample_start": "7",
+                    "sample_stride": "1",
+                    "sample_value_count": "4",
+                    "sample_min": "-0.25",
+                    "sample_max": "0.5",
+                    "sample_nan_count": "1",
+                    "sample_pos_inf_count": "0",
+                    "sample_neg_inf_count": "1",
+                    "sample_values": '[0.5, "-Infinity", "NaN", -0.25]',
+                }
+            ],
+            "activation_digest_sidecar_rows": [
+                {
+                    "status": "ok",
+                    "evidence_role": "system_under_test",
+                    "backend_id": "fpga",
+                    "request_id": "7007",
+                    "generation_id": "rinzler-7007",
+                    "token_index": "0",
+                    "targetplan_op_id": "tp.activation.0",
+                    "targetplan_action": "activation",
+                    "layer": "0",
+                    "intrinsic": "rmsnorm",
+                    "tensor_payload_kind": "activation_digest",
+                    "tensor_name": "layer_0.mlp.down_proj.activation",
+                    "tensor_role": "activation",
+                    "element_type": "f32",
+                    "shape": "[1, 4096]",
+                    "element_count": "4096",
+                    "digest_sha256": "b" * 64,
+                    "sample_start": "0",
+                    "sample_stride": "8",
+                    "sample_value_count": "4",
+                    "sample_min": "-0.125",
+                    "sample_max": "0.5",
+                    "sample_nan_count": "0",
+                    "sample_pos_inf_count": "0",
+                    "sample_neg_inf_count": "0",
+                    "sample_values": "[-0.125, 0.0, 0.25, 0.5]",
+                }
+            ],
             "scheduler_packet_lineage_sidecar_rows": [
                 {
                     "status": "ok",
@@ -381,6 +560,27 @@ def trace_report_payload() -> dict:
                     "hw_gof_page_infos": "1",
                     "prior_host_gof_staging_status": "page_info_published",
                     "prior_host_gof_dma_completions": "1",
+                }
+            ],
+            "scheduler_listener_sparse_logit_sidecar_rows": [
+                {
+                    "status": "ok",
+                    "listener_sparse_status": "observed",
+                    "evidence_role": "system_under_test",
+                    "request_id": "7002",
+                    "generation_id": "rinzler-7002",
+                    "location_id": "4",
+                    "executor_shape": "fullscheduler_forward_batch_v1",
+                    "executor_status": "executed_fullscheduler_forward_batch_v1",
+                    "attention_mode": "software_attention",
+                    "listener_sparse_rows": "1",
+                    "listener_sparse_tokens": "3",
+                    "sparse_topk_rows": "1",
+                    "sparse_topk_token_count": "3",
+                    "token_job_count": "2",
+                    "minibatch_count": "1",
+                    "runtime_request_token_count": "2",
+                    "tokens_reused": "5",
                 }
             ],
             "device_dma_lifecycle_sidecar_rows": [
@@ -457,11 +657,63 @@ def trace_report_payload() -> dict:
                     "heading": "Planning Decision Sidecar Rows",
                     "json_section": "planning_decision_sidecar_rows",
                     "capability_present": True,
-                    "artifact_count": 0,
-                    "section_status": "capability_without_artifact",
+                    "artifact_count": 1,
+                    "section_status": "available",
                     "claim_boundary": (
                         "planning_decision_diagnostic_not_model_evidence"
                     ),
+                },
+                {
+                    "capture_capability": "token_quality",
+                    "artifact_kind": "token_quality",
+                    "heading": "Token Quality Sidecar Rows",
+                    "json_section": "token_quality_sidecar_rows",
+                    "capability_present": True,
+                    "artifact_count": 1,
+                    "section_status": "available",
+                    "claim_boundary": "system_under_test_diagnostic_not_oracle",
+                },
+                {
+                    "capture_capability": "topk_rows",
+                    "artifact_kind": "token_quality",
+                    "heading": "Top-K Token Sidecar Rows",
+                    "json_section": "topk_token_sidecar_rows",
+                    "capability_present": True,
+                    "artifact_count": 1,
+                    "section_status": "available",
+                    "claim_boundary": ("system_under_test_topk_diagnostic_not_oracle"),
+                },
+                {
+                    "capture_capability": "logit_slices",
+                    "artifact_kind": "logit_slices",
+                    "heading": "Logit Slice Sidecar Rows",
+                    "json_section": "logit_slice_sidecar_rows",
+                    "capability_present": True,
+                    "artifact_count": 1,
+                    "section_status": "available",
+                    "claim_boundary": "system_under_test_final_logit_diagnostic",
+                },
+                {
+                    "capture_capability": "activation_digests",
+                    "artifact_kind": "activation_digests",
+                    "heading": "Activation Digest Sidecar Rows",
+                    "json_section": "activation_digest_sidecar_rows",
+                    "capability_present": True,
+                    "artifact_count": 1,
+                    "section_status": "available",
+                    "claim_boundary": (
+                        "system_under_test_activation_digest_diagnostic"
+                    ),
+                },
+                {
+                    "capture_capability": "scheduler_packet_lineage",
+                    "artifact_kind": "scheduler_packet_lineage",
+                    "heading": "Scheduler Listener Sparse Logit Sidecar Rows",
+                    "json_section": ("scheduler_listener_sparse_logit_sidecar_rows"),
+                    "capability_present": True,
+                    "artifact_count": 1,
+                    "section_status": "available",
+                    "claim_boundary": "system_under_test_scheduler_diagnostic",
                 },
             ],
             "introspection_artifact_summary_rows": [
@@ -473,9 +725,14 @@ def trace_report_payload() -> dict:
                     "local_missing_count": 0,
                     "row_count_total": 1,
                     "report_sections": (
-                        "token_quality_summary_rows,oracle_reference_summary_rows"
+                        "oracle_reference_summary_rows,token_quality_sidecar_rows,"
+                        "token_quality_summary_rows,topk_token_sidecar_rows"
                     ),
-                    "claim_boundaries": "system_under_test_diagnostic_not_oracle",
+                    "claim_boundaries": (
+                        "external_oracle_reference_anchor_not_sut_oracle_evidence,"
+                        "system_under_test_diagnostic_not_oracle,"
+                        "system_under_test_topk_diagnostic_not_oracle"
+                    ),
                 }
             ],
         },
@@ -687,6 +944,30 @@ class AresIngestCliTest(unittest.TestCase):
                 {"not_oracle_evidence": 1},
             )
             self.assertEqual(
+                state["trace_report"]["planning_decision_sidecar_row_kind_counts"],
+                {"lean_planning_phase": 1},
+            )
+            self.assertEqual(
+                state["trace_report"]["planning_decision_sidecar_phase_counts"],
+                {"lean.target_plan_lower": 1},
+            )
+            self.assertEqual(
+                state["trace_report"]["token_quality_sidecar_status_counts"],
+                {"present": 1},
+            )
+            self.assertEqual(
+                state["trace_report"]["token_quality_sidecar_finish_reason_counts"],
+                {"stop": 1},
+            )
+            self.assertEqual(
+                state["trace_report"]["topk_token_sidecar_selected_status_counts"],
+                {"selected_token": 1},
+            )
+            self.assertEqual(
+                state["trace_report"]["topk_token_sidecar_score_kind_counts"],
+                {"logprob": 1},
+            )
+            self.assertEqual(
                 state["trace_report"]["tensor_payload_sidecar_status_counts"],
                 {"ok": 1},
             )
@@ -705,6 +986,22 @@ class AresIngestCliTest(unittest.TestCase):
             self.assertEqual(
                 state["trace_report"]["kv_payload_digest_sidecar_role_counts"],
                 {"kv_key": 1},
+            )
+            self.assertEqual(
+                state["trace_report"]["logit_slice_sidecar_role_counts"],
+                {"logits": 1},
+            )
+            self.assertEqual(
+                state["trace_report"]["logit_slice_sidecar_action_counts"],
+                {"final_logits": 1},
+            )
+            self.assertEqual(
+                state["trace_report"]["activation_digest_sidecar_role_counts"],
+                {"activation": 1},
+            )
+            self.assertEqual(
+                state["trace_report"]["activation_digest_sidecar_intrinsic_counts"],
+                {"rmsnorm": 1},
             )
             self.assertEqual(
                 state["trace_report"]["scheduler_packet_lineage_sidecar_status_counts"],
@@ -729,6 +1026,18 @@ class AresIngestCliTest(unittest.TestCase):
                 {"observed": 1},
             )
             self.assertEqual(
+                state["trace_report"][
+                    "scheduler_listener_sparse_logit_sidecar_listener_status_counts"
+                ],
+                {"observed": 1},
+            )
+            self.assertEqual(
+                state["trace_report"][
+                    "scheduler_listener_sparse_logit_sidecar_executor_counts"
+                ],
+                {"executed_fullscheduler_forward_batch_v1": 1},
+            )
+            self.assertEqual(
                 state["trace_report"]["device_dma_lifecycle_sidecar_status_counts"],
                 {"ok": 1},
             )
@@ -750,15 +1059,22 @@ class AresIngestCliTest(unittest.TestCase):
             )
             self.assertEqual(
                 state["trace_report"]["introspection_section_inventory_status_counts"],
-                {"available": 1, "capability_without_artifact": 1},
+                {"available": 7},
             )
             self.assertEqual(
                 state["trace_report"][
                     "introspection_section_inventory_capability_counts"
                 ],
-                {"deep_introspection": 1, "token_quality": 1},
+                {
+                    "activation_digests": 1,
+                    "deep_introspection": 1,
+                    "logit_slices": 1,
+                    "scheduler_packet_lineage": 1,
+                    "token_quality": 2,
+                    "topk_rows": 1,
+                },
             )
-            self.assertEqual(state["trace_report"]["report_json_section_count"], 14)
+            self.assertEqual(state["trace_report"]["report_json_section_count"], 20)
             self.assertEqual(
                 state["trace_report"]["report_json_section_kind_counts"],
                 {
@@ -767,7 +1083,7 @@ class AresIngestCliTest(unittest.TestCase):
                     "introspection": 1,
                     "introspection_inventory": 2,
                     "measurement_guidance": 1,
-                    "sidecar": 8,
+                    "sidecar": 14,
                 },
             )
             spec = json.loads((run_dir / "model_spec.json").read_text())
@@ -815,6 +1131,10 @@ class AresIngestCliTest(unittest.TestCase):
             self.assertIn("lifecycle=observed", handoff)
             self.assertIn("kv_context_rows=64", handoff)
             self.assertIn("staging=page_info_published", handoff)
+            self.assertIn("Scheduler sparse listener status", handoff)
+            self.assertIn("Scheduler sparse listener: request=7002", handoff)
+            self.assertIn("listener=observed", handoff)
+            self.assertIn("sparse_topk_tokens=3", handoff)
             self.assertIn("Device DMA lifecycle", handoff)
             self.assertIn("Device DMA stages", handoff)
             self.assertIn("Device DMA lifecycle: request=7002", handoff)
@@ -836,6 +1156,27 @@ class AresIngestCliTest(unittest.TestCase):
             self.assertIn("Oracle reference summary: request=7001", handoff)
             self.assertIn("correctness=not_oracle_evidence", handoff)
             self.assertIn("sut=system_under_test", handoff)
+            self.assertIn("Planning decision sidecars", handoff)
+            self.assertIn("Planning decision phases", handoff)
+            self.assertIn("Planning decision sidecar: row=lean_planning_phase", handoff)
+            self.assertIn("phase=lean.target_plan_lower", handoff)
+            self.assertIn("targetplan_ops=4", handoff)
+            self.assertIn("Token quality sidecars", handoff)
+            self.assertIn("Token quality finish reasons", handoff)
+            self.assertIn("Token quality sidecar: request=7001", handoff)
+            self.assertIn("finish=stop", handoff)
+            self.assertIn("topk_count=2", handoff)
+            self.assertIn("Top-K token candidate status", handoff)
+            self.assertIn("Top-K token sidecar: request=7001", handoff)
+            self.assertIn("candidate_status=selected_token", handoff)
+            self.assertIn("rank=0", handoff)
+            self.assertIn("Logit slice sidecars", handoff)
+            self.assertIn("Logit slice sidecar: request=7005", handoff)
+            self.assertIn("action=final_logits", handoff)
+            self.assertIn("sample_nan=1", handoff)
+            self.assertIn("Activation digest sidecars", handoff)
+            self.assertIn("Activation digest sidecar: request=7007", handoff)
+            self.assertIn("intrinsic=rmsnorm", handoff)
             self.assertIn("Introspection capability: token_quality", handoff)
             self.assertIn("Introspection sections", handoff)
             self.assertIn(
@@ -849,7 +1190,6 @@ class AresIngestCliTest(unittest.TestCase):
                 "Introspection section: planning_decision_sidecar_rows",
                 handoff,
             )
-            self.assertIn("status=capability_without_artifact", handoff)
             self.assertIn("set ARES_BACKEND_EVENT_ARTIFACT_DIR", handoff)
 
             reward = json.loads((run_dir / "reward.json").read_text())
@@ -866,11 +1206,20 @@ class AresIngestCliTest(unittest.TestCase):
             self.assertIn("sections.trace_config_rows", prompt)
             self.assertIn("sections.provider_payload_boundary_inventory_rows", prompt)
             self.assertIn("sections.debug_payload_artifact_summary_rows", prompt)
+            self.assertIn("sections.planning_decision_sidecar_rows", prompt)
+            self.assertIn("sections.token_quality_sidecar_rows", prompt)
+            self.assertIn("sections.topk_token_sidecar_rows", prompt)
             self.assertIn("sections.tensor_payload_sidecar_rows", prompt)
             self.assertIn("sections.kv_payload_digest_sidecar_rows", prompt)
+            self.assertIn("sections.logit_slice_sidecar_rows", prompt)
+            self.assertIn("sections.activation_digest_sidecar_rows", prompt)
             self.assertIn("sections.scheduler_packet_lineage_sidecar_rows", prompt)
             self.assertIn(
                 "sections.scheduler_kv_shard_lifecycle_sidecar_rows",
+                prompt,
+            )
+            self.assertIn(
+                "sections.scheduler_listener_sparse_logit_sidecar_rows",
                 prompt,
             )
             self.assertIn("sections.device_dma_lifecycle_sidecar_rows", prompt)
@@ -884,14 +1233,27 @@ class AresIngestCliTest(unittest.TestCase):
             self.assertIn("same_kind_backends=fpga", prompt)
             self.assertIn("Debug payload artifact: attention_page_trace", prompt)
             self.assertIn("features=trace-introspection", prompt)
+            self.assertIn("Planning decision sidecar: row=lean_planning_phase", prompt)
+            self.assertIn("phase=lean.target_plan_lower", prompt)
+            self.assertIn("frontend and", prompt)
+            self.assertIn("Token quality sidecar: request=7001", prompt)
+            self.assertIn("finish=stop", prompt)
+            self.assertIn("Top-K token sidecar: request=7001", prompt)
+            self.assertIn("candidate_status=selected_token", prompt)
             self.assertIn("Tensor payload sidecar: request=7005", prompt)
             self.assertIn("kind=tensor_payload", prompt)
             self.assertIn("digest_sha256=", prompt)
             self.assertIn("K/V payload digest sidecar: request=7006", prompt)
             self.assertIn("scheduler K/V digest rows", prompt)
+            self.assertIn("Logit slice sidecar: request=7005", prompt)
+            self.assertIn("action=final_logits", prompt)
+            self.assertIn("Activation digest sidecar: request=7007", prompt)
+            self.assertIn("intrinsic=rmsnorm", prompt)
             self.assertIn("Scheduler packet lineage: request=7002", prompt)
             self.assertIn("scheduler packet shape", prompt)
             self.assertIn("Scheduler K/V lifecycle: request=7002", prompt)
+            self.assertIn("Scheduler sparse listener: request=7002", prompt)
+            self.assertIn("sparse-listener", prompt)
             self.assertIn("hardware-counter evidence", prompt)
             self.assertIn("Device DMA lifecycle: request=7002", prompt)
             self.assertIn("stage=dma_completion", prompt)

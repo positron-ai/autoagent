@@ -214,6 +214,35 @@ def trace_report_summary_from_spec(spec: Mapping[str, Any]) -> dict[str, Any] | 
         "oracle_reference_summary_correctness_counts": detail.get(
             "oracle_reference_summary_correctness_counts"
         ),
+        "planning_decision_sidecar_count": detail.get(
+            "planning_decision_sidecar_count"
+        ),
+        "planning_decision_sidecar_status_counts": detail.get(
+            "planning_decision_sidecar_status_counts"
+        ),
+        "planning_decision_sidecar_row_kind_counts": detail.get(
+            "planning_decision_sidecar_row_kind_counts"
+        ),
+        "planning_decision_sidecar_phase_counts": detail.get(
+            "planning_decision_sidecar_phase_counts"
+        ),
+        "token_quality_sidecar_count": detail.get("token_quality_sidecar_count"),
+        "token_quality_sidecar_status_counts": detail.get(
+            "token_quality_sidecar_status_counts"
+        ),
+        "token_quality_sidecar_finish_reason_counts": detail.get(
+            "token_quality_sidecar_finish_reason_counts"
+        ),
+        "topk_token_sidecar_count": detail.get("topk_token_sidecar_count"),
+        "topk_token_sidecar_status_counts": detail.get(
+            "topk_token_sidecar_status_counts"
+        ),
+        "topk_token_sidecar_selected_status_counts": detail.get(
+            "topk_token_sidecar_selected_status_counts"
+        ),
+        "topk_token_sidecar_score_kind_counts": detail.get(
+            "topk_token_sidecar_score_kind_counts"
+        ),
         "tensor_payload_sidecar_count": detail.get("tensor_payload_sidecar_count"),
         "tensor_payload_sidecar_status_counts": detail.get(
             "tensor_payload_sidecar_status_counts"
@@ -233,6 +262,28 @@ def trace_report_summary_from_spec(spec: Mapping[str, Any]) -> dict[str, Any] | 
         "kv_payload_digest_sidecar_role_counts": detail.get(
             "kv_payload_digest_sidecar_role_counts"
         ),
+        "logit_slice_sidecar_count": detail.get("logit_slice_sidecar_count"),
+        "logit_slice_sidecar_status_counts": detail.get(
+            "logit_slice_sidecar_status_counts"
+        ),
+        "logit_slice_sidecar_role_counts": detail.get(
+            "logit_slice_sidecar_role_counts"
+        ),
+        "logit_slice_sidecar_action_counts": detail.get(
+            "logit_slice_sidecar_action_counts"
+        ),
+        "activation_digest_sidecar_count": detail.get(
+            "activation_digest_sidecar_count"
+        ),
+        "activation_digest_sidecar_status_counts": detail.get(
+            "activation_digest_sidecar_status_counts"
+        ),
+        "activation_digest_sidecar_role_counts": detail.get(
+            "activation_digest_sidecar_role_counts"
+        ),
+        "activation_digest_sidecar_intrinsic_counts": detail.get(
+            "activation_digest_sidecar_intrinsic_counts"
+        ),
         "scheduler_packet_lineage_sidecar_count": detail.get(
             "scheduler_packet_lineage_sidecar_count"
         ),
@@ -250,6 +301,18 @@ def trace_report_summary_from_spec(spec: Mapping[str, Any]) -> dict[str, Any] | 
         ),
         "scheduler_kv_shard_lifecycle_sidecar_lifecycle_counts": detail.get(
             "scheduler_kv_shard_lifecycle_sidecar_lifecycle_counts"
+        ),
+        "scheduler_listener_sparse_logit_sidecar_count": detail.get(
+            "scheduler_listener_sparse_logit_sidecar_count"
+        ),
+        "scheduler_listener_sparse_logit_sidecar_status_counts": detail.get(
+            "scheduler_listener_sparse_logit_sidecar_status_counts"
+        ),
+        "scheduler_listener_sparse_logit_sidecar_listener_status_counts": detail.get(
+            "scheduler_listener_sparse_logit_sidecar_listener_status_counts"
+        ),
+        "scheduler_listener_sparse_logit_sidecar_executor_counts": detail.get(
+            "scheduler_listener_sparse_logit_sidecar_executor_counts"
         ),
         "device_dma_lifecycle_sidecar_count": detail.get(
             "device_dma_lifecycle_sidecar_count"
@@ -306,15 +369,27 @@ def trace_report_summary_from_spec(spec: Mapping[str, Any]) -> dict[str, Any] | 
         "oracle_reference_summary_samples": detail.get(
             "oracle_reference_summary_samples"
         ),
+        "planning_decision_sidecar_samples": detail.get(
+            "planning_decision_sidecar_samples"
+        ),
+        "token_quality_sidecar_samples": detail.get("token_quality_sidecar_samples"),
+        "topk_token_sidecar_samples": detail.get("topk_token_sidecar_samples"),
         "tensor_payload_sidecar_samples": detail.get("tensor_payload_sidecar_samples"),
         "kv_payload_digest_sidecar_samples": detail.get(
             "kv_payload_digest_sidecar_samples"
+        ),
+        "logit_slice_sidecar_samples": detail.get("logit_slice_sidecar_samples"),
+        "activation_digest_sidecar_samples": detail.get(
+            "activation_digest_sidecar_samples"
         ),
         "scheduler_packet_lineage_sidecar_samples": detail.get(
             "scheduler_packet_lineage_sidecar_samples"
         ),
         "scheduler_kv_shard_lifecycle_sidecar_samples": detail.get(
             "scheduler_kv_shard_lifecycle_sidecar_samples"
+        ),
+        "scheduler_listener_sparse_logit_sidecar_samples": detail.get(
+            "scheduler_listener_sparse_logit_sidecar_samples"
         ),
         "device_dma_lifecycle_sidecar_samples": detail.get(
             "device_dma_lifecycle_sidecar_samples"
@@ -435,6 +510,66 @@ def render_trace_report_lines(summary: Mapping[str, Any]) -> list[str]:
             )
             + "`"
         )
+    if summary.get("planning_decision_sidecar_row_kind_counts"):
+        lines.append(
+            "- Planning decision sidecars: "
+            "`"
+            + json.dumps(
+                summary["planning_decision_sidecar_row_kind_counts"],
+                sort_keys=True,
+            )
+            + "`"
+        )
+    if summary.get("planning_decision_sidecar_phase_counts"):
+        lines.append(
+            "- Planning decision phases: "
+            "`"
+            + json.dumps(
+                summary["planning_decision_sidecar_phase_counts"],
+                sort_keys=True,
+            )
+            + "`"
+        )
+    if summary.get("token_quality_sidecar_status_counts"):
+        lines.append(
+            "- Token quality sidecars: "
+            "`"
+            + json.dumps(
+                summary["token_quality_sidecar_status_counts"],
+                sort_keys=True,
+            )
+            + "`"
+        )
+    if summary.get("token_quality_sidecar_finish_reason_counts"):
+        lines.append(
+            "- Token quality finish reasons: "
+            "`"
+            + json.dumps(
+                summary["token_quality_sidecar_finish_reason_counts"],
+                sort_keys=True,
+            )
+            + "`"
+        )
+    if summary.get("topk_token_sidecar_selected_status_counts"):
+        lines.append(
+            "- Top-K token candidate status: "
+            "`"
+            + json.dumps(
+                summary["topk_token_sidecar_selected_status_counts"],
+                sort_keys=True,
+            )
+            + "`"
+        )
+    if summary.get("topk_token_sidecar_score_kind_counts"):
+        lines.append(
+            "- Top-K token score kinds: "
+            "`"
+            + json.dumps(
+                summary["topk_token_sidecar_score_kind_counts"],
+                sort_keys=True,
+            )
+            + "`"
+        )
     if summary.get("tensor_payload_sidecar_kind_counts"):
         lines.append(
             "- Tensor payload sidecars: "
@@ -461,6 +596,46 @@ def render_trace_report_lines(summary: Mapping[str, Any]) -> list[str]:
             "`"
             + json.dumps(
                 summary["kv_payload_digest_sidecar_role_counts"],
+                sort_keys=True,
+            )
+            + "`"
+        )
+    if summary.get("logit_slice_sidecar_role_counts"):
+        lines.append(
+            "- Logit slice sidecars: "
+            "`"
+            + json.dumps(
+                summary["logit_slice_sidecar_role_counts"],
+                sort_keys=True,
+            )
+            + "`"
+        )
+    if summary.get("logit_slice_sidecar_action_counts"):
+        lines.append(
+            "- Logit slice actions: "
+            "`"
+            + json.dumps(
+                summary["logit_slice_sidecar_action_counts"],
+                sort_keys=True,
+            )
+            + "`"
+        )
+    if summary.get("activation_digest_sidecar_role_counts"):
+        lines.append(
+            "- Activation digest sidecars: "
+            "`"
+            + json.dumps(
+                summary["activation_digest_sidecar_role_counts"],
+                sort_keys=True,
+            )
+            + "`"
+        )
+    if summary.get("activation_digest_sidecar_intrinsic_counts"):
+        lines.append(
+            "- Activation digest intrinsics: "
+            "`"
+            + json.dumps(
+                summary["activation_digest_sidecar_intrinsic_counts"],
                 sort_keys=True,
             )
             + "`"
@@ -501,6 +676,28 @@ def render_trace_report_lines(summary: Mapping[str, Any]) -> list[str]:
             "`"
             + json.dumps(
                 summary["scheduler_kv_shard_lifecycle_sidecar_lifecycle_counts"],
+                sort_keys=True,
+            )
+            + "`"
+        )
+    if summary.get("scheduler_listener_sparse_logit_sidecar_listener_status_counts"):
+        lines.append(
+            "- Scheduler sparse listener status: "
+            "`"
+            + json.dumps(
+                summary[
+                    "scheduler_listener_sparse_logit_sidecar_listener_status_counts"
+                ],
+                sort_keys=True,
+            )
+            + "`"
+        )
+    if summary.get("scheduler_listener_sparse_logit_sidecar_executor_counts"):
+        lines.append(
+            "- Scheduler sparse listener executors: "
+            "`"
+            + json.dumps(
+                summary["scheduler_listener_sparse_logit_sidecar_executor_counts"],
                 sort_keys=True,
             )
             + "`"
@@ -689,6 +886,148 @@ def render_trace_report_lines(summary: Mapping[str, Any]) -> list[str]:
             if any(parts):
                 line += " " + " ".join(part for part in parts if part)
             lines.append(line)
+    for sample in summary.get("planning_decision_sidecar_samples", [])[:3]:
+        if not isinstance(sample, Mapping):
+            continue
+        row_kind = sample.get("row_kind")
+        status = sample.get("status")
+        frontend = sample.get("frontend")
+        target_backend = sample.get("target_backend")
+        selection_source = sample.get("selection_source")
+        process_kind = sample.get("process_kind")
+        logical_command = sample.get("logical_command")
+        exit_code = sample.get("exit_code")
+        duration_us = sample.get("duration_us")
+        artifact_kind = sample.get("artifact_kind")
+        artifact_sha = sample.get("artifact_sha256")
+        planning_phase = sample.get("planning_phase")
+        event_name = sample.get("event_name")
+        targetplan_ops = sample.get("targetplan_op_count")
+        claim_boundary = sample.get("claim_boundary")
+        label = row_kind or planning_phase or event_name or "unknown"
+        parts = []
+        if status:
+            parts.append(f"status={status}")
+        if frontend:
+            parts.append(f"frontend={frontend}")
+        if target_backend:
+            parts.append(f"target_backend={target_backend}")
+        if selection_source:
+            parts.append(f"selection={selection_source}")
+        if process_kind:
+            parts.append(f"process={process_kind}")
+        if logical_command:
+            parts.append(f"command={logical_command}")
+        if _trace_report_sample_value_present(exit_code):
+            parts.append(f"exit_code={exit_code}")
+        if _trace_report_sample_value_present(duration_us):
+            parts.append(f"duration_us={duration_us}")
+        if artifact_kind:
+            parts.append(f"artifact={artifact_kind}")
+        if artifact_sha:
+            parts.append(f"artifact_sha256={artifact_sha}")
+        if planning_phase:
+            parts.append(f"phase={planning_phase}")
+        if _trace_report_sample_value_present(targetplan_ops):
+            parts.append(f"targetplan_ops={targetplan_ops}")
+        if claim_boundary:
+            parts.append(f"boundary={claim_boundary}")
+        line = f"- Planning decision sidecar: row={label}"
+        if parts:
+            line += " " + " ".join(parts)
+        lines.append(line)
+    for sample in summary.get("token_quality_sidecar_samples", [])[:3]:
+        if not isinstance(sample, Mapping):
+            continue
+        request_id = sample.get("request_id")
+        generation_id = sample.get("generation_id")
+        token_index = sample.get("token_index")
+        selected_token = sample.get("selected_token_id")
+        topk_count = sample.get("topk_count")
+        finish_reason = sample.get("finish_reason")
+        eos_policy = sample.get("eos_policy")
+        temperature = sample.get("temperature")
+        top_p = sample.get("top_p")
+        top_k = sample.get("top_k")
+        oracle_reference = sample.get("oracle_reference")
+        label = (
+            request_id
+            if _trace_report_sample_value_present(request_id)
+            else generation_id
+            if _trace_report_sample_value_present(generation_id)
+            else "unknown"
+        )
+        parts = []
+        if _trace_report_sample_value_present(generation_id):
+            parts.append(f"generation={generation_id}")
+        if _trace_report_sample_value_present(token_index):
+            parts.append(f"token_index={token_index}")
+        if _trace_report_sample_value_present(selected_token):
+            parts.append(f"selected={selected_token}")
+        if _trace_report_sample_value_present(topk_count):
+            parts.append(f"topk_count={topk_count}")
+        if finish_reason:
+            parts.append(f"finish={finish_reason}")
+        if eos_policy:
+            parts.append(f"eos={eos_policy}")
+        if _trace_report_sample_value_present(temperature):
+            parts.append(f"temperature={temperature}")
+        if _trace_report_sample_value_present(top_p):
+            parts.append(f"top_p={top_p}")
+        if _trace_report_sample_value_present(top_k):
+            parts.append(f"top_k={top_k}")
+        if oracle_reference:
+            parts.append(f"oracle_reference={oracle_reference}")
+        line = f"- Token quality sidecar: request={label}"
+        if parts:
+            line += " " + " ".join(parts)
+        lines.append(line)
+    for sample in summary.get("topk_token_sidecar_samples", [])[:3]:
+        if not isinstance(sample, Mapping):
+            continue
+        request_id = sample.get("request_id")
+        generation_id = sample.get("generation_id")
+        token_index = sample.get("token_index")
+        selected_token = sample.get("selected_token_id")
+        candidate_token = sample.get("candidate_token_id")
+        candidate_rank = sample.get("candidate_rank")
+        candidate_score = sample.get("candidate_score")
+        score_kind = sample.get("score_kind")
+        candidate_status = sample.get("selected_candidate_status")
+        oracle_reference = sample.get("oracle_reference")
+        claim_boundary = sample.get("claim_boundary")
+        label = (
+            request_id
+            if _trace_report_sample_value_present(request_id)
+            else generation_id
+            if _trace_report_sample_value_present(generation_id)
+            else "unknown"
+        )
+        parts = []
+        if _trace_report_sample_value_present(generation_id):
+            parts.append(f"generation={generation_id}")
+        if _trace_report_sample_value_present(token_index):
+            parts.append(f"token_index={token_index}")
+        if _trace_report_sample_value_present(selected_token):
+            parts.append(f"selected={selected_token}")
+        if _trace_report_sample_value_present(candidate_token):
+            parts.append(f"candidate={candidate_token}")
+        if _trace_report_sample_value_present(candidate_rank):
+            parts.append(f"rank={candidate_rank}")
+        if _trace_report_sample_value_present(candidate_score):
+            parts.append(f"score={candidate_score}")
+        if score_kind:
+            parts.append(f"score_kind={score_kind}")
+        if candidate_status:
+            parts.append(f"candidate_status={candidate_status}")
+        if oracle_reference:
+            parts.append(f"oracle_reference={oracle_reference}")
+        if claim_boundary:
+            parts.append(f"boundary={claim_boundary}")
+        line = f"- Top-K token sidecar: request={label}"
+        if parts:
+            line += " " + " ".join(parts)
+        lines.append(line)
     for sample in summary.get("tensor_payload_sidecar_samples", [])[:3]:
         if not isinstance(sample, Mapping):
             continue
@@ -799,6 +1138,125 @@ def render_trace_report_lines(summary: Mapping[str, Any]) -> list[str]:
         if digest:
             parts.append(f"digest_sha256={digest}")
         line = f"- K/V payload digest sidecar: request={label}"
+        if parts:
+            line += " " + " ".join(parts)
+        lines.append(line)
+    for sample in summary.get("logit_slice_sidecar_samples", [])[:3]:
+        if not isinstance(sample, Mapping):
+            continue
+        request_id = sample.get("request_id")
+        generation_id = sample.get("generation_id")
+        token_index = sample.get("token_index")
+        backend_id = sample.get("backend_id")
+        targetplan_op_id = sample.get("targetplan_op_id")
+        targetplan_action = sample.get("targetplan_action")
+        layer = sample.get("layer")
+        intrinsic = sample.get("intrinsic")
+        tensor_name = sample.get("tensor_name")
+        tensor_role = sample.get("tensor_role")
+        element_count = sample.get("element_count")
+        digest = sample.get("digest_sha256")
+        sample_count = sample.get("sample_value_count")
+        sample_nan_count = sample.get("sample_nan_count")
+        failure_reason = sample.get("failure_reason")
+        label = (
+            request_id
+            if _trace_report_sample_value_present(request_id)
+            else generation_id
+            if _trace_report_sample_value_present(generation_id)
+            else "unknown"
+        )
+        parts = []
+        if _trace_report_sample_value_present(generation_id):
+            parts.append(f"generation={generation_id}")
+        if _trace_report_sample_value_present(token_index):
+            parts.append(f"token_index={token_index}")
+        if backend_id:
+            parts.append(f"backend={backend_id}")
+        if targetplan_op_id:
+            parts.append(f"op={targetplan_op_id}")
+        if targetplan_action:
+            parts.append(f"action={targetplan_action}")
+        if _trace_report_sample_value_present(layer):
+            parts.append(f"layer={layer}")
+        if intrinsic:
+            parts.append(f"intrinsic={intrinsic}")
+        if tensor_role:
+            parts.append(f"role={tensor_role}")
+        if tensor_name:
+            parts.append(f"tensor={tensor_name}")
+        if _trace_report_sample_value_present(element_count):
+            parts.append(f"elements={element_count}")
+        if _trace_report_sample_value_present(sample_count):
+            parts.append(f"samples={sample_count}")
+        if _trace_report_sample_value_present(sample_nan_count):
+            parts.append(f"sample_nan={sample_nan_count}")
+        if digest:
+            parts.append(f"digest_sha256={digest}")
+        if failure_reason:
+            parts.append(f"failure={failure_reason}")
+        line = f"- Logit slice sidecar: request={label}"
+        if parts:
+            line += " " + " ".join(parts)
+        lines.append(line)
+    for sample in summary.get("activation_digest_sidecar_samples", [])[:3]:
+        if not isinstance(sample, Mapping):
+            continue
+        request_id = sample.get("request_id")
+        generation_id = sample.get("generation_id")
+        token_index = sample.get("token_index")
+        backend_id = sample.get("backend_id")
+        targetplan_op_id = sample.get("targetplan_op_id")
+        targetplan_action = sample.get("targetplan_action")
+        layer = sample.get("layer")
+        intrinsic = sample.get("intrinsic")
+        tensor_name = sample.get("tensor_name")
+        tensor_role = sample.get("tensor_role")
+        element_count = sample.get("element_count")
+        digest = sample.get("digest_sha256")
+        sample_count = sample.get("sample_value_count")
+        sample_min = sample.get("sample_min")
+        sample_max = sample.get("sample_max")
+        failure_reason = sample.get("failure_reason")
+        label = (
+            request_id
+            if _trace_report_sample_value_present(request_id)
+            else generation_id
+            if _trace_report_sample_value_present(generation_id)
+            else "unknown"
+        )
+        parts = []
+        if _trace_report_sample_value_present(generation_id):
+            parts.append(f"generation={generation_id}")
+        if _trace_report_sample_value_present(token_index):
+            parts.append(f"token_index={token_index}")
+        if backend_id:
+            parts.append(f"backend={backend_id}")
+        if targetplan_op_id:
+            parts.append(f"op={targetplan_op_id}")
+        if targetplan_action:
+            parts.append(f"action={targetplan_action}")
+        if _trace_report_sample_value_present(layer):
+            parts.append(f"layer={layer}")
+        if intrinsic:
+            parts.append(f"intrinsic={intrinsic}")
+        if tensor_role:
+            parts.append(f"role={tensor_role}")
+        if tensor_name:
+            parts.append(f"tensor={tensor_name}")
+        if _trace_report_sample_value_present(element_count):
+            parts.append(f"elements={element_count}")
+        if _trace_report_sample_value_present(sample_count):
+            parts.append(f"samples={sample_count}")
+        if _trace_report_sample_value_present(sample_min):
+            parts.append(f"sample_min={sample_min}")
+        if _trace_report_sample_value_present(sample_max):
+            parts.append(f"sample_max={sample_max}")
+        if digest:
+            parts.append(f"digest_sha256={digest}")
+        if failure_reason:
+            parts.append(f"failure={failure_reason}")
+        line = f"- Activation digest sidecar: request={label}"
         if parts:
             line += " " + " ".join(parts)
         lines.append(line)
@@ -930,6 +1388,69 @@ def render_trace_report_lines(summary: Mapping[str, Any]) -> list[str]:
         if failure_reason:
             parts.append(f"failure={failure_reason}")
         line = f"- Scheduler K/V lifecycle: request={label}"
+        if parts:
+            line += " " + " ".join(parts)
+        lines.append(line)
+    for sample in summary.get("scheduler_listener_sparse_logit_sidecar_samples", [])[
+        :3
+    ]:
+        if not isinstance(sample, Mapping):
+            continue
+        request_id = sample.get("request_id")
+        generation_id = sample.get("generation_id")
+        status = sample.get("status")
+        listener_status = sample.get("listener_sparse_status")
+        executor_shape = sample.get("executor_shape")
+        executor_status = sample.get("executor_status")
+        attention_mode = sample.get("attention_mode")
+        listener_rows = sample.get("listener_sparse_rows")
+        listener_tokens = sample.get("listener_sparse_tokens")
+        sparse_topk_rows = sample.get("sparse_topk_rows")
+        sparse_topk_tokens = sample.get("sparse_topk_token_count")
+        token_jobs = sample.get("token_job_count")
+        minibatches = sample.get("minibatch_count")
+        runtime_tokens = sample.get("runtime_request_token_count")
+        tokens_reused = sample.get("tokens_reused")
+        failure_reason = sample.get("failure_reason")
+        label = (
+            request_id
+            if _trace_report_sample_value_present(request_id)
+            else generation_id
+            if _trace_report_sample_value_present(generation_id)
+            else "unknown"
+        )
+        parts = []
+        if _trace_report_sample_value_present(generation_id):
+            parts.append(f"generation={generation_id}")
+        if status:
+            parts.append(f"status={status}")
+        if listener_status:
+            parts.append(f"listener={listener_status}")
+        if executor_status:
+            parts.append(f"executor={executor_status}")
+        if executor_shape:
+            parts.append(f"shape={executor_shape}")
+        if attention_mode:
+            parts.append(f"attention={attention_mode}")
+        if _trace_report_sample_value_present(listener_rows):
+            parts.append(f"listener_rows={listener_rows}")
+        if _trace_report_sample_value_present(listener_tokens):
+            parts.append(f"listener_tokens={listener_tokens}")
+        if _trace_report_sample_value_present(sparse_topk_rows):
+            parts.append(f"sparse_topk_rows={sparse_topk_rows}")
+        if _trace_report_sample_value_present(sparse_topk_tokens):
+            parts.append(f"sparse_topk_tokens={sparse_topk_tokens}")
+        if _trace_report_sample_value_present(token_jobs):
+            parts.append(f"token_jobs={token_jobs}")
+        if _trace_report_sample_value_present(minibatches):
+            parts.append(f"minibatches={minibatches}")
+        if _trace_report_sample_value_present(runtime_tokens):
+            parts.append(f"runtime_tokens={runtime_tokens}")
+        if _trace_report_sample_value_present(tokens_reused):
+            parts.append(f"tokens_reused={tokens_reused}")
+        if failure_reason:
+            parts.append(f"failure={failure_reason}")
+        line = f"- Scheduler sparse listener: request={label}"
         if parts:
             line += " " + " ".join(parts)
         lines.append(line)
@@ -1306,14 +1827,23 @@ def trace_report_prompt_section(spec: Mapping[str, Any]) -> list[str]:
         "`sections.introspection_section_inventory`, to decide which tracing",
         "sidecars exist before opening heavier sidecar-specific sections.",
         "When the inventory says they are available, read",
-        "`sections.tensor_payload_sidecar_rows` and",
-        "`sections.kv_payload_digest_sidecar_rows` to inspect provider/runtime",
-        "payload summaries and scheduler K/V digest rows without treating",
-        "them as oracle evidence, and read",
+        "`sections.planning_decision_sidecar_rows` to inspect frontend and",
+        "Lean planning diagnostics without treating planning sidecars as model",
+        "evidence. Read `sections.token_quality_sidecar_rows` and",
+        "`sections.topk_token_sidecar_rows` to inspect raw selected-token and",
+        "top-k candidate rows without treating system-under-test rows as",
+        "oracle evidence. Read `sections.tensor_payload_sidecar_rows`,",
+        "`sections.kv_payload_digest_sidecar_rows`,",
+        "`sections.logit_slice_sidecar_rows`, and",
+        "`sections.activation_digest_sidecar_rows` to inspect provider/runtime",
+        "payload summaries, scheduler K/V digest rows, final-logit slices,",
+        "and activation digests without treating them as oracle evidence.",
+        "Read",
         "`sections.scheduler_packet_lineage_sidecar_rows` and",
-        "`sections.scheduler_kv_shard_lifecycle_sidecar_rows` to inspect",
-        "scheduler packet shape, sparse-listener delivery, and K/V shard",
-        "lifecycle diagnostics without treating scheduler metadata as",
+        "`sections.scheduler_kv_shard_lifecycle_sidecar_rows`, plus",
+        "`sections.scheduler_listener_sparse_logit_sidecar_rows`, to inspect",
+        "scheduler packet shape, K/V shard lifecycle, and sparse-listener",
+        "delivery diagnostics without treating scheduler metadata as",
         "hardware-counter evidence. Also read",
         "`sections.device_dma_lifecycle_sidecar_rows` and",
         "`sections.attention_page_trace_sidecar_rows` to inspect compact",
@@ -2247,7 +2777,7 @@ def gate_guidance(
             [
                 f"- Trace report JSON: `{resolve_run_path(str(value), cfg)}`",
                 "- Inspect `sections.answerability`, `sections.unsupported_claims`, and `sections.next_measurements` before ad hoc parsing.",
-                "- Read `sections.report_json_section_inventory` to discover available report sections, then read `sections.trace_config_rows`, `sections.provider_payload_boundary_inventory_rows`, `sections.debug_payload_artifact_summary_rows`, `sections.token_quality_summary_rows`, `sections.oracle_reference_summary_rows`, `sections.introspection_capability_rows`, `sections.introspection_artifact_summary_rows`, and `sections.introspection_section_inventory` before choosing sidecar-specific report sections such as `sections.tensor_payload_sidecar_rows`, `sections.kv_payload_digest_sidecar_rows`, `sections.scheduler_packet_lineage_sidecar_rows`, `sections.scheduler_kv_shard_lifecycle_sidecar_rows`, `sections.device_dma_lifecycle_sidecar_rows`, and `sections.attention_page_trace_sidecar_rows`.",
+                "- Read `sections.report_json_section_inventory` to discover available report sections, then read `sections.trace_config_rows`, `sections.provider_payload_boundary_inventory_rows`, `sections.debug_payload_artifact_summary_rows`, `sections.token_quality_summary_rows`, `sections.oracle_reference_summary_rows`, `sections.introspection_capability_rows`, `sections.introspection_artifact_summary_rows`, and `sections.introspection_section_inventory` before choosing sidecar-specific report sections such as `sections.planning_decision_sidecar_rows`, `sections.token_quality_sidecar_rows`, `sections.topk_token_sidecar_rows`, `sections.tensor_payload_sidecar_rows`, `sections.kv_payload_digest_sidecar_rows`, `sections.logit_slice_sidecar_rows`, `sections.activation_digest_sidecar_rows`, `sections.scheduler_packet_lineage_sidecar_rows`, `sections.scheduler_kv_shard_lifecycle_sidecar_rows`, `sections.scheduler_listener_sparse_logit_sidecar_rows`, `sections.device_dma_lifecycle_sidecar_rows`, and `sections.attention_page_trace_sidecar_rows`.",
             ]
         )
     if value := spec.get("command_wrapper_plan"):
