@@ -379,6 +379,29 @@ class AresIngestArtifactTest(unittest.TestCase):
                                     ),
                                 },
                                 {
+                                    "heading": "Token Quality Summary Rows",
+                                    "json_path": (
+                                        "sections.token_quality_summary_rows"
+                                    ),
+                                    "json_section": "token_quality_summary_rows",
+                                    "section_kind": "sidecar",
+                                    "claim_boundary": (
+                                        "system_under_test_diagnostic_not_oracle"
+                                    ),
+                                },
+                                {
+                                    "heading": "Oracle Reference Summary Rows",
+                                    "json_path": (
+                                        "sections.oracle_reference_summary_rows"
+                                    ),
+                                    "json_section": "oracle_reference_summary_rows",
+                                    "section_kind": "sidecar",
+                                    "claim_boundary": (
+                                        "external_oracle_reference_anchor_not_"
+                                        "sut_oracle_evidence"
+                                    ),
+                                },
+                                {
                                     "heading": "Next Measurements",
                                     "json_path": "sections.next_measurements",
                                     "json_section": "next_measurements",
@@ -444,6 +467,64 @@ class AresIngestArtifactTest(unittest.TestCase):
                                     ),
                                 }
                             ],
+                            "token_quality_summary_rows": [
+                                {
+                                    "status": "present",
+                                    "evidence_role": "system_under_test",
+                                    "request_id": "7001",
+                                    "generation_id": "rinzler-7001",
+                                    "token_index": 0,
+                                    "selected_token_id": "42",
+                                    "selected_topk_status": "selected_is_top1",
+                                    "score_kind": "logprob",
+                                    "top1_token_id": "42",
+                                    "top1_score": "-0.1",
+                                    "runner_up_token_id": "7",
+                                    "runner_up_score": "-1.5",
+                                    "top1_margin": "1.4",
+                                    "temperature": "0.7",
+                                    "top_p": "0.9",
+                                    "top_k": "8",
+                                    "num_logprobs": "2",
+                                    "tokens_reused": "2",
+                                    "runtime_request_token_count": "4",
+                                    "oracle_reference": "external_hf_cpu_reference",
+                                    "oracle_artifact_sha256": SHA_A,
+                                    "claim_boundary": (
+                                        "external_oracle_reference_present; "
+                                        "row_remains_system_under_test"
+                                    ),
+                                }
+                            ],
+                            "oracle_reference_summary_rows": [
+                                {
+                                    "status": "present",
+                                    "evidence_role": "system_under_test",
+                                    "request_id": "7001",
+                                    "generation_id": "rinzler-7001",
+                                    "token_index": 0,
+                                    "selected_token_id": "42",
+                                    "oracle_reference_role": (
+                                        "external_hf_cpu_reference"
+                                    ),
+                                    "hf_cpu_oracle_artifact_path": (
+                                        "correctness_hf_cpu_oracle.txt"
+                                    ),
+                                    "hf_cpu_oracle_sha256": SHA_A,
+                                    "expected_oracle_source": (
+                                        "hf_transformers_pytorch_cpu"
+                                    ),
+                                    "oracle_reference_status": (
+                                        "external_reference_hash_recorded"
+                                    ),
+                                    "sut_classification": "system_under_test",
+                                    "correctness_claim_status": ("not_oracle_evidence"),
+                                    "claim_boundary": (
+                                        "external_hf_cpu_reference_anchor_only; "
+                                        "token_quality_row_remains_system_under_test"
+                                    ),
+                                }
+                            ],
                             "introspection_capability_rows": [
                                 {
                                     "capture_capability": "token_quality",
@@ -505,7 +586,23 @@ class AresIngestArtifactTest(unittest.TestCase):
                 gate["detail"]["debug_payload_artifact_summary_status_counts"],
                 {"recorded": 1},
             )
-            self.assertEqual(gate["detail"]["report_json_section_count"], 5)
+            self.assertEqual(
+                gate["detail"]["token_quality_summary_status_counts"],
+                {"present": 1},
+            )
+            self.assertEqual(
+                gate["detail"]["token_quality_summary_topk_status_counts"],
+                {"selected_is_top1": 1},
+            )
+            self.assertEqual(
+                gate["detail"]["oracle_reference_summary_status_counts"],
+                {"external_reference_hash_recorded": 1},
+            )
+            self.assertEqual(
+                gate["detail"]["oracle_reference_summary_correctness_counts"],
+                {"not_oracle_evidence": 1},
+            )
+            self.assertEqual(gate["detail"]["report_json_section_count"], 7)
             self.assertEqual(
                 gate["detail"]["report_json_section_kind_counts"],
                 {
@@ -514,6 +611,7 @@ class AresIngestArtifactTest(unittest.TestCase):
                     "introspection": 1,
                     "introspection_inventory": 1,
                     "measurement_guidance": 1,
+                    "sidecar": 2,
                 },
             )
             self.assertEqual(
@@ -551,6 +649,29 @@ class AresIngestArtifactTest(unittest.TestCase):
                     "debug_payload_boundary"
                 ],
                 "debug_payloads_can_perturb_timing",
+            )
+            self.assertEqual(
+                gate["detail"]["token_quality_summary_samples"][0][
+                    "selected_topk_status"
+                ],
+                "selected_is_top1",
+            )
+            self.assertEqual(
+                gate["detail"]["token_quality_summary_samples"][0]["claim_boundary"],
+                "external_oracle_reference_present; row_remains_system_under_test",
+            )
+            self.assertEqual(
+                gate["detail"]["oracle_reference_summary_samples"][0][
+                    "correctness_claim_status"
+                ],
+                "not_oracle_evidence",
+            )
+            self.assertEqual(
+                gate["detail"]["oracle_reference_summary_samples"][0]["claim_boundary"],
+                (
+                    "external_hf_cpu_reference_anchor_only; "
+                    "token_quality_row_remains_system_under_test"
+                ),
             )
             self.assertEqual(
                 gate["detail"]["introspection_capability_samples"][0][
@@ -598,12 +719,30 @@ class AresIngestArtifactTest(unittest.TestCase):
             gate["detail"]["debug_payload_artifact_summary_status_counts"],
             {"recorded": 1},
         )
+        self.assertEqual(
+            gate["detail"]["token_quality_summary_status_counts"],
+            {"present": 1},
+        )
+        self.assertEqual(
+            gate["detail"]["token_quality_summary_topk_status_counts"],
+            {"selected_is_top1": 1},
+        )
+        self.assertEqual(
+            gate["detail"]["oracle_reference_summary_status_counts"],
+            {"external_reference_hash_recorded": 1},
+        )
+        self.assertEqual(
+            gate["detail"]["oracle_reference_summary_correctness_counts"],
+            {"not_oracle_evidence": 1},
+        )
         section_paths = {
             sample["json_path"]
             for sample in gate["detail"]["report_json_section_samples"]
         }
         self.assertIn("sections.trace_config_rows", section_paths)
         self.assertIn("sections.debug_payload_artifact_summary_rows", section_paths)
+        self.assertIn("sections.token_quality_summary_rows", section_paths)
+        self.assertIn("sections.oracle_reference_summary_rows", section_paths)
         self.assertIn("sections.introspection_capability_rows", section_paths)
         self.assertIn("sections.introspection_artifact_summary_rows", section_paths)
         self.assertIn(
@@ -651,6 +790,26 @@ class AresIngestArtifactTest(unittest.TestCase):
         self.assertEqual(
             gate["detail"]["debug_payload_artifact_summary_samples"][0]["sensitivity"],
             "local-only",
+        )
+        self.assertEqual(
+            gate["detail"]["token_quality_summary_samples"][0]["selected_topk_status"],
+            "selected_is_top1",
+        )
+        self.assertEqual(
+            gate["detail"]["token_quality_summary_samples"][0]["oracle_reference"],
+            "external_hf_cpu_reference",
+        )
+        self.assertEqual(
+            gate["detail"]["oracle_reference_summary_samples"][0][
+                "oracle_reference_status"
+            ],
+            "external_reference_hash_recorded",
+        )
+        self.assertEqual(
+            gate["detail"]["oracle_reference_summary_samples"][0][
+                "correctness_claim_status"
+            ],
+            "not_oracle_evidence",
         )
 
     def test_trace_report_gate_rejects_missing_file(self) -> None:

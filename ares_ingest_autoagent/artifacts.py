@@ -45,6 +45,8 @@ TRACE_REPORT_JSON_SECTION_SAMPLE_KEYS = (
     "trace_config_rows",
     "provider_payload_boundary_inventory_rows",
     "debug_payload_artifact_summary_rows",
+    "token_quality_summary_rows",
+    "oracle_reference_summary_rows",
     "introspection_capability_rows",
     "introspection_artifact_summary_rows",
     "answerability",
@@ -1369,6 +1371,8 @@ def validate_trace_report_json(report: Any) -> ArtifactValidation:
     trace_config_rows: list[dict[str, Any]] = []
     provider_payload_boundary_rows: list[dict[str, Any]] = []
     debug_payload_artifact_summary_rows: list[dict[str, Any]] = []
+    token_quality_summary_rows: list[dict[str, Any]] = []
+    oracle_reference_summary_rows: list[dict[str, Any]] = []
     introspection_capability_rows: list[dict[str, Any]] = []
     introspection_artifact_summary_rows: list[dict[str, Any]] = []
     if sections is not None:
@@ -1412,6 +1416,18 @@ def validate_trace_report_json(report: Any) -> ArtifactValidation:
             errors,
             sections,
             "debug_payload_artifact_summary_rows",
+            required=False,
+        )
+        token_quality_summary_rows = _trace_report_section_rows(
+            errors,
+            sections,
+            "token_quality_summary_rows",
+            required=False,
+        )
+        oracle_reference_summary_rows = _trace_report_section_rows(
+            errors,
+            sections,
+            "oracle_reference_summary_rows",
             required=False,
         )
         introspection_capability_rows = _trace_report_section_rows(
@@ -1494,6 +1510,24 @@ def validate_trace_report_json(report: Any) -> ArtifactValidation:
             debug_payload_artifact_summary_rows,
             "payload_summary_status",
         ),
+        "token_quality_summary_count": len(token_quality_summary_rows),
+        "token_quality_summary_status_counts": _trace_report_value_counts(
+            token_quality_summary_rows,
+            "status",
+        ),
+        "token_quality_summary_topk_status_counts": _trace_report_value_counts(
+            token_quality_summary_rows,
+            "selected_topk_status",
+        ),
+        "oracle_reference_summary_count": len(oracle_reference_summary_rows),
+        "oracle_reference_summary_status_counts": _trace_report_value_counts(
+            oracle_reference_summary_rows,
+            "oracle_reference_status",
+        ),
+        "oracle_reference_summary_correctness_counts": _trace_report_value_counts(
+            oracle_reference_summary_rows,
+            "correctness_claim_status",
+        ),
         "introspection_capability_count": len(introspection_capability_rows),
         "introspection_capability_status_counts": _trace_report_value_counts(
             introspection_capability_rows,
@@ -1521,7 +1555,7 @@ def validate_trace_report_json(report: Any) -> ArtifactValidation:
         "report_json_section_samples": _trace_report_samples(
             report_json_section_sample_rows,
             ("json_path", "json_section", "section_kind", "claim_boundary"),
-            limit=8,
+            limit=12,
         ),
         "trace_config_samples": _trace_report_samples(
             trace_config_rows,
@@ -1565,6 +1599,52 @@ def validate_trace_report_json(report: Any) -> ArtifactValidation:
                 "compile_features",
                 "report_section",
                 "debug_payload_boundary",
+                "claim_boundary",
+            ),
+        ),
+        "token_quality_summary_samples": _trace_report_samples(
+            token_quality_summary_rows,
+            (
+                "status",
+                "evidence_role",
+                "request_id",
+                "generation_id",
+                "token_index",
+                "selected_token_id",
+                "selected_topk_status",
+                "score_kind",
+                "top1_token_id",
+                "top1_score",
+                "runner_up_token_id",
+                "runner_up_score",
+                "top1_margin",
+                "temperature",
+                "top_p",
+                "top_k",
+                "num_logprobs",
+                "tokens_reused",
+                "runtime_request_token_count",
+                "oracle_reference",
+                "oracle_artifact_sha256",
+                "claim_boundary",
+            ),
+        ),
+        "oracle_reference_summary_samples": _trace_report_samples(
+            oracle_reference_summary_rows,
+            (
+                "status",
+                "evidence_role",
+                "request_id",
+                "generation_id",
+                "token_index",
+                "selected_token_id",
+                "oracle_reference_role",
+                "hf_cpu_oracle_artifact_path",
+                "hf_cpu_oracle_sha256",
+                "expected_oracle_source",
+                "oracle_reference_status",
+                "sut_classification",
+                "correctness_claim_status",
                 "claim_boundary",
             ),
         ),

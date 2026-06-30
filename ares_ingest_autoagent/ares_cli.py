@@ -200,6 +200,20 @@ def trace_report_summary_from_spec(spec: Mapping[str, Any]) -> dict[str, Any] | 
         "debug_payload_artifact_summary_status_counts": detail.get(
             "debug_payload_artifact_summary_status_counts"
         ),
+        "token_quality_summary_count": detail.get("token_quality_summary_count"),
+        "token_quality_summary_status_counts": detail.get(
+            "token_quality_summary_status_counts"
+        ),
+        "token_quality_summary_topk_status_counts": detail.get(
+            "token_quality_summary_topk_status_counts"
+        ),
+        "oracle_reference_summary_count": detail.get("oracle_reference_summary_count"),
+        "oracle_reference_summary_status_counts": detail.get(
+            "oracle_reference_summary_status_counts"
+        ),
+        "oracle_reference_summary_correctness_counts": detail.get(
+            "oracle_reference_summary_correctness_counts"
+        ),
         "introspection_capability_count": detail.get("introspection_capability_count"),
         "introspection_capability_status_counts": detail.get(
             "introspection_capability_status_counts"
@@ -221,6 +235,10 @@ def trace_report_summary_from_spec(spec: Mapping[str, Any]) -> dict[str, Any] | 
         "debug_payload_artifact_summary_samples": detail.get(
             "debug_payload_artifact_summary_samples"
         ),
+        "token_quality_summary_samples": detail.get("token_quality_summary_samples"),
+        "oracle_reference_summary_samples": detail.get(
+            "oracle_reference_summary_samples"
+        ),
         "introspection_capability_samples": detail.get(
             "introspection_capability_samples"
         ),
@@ -235,6 +253,10 @@ def trace_report_summary_from_spec(spec: Mapping[str, Any]) -> dict[str, Any] | 
     return {
         key: value for key, value in summary.items() if value not in (None, "", [], {})
     }
+
+
+def _trace_report_sample_value_present(value: Any) -> bool:
+    return value is not None and value != ""
 
 
 def render_trace_report_lines(summary: Mapping[str, Any]) -> list[str]:
@@ -283,6 +305,46 @@ def render_trace_report_lines(summary: Mapping[str, Any]) -> list[str]:
             "`"
             + json.dumps(
                 summary["debug_payload_artifact_summary_status_counts"],
+                sort_keys=True,
+            )
+            + "`"
+        )
+    if summary.get("token_quality_summary_status_counts"):
+        lines.append(
+            "- Token quality summaries: "
+            "`"
+            + json.dumps(
+                summary["token_quality_summary_status_counts"],
+                sort_keys=True,
+            )
+            + "`"
+        )
+    if summary.get("token_quality_summary_topk_status_counts"):
+        lines.append(
+            "- Token quality top-k status: "
+            "`"
+            + json.dumps(
+                summary["token_quality_summary_topk_status_counts"],
+                sort_keys=True,
+            )
+            + "`"
+        )
+    if summary.get("oracle_reference_summary_status_counts"):
+        lines.append(
+            "- Oracle references: "
+            "`"
+            + json.dumps(
+                summary["oracle_reference_summary_status_counts"],
+                sort_keys=True,
+            )
+            + "`"
+        )
+    if summary.get("oracle_reference_summary_correctness_counts"):
+        lines.append(
+            "- Oracle-reference correctness boundary: "
+            "`"
+            + json.dumps(
+                summary["oracle_reference_summary_correctness_counts"],
                 sort_keys=True,
             )
             + "`"
@@ -421,6 +483,101 @@ def render_trace_report_lines(summary: Mapping[str, Any]) -> list[str]:
             if any(parts):
                 line += " " + " ".join(part for part in parts if part)
             lines.append(line)
+    for sample in summary.get("token_quality_summary_samples", [])[:3]:
+        if not isinstance(sample, Mapping):
+            continue
+        request_id = sample.get("request_id")
+        generation_id = sample.get("generation_id")
+        token_index = sample.get("token_index")
+        selected_token = sample.get("selected_token_id")
+        topk_status = sample.get("selected_topk_status")
+        score_kind = sample.get("score_kind")
+        top1_token = sample.get("top1_token_id")
+        top1_margin = sample.get("top1_margin")
+        tokens_reused = sample.get("tokens_reused")
+        runtime_count = sample.get("runtime_request_token_count")
+        oracle_reference = sample.get("oracle_reference")
+        claim_boundary = sample.get("claim_boundary")
+        label = (
+            request_id
+            if _trace_report_sample_value_present(request_id)
+            else generation_id
+            if _trace_report_sample_value_present(generation_id)
+            else "unknown"
+        )
+        parts = []
+        if _trace_report_sample_value_present(generation_id):
+            parts.append(f"generation={generation_id}")
+        if _trace_report_sample_value_present(token_index):
+            parts.append(f"token_index={token_index}")
+        if _trace_report_sample_value_present(selected_token):
+            parts.append(f"selected={selected_token}")
+        if topk_status:
+            parts.append(f"topk={topk_status}")
+        if score_kind:
+            parts.append(f"score_kind={score_kind}")
+        if _trace_report_sample_value_present(top1_token):
+            parts.append(f"top1={top1_token}")
+        if _trace_report_sample_value_present(top1_margin):
+            parts.append(f"top1_margin={top1_margin}")
+        if _trace_report_sample_value_present(tokens_reused):
+            parts.append(f"tokens_reused={tokens_reused}")
+        if _trace_report_sample_value_present(runtime_count):
+            parts.append(f"runtime_tokens={runtime_count}")
+        if oracle_reference:
+            parts.append(f"oracle_reference={oracle_reference}")
+        if claim_boundary:
+            parts.append(f"boundary={claim_boundary}")
+        line = f"- Token quality summary: request={label}"
+        if parts:
+            line += " " + " ".join(parts)
+        lines.append(line)
+    for sample in summary.get("oracle_reference_summary_samples", [])[:3]:
+        if not isinstance(sample, Mapping):
+            continue
+        request_id = sample.get("request_id")
+        generation_id = sample.get("generation_id")
+        token_index = sample.get("token_index")
+        selected_token = sample.get("selected_token_id")
+        role = sample.get("oracle_reference_role")
+        source = sample.get("expected_oracle_source")
+        oracle_status = sample.get("oracle_reference_status")
+        correctness_status = sample.get("correctness_claim_status")
+        sut_classification = sample.get("sut_classification")
+        oracle_sha = sample.get("hf_cpu_oracle_sha256")
+        claim_boundary = sample.get("claim_boundary")
+        label = (
+            request_id
+            if _trace_report_sample_value_present(request_id)
+            else generation_id
+            if _trace_report_sample_value_present(generation_id)
+            else "unknown"
+        )
+        parts = []
+        if _trace_report_sample_value_present(generation_id):
+            parts.append(f"generation={generation_id}")
+        if _trace_report_sample_value_present(token_index):
+            parts.append(f"token_index={token_index}")
+        if _trace_report_sample_value_present(selected_token):
+            parts.append(f"selected={selected_token}")
+        if role:
+            parts.append(f"role={role}")
+        if source:
+            parts.append(f"source={source}")
+        if oracle_status:
+            parts.append(f"status={oracle_status}")
+        if correctness_status:
+            parts.append(f"correctness={correctness_status}")
+        if sut_classification:
+            parts.append(f"sut={sut_classification}")
+        if oracle_sha:
+            parts.append(f"oracle_sha256={oracle_sha}")
+        if claim_boundary:
+            parts.append(f"boundary={claim_boundary}")
+        line = f"- Oracle reference summary: request={label}"
+        if parts:
+            line += " " + " ".join(parts)
+        lines.append(line)
     for sample in summary.get("introspection_capability_samples", [])[:3]:
         if not isinstance(sample, Mapping):
             continue
@@ -512,6 +669,10 @@ def trace_report_prompt_section(spec: Mapping[str, Any]) -> list[str]:
         "payload lanes, then read",
         "`sections.debug_payload_artifact_summary_rows` to see payload",
         "sensitivity and timing-perturbation boundaries, and",
+        "`sections.token_quality_summary_rows` and",
+        "`sections.oracle_reference_summary_rows` to inspect selected-token",
+        "top-k status and HF CPU reference anchors without treating",
+        "system-under-test rows as oracle evidence. Then use",
         "`sections.introspection_capability_rows` and",
         "`sections.introspection_artifact_summary_rows` to decide which tracing",
         "sidecars exist before opening heavier sidecar-specific sections.",
@@ -1443,7 +1604,7 @@ def gate_guidance(
             [
                 f"- Trace report JSON: `{resolve_run_path(str(value), cfg)}`",
                 "- Inspect `sections.answerability`, `sections.unsupported_claims`, and `sections.next_measurements` before ad hoc parsing.",
-                "- Read `sections.report_json_section_inventory` to discover available report sections, then read `sections.trace_config_rows`, `sections.provider_payload_boundary_inventory_rows`, and `sections.debug_payload_artifact_summary_rows` before choosing sidecar-specific report sections.",
+                "- Read `sections.report_json_section_inventory` to discover available report sections, then read `sections.trace_config_rows`, `sections.provider_payload_boundary_inventory_rows`, `sections.debug_payload_artifact_summary_rows`, `sections.token_quality_summary_rows`, and `sections.oracle_reference_summary_rows` before choosing sidecar-specific report sections.",
             ]
         )
     if value := spec.get("command_wrapper_plan"):

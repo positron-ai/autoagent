@@ -98,6 +98,22 @@ def trace_report_payload() -> dict:
                     "claim_boundary": "debug_payloads_can_perturb_timing",
                 },
                 {
+                    "heading": "Token Quality Summary Rows",
+                    "json_path": "sections.token_quality_summary_rows",
+                    "json_section": "token_quality_summary_rows",
+                    "section_kind": "sidecar",
+                    "claim_boundary": "system_under_test_diagnostic_not_oracle",
+                },
+                {
+                    "heading": "Oracle Reference Summary Rows",
+                    "json_path": "sections.oracle_reference_summary_rows",
+                    "json_section": "oracle_reference_summary_rows",
+                    "section_kind": "sidecar",
+                    "claim_boundary": (
+                        "external_oracle_reference_anchor_not_sut_oracle_evidence"
+                    ),
+                },
+                {
                     "heading": "Next Measurements",
                     "json_path": "sections.next_measurements",
                     "json_section": "next_measurements",
@@ -155,6 +171,56 @@ def trace_report_payload() -> dict:
                     "debug_payload_boundary": "debug_payloads_can_perturb_timing",
                     "claim_boundary": (
                         "system_under_test_numeric_localization_diagnostic"
+                    ),
+                }
+            ],
+            "token_quality_summary_rows": [
+                {
+                    "status": "present",
+                    "evidence_role": "system_under_test",
+                    "request_id": "7001",
+                    "generation_id": "rinzler-7001",
+                    "token_index": 0,
+                    "selected_token_id": "42",
+                    "selected_topk_status": "selected_is_top1",
+                    "score_kind": "logprob",
+                    "top1_token_id": "42",
+                    "top1_score": "-0.1",
+                    "runner_up_token_id": "7",
+                    "runner_up_score": "-1.5",
+                    "top1_margin": "1.4",
+                    "temperature": "0.7",
+                    "top_p": "0.9",
+                    "top_k": "8",
+                    "num_logprobs": "2",
+                    "tokens_reused": "2",
+                    "runtime_request_token_count": "4",
+                    "oracle_reference": "external_hf_cpu_reference",
+                    "oracle_artifact_sha256": "a" * 64,
+                    "claim_boundary": (
+                        "external_oracle_reference_present; "
+                        "row_remains_system_under_test"
+                    ),
+                }
+            ],
+            "oracle_reference_summary_rows": [
+                {
+                    "status": "present",
+                    "evidence_role": "system_under_test",
+                    "request_id": "7001",
+                    "generation_id": "rinzler-7001",
+                    "token_index": 0,
+                    "selected_token_id": "42",
+                    "oracle_reference_role": "external_hf_cpu_reference",
+                    "hf_cpu_oracle_artifact_path": "correctness_hf_cpu_oracle.txt",
+                    "hf_cpu_oracle_sha256": "a" * 64,
+                    "expected_oracle_source": "hf_transformers_pytorch_cpu",
+                    "oracle_reference_status": "external_reference_hash_recorded",
+                    "sut_classification": "system_under_test",
+                    "correctness_claim_status": "not_oracle_evidence",
+                    "claim_boundary": (
+                        "external_hf_cpu_reference_anchor_only; "
+                        "token_quality_row_remains_system_under_test"
                     ),
                 }
             ],
@@ -364,7 +430,23 @@ class AresIngestCliTest(unittest.TestCase):
                 state["trace_report"]["debug_payload_artifact_summary_status_counts"],
                 {"recorded": 1},
             )
-            self.assertEqual(state["trace_report"]["report_json_section_count"], 5)
+            self.assertEqual(
+                state["trace_report"]["token_quality_summary_status_counts"],
+                {"present": 1},
+            )
+            self.assertEqual(
+                state["trace_report"]["token_quality_summary_topk_status_counts"],
+                {"selected_is_top1": 1},
+            )
+            self.assertEqual(
+                state["trace_report"]["oracle_reference_summary_status_counts"],
+                {"external_reference_hash_recorded": 1},
+            )
+            self.assertEqual(
+                state["trace_report"]["oracle_reference_summary_correctness_counts"],
+                {"not_oracle_evidence": 1},
+            )
+            self.assertEqual(state["trace_report"]["report_json_section_count"], 7)
             self.assertEqual(
                 state["trace_report"]["report_json_section_kind_counts"],
                 {
@@ -373,6 +455,7 @@ class AresIngestCliTest(unittest.TestCase):
                     "introspection": 1,
                     "introspection_inventory": 1,
                     "measurement_guidance": 1,
+                    "sidecar": 2,
                 },
             )
             spec = json.loads((run_dir / "model_spec.json").read_text())
@@ -400,6 +483,17 @@ class AresIngestCliTest(unittest.TestCase):
                 "payload_boundary=debug_payloads_can_perturb_timing",
                 handoff,
             )
+            self.assertIn("Token quality summaries", handoff)
+            self.assertIn("Token quality top-k status", handoff)
+            self.assertIn("Token quality summary: request=7001", handoff)
+            self.assertIn("token_index=0", handoff)
+            self.assertIn("topk=selected_is_top1", handoff)
+            self.assertIn("boundary=external_oracle_reference_present", handoff)
+            self.assertIn("Oracle references", handoff)
+            self.assertIn("Oracle-reference correctness boundary", handoff)
+            self.assertIn("Oracle reference summary: request=7001", handoff)
+            self.assertIn("correctness=not_oracle_evidence", handoff)
+            self.assertIn("sut=system_under_test", handoff)
             self.assertIn("Introspection capability: token_quality", handoff)
             self.assertIn("set ARES_BACKEND_EVENT_ARTIFACT_DIR", handoff)
 
@@ -417,12 +511,22 @@ class AresIngestCliTest(unittest.TestCase):
             self.assertIn("sections.trace_config_rows", prompt)
             self.assertIn("sections.provider_payload_boundary_inventory_rows", prompt)
             self.assertIn("sections.debug_payload_artifact_summary_rows", prompt)
+            self.assertIn("sections.token_quality_summary_rows", prompt)
+            self.assertIn("sections.oracle_reference_summary_rows", prompt)
             self.assertIn("Provider payload boundary: fpga/kv_payload_digests", prompt)
             self.assertIn("provider_artifacts=2", prompt)
             self.assertIn("same_kind_artifacts=2", prompt)
             self.assertIn("same_kind_backends=fpga", prompt)
             self.assertIn("Debug payload artifact: attention_page_trace", prompt)
             self.assertIn("features=trace-introspection", prompt)
+            self.assertIn("Token quality summary: request=7001", prompt)
+            self.assertIn("token_index=0", prompt)
+            self.assertIn("top1_margin=1.4", prompt)
+            self.assertIn("oracle_reference=external_hf_cpu_reference", prompt)
+            self.assertIn("Oracle reference summary: request=7001", prompt)
+            self.assertIn("role=external_hf_cpu_reference", prompt)
+            self.assertIn("correctness=not_oracle_evidence", prompt)
+            self.assertIn("system-under-test rows as oracle evidence", prompt)
             self.assertIn("inspect_matching_introspection_report_sections", prompt)
             self.assertIn("sections.introspection_capability_rows", prompt)
             self.assertIn("sections.introspection_artifact_summary_rows", prompt)
