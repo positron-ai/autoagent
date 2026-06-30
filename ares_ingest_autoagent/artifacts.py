@@ -49,6 +49,8 @@ TRACE_REPORT_JSON_SECTION_SAMPLE_KEYS = (
     "oracle_reference_summary_rows",
     "tensor_payload_sidecar_rows",
     "kv_payload_digest_sidecar_rows",
+    "scheduler_packet_lineage_sidecar_rows",
+    "scheduler_kv_shard_lifecycle_sidecar_rows",
     "introspection_capability_rows",
     "introspection_artifact_summary_rows",
     "introspection_section_inventory",
@@ -1378,6 +1380,8 @@ def validate_trace_report_json(report: Any) -> ArtifactValidation:
     oracle_reference_summary_rows: list[dict[str, Any]] = []
     tensor_payload_sidecar_rows: list[dict[str, Any]] = []
     kv_payload_digest_sidecar_rows: list[dict[str, Any]] = []
+    scheduler_packet_lineage_sidecar_rows: list[dict[str, Any]] = []
+    scheduler_kv_shard_lifecycle_sidecar_rows: list[dict[str, Any]] = []
     introspection_capability_rows: list[dict[str, Any]] = []
     introspection_artifact_summary_rows: list[dict[str, Any]] = []
     introspection_section_inventory_rows: list[dict[str, Any]] = []
@@ -1446,6 +1450,18 @@ def validate_trace_report_json(report: Any) -> ArtifactValidation:
             errors,
             sections,
             "kv_payload_digest_sidecar_rows",
+            required=False,
+        )
+        scheduler_packet_lineage_sidecar_rows = _trace_report_section_rows(
+            errors,
+            sections,
+            "scheduler_packet_lineage_sidecar_rows",
+            required=False,
+        )
+        scheduler_kv_shard_lifecycle_sidecar_rows = _trace_report_section_rows(
+            errors,
+            sections,
+            "scheduler_kv_shard_lifecycle_sidecar_rows",
             required=False,
         )
         introspection_capability_rows = _trace_report_section_rows(
@@ -1573,6 +1589,36 @@ def validate_trace_report_json(report: Any) -> ArtifactValidation:
         "kv_payload_digest_sidecar_role_counts": _trace_report_value_counts(
             kv_payload_digest_sidecar_rows,
             "tensor_role",
+        ),
+        "scheduler_packet_lineage_sidecar_count": len(
+            scheduler_packet_lineage_sidecar_rows
+        ),
+        "scheduler_packet_lineage_sidecar_status_counts": (
+            _trace_report_value_counts(
+                scheduler_packet_lineage_sidecar_rows,
+                "status",
+            )
+        ),
+        "scheduler_packet_lineage_sidecar_executor_counts": (
+            _trace_report_value_counts(
+                scheduler_packet_lineage_sidecar_rows,
+                "executor_status",
+            )
+        ),
+        "scheduler_kv_shard_lifecycle_sidecar_count": len(
+            scheduler_kv_shard_lifecycle_sidecar_rows
+        ),
+        "scheduler_kv_shard_lifecycle_sidecar_status_counts": (
+            _trace_report_value_counts(
+                scheduler_kv_shard_lifecycle_sidecar_rows,
+                "status",
+            )
+        ),
+        "scheduler_kv_shard_lifecycle_sidecar_lifecycle_counts": (
+            _trace_report_value_counts(
+                scheduler_kv_shard_lifecycle_sidecar_rows,
+                "kv_lifecycle_status",
+            )
         ),
         "introspection_capability_count": len(introspection_capability_rows),
         "introspection_capability_status_counts": _trace_report_value_counts(
@@ -1762,6 +1808,61 @@ def validate_trace_report_json(report: Any) -> ArtifactValidation:
                 "sample_pos_inf_count",
                 "sample_neg_inf_count",
                 "sample_values",
+                "failure_reason",
+            ),
+        ),
+        "scheduler_packet_lineage_sidecar_samples": _trace_report_samples(
+            scheduler_packet_lineage_sidecar_rows,
+            (
+                "status",
+                "evidence_role",
+                "request_id",
+                "generation_id",
+                "location_id",
+                "parent_location_id",
+                "executor_shape",
+                "executor_status",
+                "attention_mode",
+                "token_job_count",
+                "runtime_request_token_count",
+                "tokens_reused",
+                "visible_token_slots",
+                "kv_context_rows",
+                "kv_save_rows",
+                "kv_page_count",
+                "hw_shard_allocation_requests",
+                "hw_gof_page_infos",
+                "prior_host_gof_staging_status",
+                "prior_host_gof_dma_completions",
+                "listener_sparse_rows",
+                "listener_sparse_tokens",
+                "failure_reason",
+            ),
+        ),
+        "scheduler_kv_shard_lifecycle_sidecar_samples": _trace_report_samples(
+            scheduler_kv_shard_lifecycle_sidecar_rows,
+            (
+                "status",
+                "evidence_role",
+                "request_id",
+                "generation_id",
+                "location_id",
+                "parent_location_id",
+                "executor_shape",
+                "executor_status",
+                "attention_mode",
+                "kv_lifecycle_status",
+                "token_job_count",
+                "kv_job_count",
+                "runtime_request_token_count",
+                "visible_token_slots",
+                "kv_context_rows",
+                "kv_save_rows",
+                "kv_page_count",
+                "hw_shard_allocation_requests",
+                "hw_gof_page_infos",
+                "prior_host_gof_staging_status",
+                "prior_host_gof_dma_completions",
                 "failure_reason",
             ),
         ),

@@ -233,6 +233,24 @@ def trace_report_summary_from_spec(spec: Mapping[str, Any]) -> dict[str, Any] | 
         "kv_payload_digest_sidecar_role_counts": detail.get(
             "kv_payload_digest_sidecar_role_counts"
         ),
+        "scheduler_packet_lineage_sidecar_count": detail.get(
+            "scheduler_packet_lineage_sidecar_count"
+        ),
+        "scheduler_packet_lineage_sidecar_status_counts": detail.get(
+            "scheduler_packet_lineage_sidecar_status_counts"
+        ),
+        "scheduler_packet_lineage_sidecar_executor_counts": detail.get(
+            "scheduler_packet_lineage_sidecar_executor_counts"
+        ),
+        "scheduler_kv_shard_lifecycle_sidecar_count": detail.get(
+            "scheduler_kv_shard_lifecycle_sidecar_count"
+        ),
+        "scheduler_kv_shard_lifecycle_sidecar_status_counts": detail.get(
+            "scheduler_kv_shard_lifecycle_sidecar_status_counts"
+        ),
+        "scheduler_kv_shard_lifecycle_sidecar_lifecycle_counts": detail.get(
+            "scheduler_kv_shard_lifecycle_sidecar_lifecycle_counts"
+        ),
         "introspection_capability_count": detail.get("introspection_capability_count"),
         "introspection_capability_status_counts": detail.get(
             "introspection_capability_status_counts"
@@ -270,6 +288,12 @@ def trace_report_summary_from_spec(spec: Mapping[str, Any]) -> dict[str, Any] | 
         "tensor_payload_sidecar_samples": detail.get("tensor_payload_sidecar_samples"),
         "kv_payload_digest_sidecar_samples": detail.get(
             "kv_payload_digest_sidecar_samples"
+        ),
+        "scheduler_packet_lineage_sidecar_samples": detail.get(
+            "scheduler_packet_lineage_sidecar_samples"
+        ),
+        "scheduler_kv_shard_lifecycle_sidecar_samples": detail.get(
+            "scheduler_kv_shard_lifecycle_sidecar_samples"
         ),
         "introspection_capability_samples": detail.get(
             "introspection_capability_samples"
@@ -410,6 +434,46 @@ def render_trace_report_lines(summary: Mapping[str, Any]) -> list[str]:
             "`"
             + json.dumps(
                 summary["kv_payload_digest_sidecar_role_counts"],
+                sort_keys=True,
+            )
+            + "`"
+        )
+    if summary.get("scheduler_packet_lineage_sidecar_status_counts"):
+        lines.append(
+            "- Scheduler packet lineage: "
+            "`"
+            + json.dumps(
+                summary["scheduler_packet_lineage_sidecar_status_counts"],
+                sort_keys=True,
+            )
+            + "`"
+        )
+    if summary.get("scheduler_packet_lineage_sidecar_executor_counts"):
+        lines.append(
+            "- Scheduler packet executors: "
+            "`"
+            + json.dumps(
+                summary["scheduler_packet_lineage_sidecar_executor_counts"],
+                sort_keys=True,
+            )
+            + "`"
+        )
+    if summary.get("scheduler_kv_shard_lifecycle_sidecar_status_counts"):
+        lines.append(
+            "- Scheduler K/V shard lifecycle: "
+            "`"
+            + json.dumps(
+                summary["scheduler_kv_shard_lifecycle_sidecar_status_counts"],
+                sort_keys=True,
+            )
+            + "`"
+        )
+    if summary.get("scheduler_kv_shard_lifecycle_sidecar_lifecycle_counts"):
+        lines.append(
+            "- Scheduler K/V lifecycle status: "
+            "`"
+            + json.dumps(
+                summary["scheduler_kv_shard_lifecycle_sidecar_lifecycle_counts"],
                 sort_keys=True,
             )
             + "`"
@@ -671,6 +735,137 @@ def render_trace_report_lines(summary: Mapping[str, Any]) -> list[str]:
         if parts:
             line += " " + " ".join(parts)
         lines.append(line)
+    for sample in summary.get("scheduler_packet_lineage_sidecar_samples", [])[:3]:
+        if not isinstance(sample, Mapping):
+            continue
+        request_id = sample.get("request_id")
+        generation_id = sample.get("generation_id")
+        status = sample.get("status")
+        executor_shape = sample.get("executor_shape")
+        executor_status = sample.get("executor_status")
+        attention_mode = sample.get("attention_mode")
+        token_jobs = sample.get("token_job_count")
+        runtime_tokens = sample.get("runtime_request_token_count")
+        tokens_reused = sample.get("tokens_reused")
+        visible_slots = sample.get("visible_token_slots")
+        kv_context_rows = sample.get("kv_context_rows")
+        kv_save_rows = sample.get("kv_save_rows")
+        sparse_rows = sample.get("listener_sparse_rows")
+        sparse_tokens = sample.get("listener_sparse_tokens")
+        staging_status = sample.get("prior_host_gof_staging_status")
+        dma_completions = sample.get("prior_host_gof_dma_completions")
+        failure_reason = sample.get("failure_reason")
+        label = (
+            request_id
+            if _trace_report_sample_value_present(request_id)
+            else generation_id
+            if _trace_report_sample_value_present(generation_id)
+            else "unknown"
+        )
+        parts = []
+        if _trace_report_sample_value_present(generation_id):
+            parts.append(f"generation={generation_id}")
+        if status:
+            parts.append(f"status={status}")
+        if executor_status:
+            parts.append(f"executor={executor_status}")
+        if executor_shape:
+            parts.append(f"shape={executor_shape}")
+        if attention_mode:
+            parts.append(f"attention={attention_mode}")
+        if _trace_report_sample_value_present(token_jobs):
+            parts.append(f"token_jobs={token_jobs}")
+        if _trace_report_sample_value_present(runtime_tokens):
+            parts.append(f"runtime_tokens={runtime_tokens}")
+        if _trace_report_sample_value_present(tokens_reused):
+            parts.append(f"tokens_reused={tokens_reused}")
+        if _trace_report_sample_value_present(visible_slots):
+            parts.append(f"visible_slots={visible_slots}")
+        if _trace_report_sample_value_present(kv_context_rows):
+            parts.append(f"kv_context_rows={kv_context_rows}")
+        if _trace_report_sample_value_present(kv_save_rows):
+            parts.append(f"kv_save_rows={kv_save_rows}")
+        if _trace_report_sample_value_present(sparse_rows):
+            parts.append(f"sparse_rows={sparse_rows}")
+        if _trace_report_sample_value_present(sparse_tokens):
+            parts.append(f"sparse_tokens={sparse_tokens}")
+        if staging_status:
+            parts.append(f"staging={staging_status}")
+        if _trace_report_sample_value_present(dma_completions):
+            parts.append(f"dma_completions={dma_completions}")
+        if failure_reason:
+            parts.append(f"failure={failure_reason}")
+        line = f"- Scheduler packet lineage: request={label}"
+        if parts:
+            line += " " + " ".join(parts)
+        lines.append(line)
+    for sample in summary.get("scheduler_kv_shard_lifecycle_sidecar_samples", [])[:3]:
+        if not isinstance(sample, Mapping):
+            continue
+        request_id = sample.get("request_id")
+        generation_id = sample.get("generation_id")
+        status = sample.get("status")
+        lifecycle_status = sample.get("kv_lifecycle_status")
+        executor_status = sample.get("executor_status")
+        attention_mode = sample.get("attention_mode")
+        token_jobs = sample.get("token_job_count")
+        kv_jobs = sample.get("kv_job_count")
+        runtime_tokens = sample.get("runtime_request_token_count")
+        visible_slots = sample.get("visible_token_slots")
+        kv_context_rows = sample.get("kv_context_rows")
+        kv_save_rows = sample.get("kv_save_rows")
+        kv_pages = sample.get("kv_page_count")
+        allocations = sample.get("hw_shard_allocation_requests")
+        page_infos = sample.get("hw_gof_page_infos")
+        staging_status = sample.get("prior_host_gof_staging_status")
+        dma_completions = sample.get("prior_host_gof_dma_completions")
+        failure_reason = sample.get("failure_reason")
+        label = (
+            request_id
+            if _trace_report_sample_value_present(request_id)
+            else generation_id
+            if _trace_report_sample_value_present(generation_id)
+            else "unknown"
+        )
+        parts = []
+        if _trace_report_sample_value_present(generation_id):
+            parts.append(f"generation={generation_id}")
+        if status:
+            parts.append(f"status={status}")
+        if lifecycle_status:
+            parts.append(f"lifecycle={lifecycle_status}")
+        if executor_status:
+            parts.append(f"executor={executor_status}")
+        if attention_mode:
+            parts.append(f"attention={attention_mode}")
+        if _trace_report_sample_value_present(token_jobs):
+            parts.append(f"token_jobs={token_jobs}")
+        if _trace_report_sample_value_present(kv_jobs):
+            parts.append(f"kv_jobs={kv_jobs}")
+        if _trace_report_sample_value_present(runtime_tokens):
+            parts.append(f"runtime_tokens={runtime_tokens}")
+        if _trace_report_sample_value_present(visible_slots):
+            parts.append(f"visible_slots={visible_slots}")
+        if _trace_report_sample_value_present(kv_context_rows):
+            parts.append(f"kv_context_rows={kv_context_rows}")
+        if _trace_report_sample_value_present(kv_save_rows):
+            parts.append(f"kv_save_rows={kv_save_rows}")
+        if _trace_report_sample_value_present(kv_pages):
+            parts.append(f"kv_pages={kv_pages}")
+        if _trace_report_sample_value_present(allocations):
+            parts.append(f"allocations={allocations}")
+        if _trace_report_sample_value_present(page_infos):
+            parts.append(f"page_infos={page_infos}")
+        if staging_status:
+            parts.append(f"staging={staging_status}")
+        if _trace_report_sample_value_present(dma_completions):
+            parts.append(f"dma_completions={dma_completions}")
+        if failure_reason:
+            parts.append(f"failure={failure_reason}")
+        line = f"- Scheduler K/V lifecycle: request={label}"
+        if parts:
+            line += " " + " ".join(parts)
+        lines.append(line)
     for sample in summary.get("token_quality_summary_samples", [])[:3]:
         if not isinstance(sample, Mapping):
             continue
@@ -879,11 +1074,7 @@ def trace_report_prompt_section(spec: Mapping[str, Any]) -> list[str]:
         "available, recorded, blocked, and other-backend provider/runtime",
         "payload lanes, then read",
         "`sections.debug_payload_artifact_summary_rows` to see payload",
-        "sensitivity and timing-perturbation boundaries, and",
-        "`sections.tensor_payload_sidecar_rows` and",
-        "`sections.kv_payload_digest_sidecar_rows` to inspect provider/runtime",
-        "payload summaries and scheduler K/V digest rows without treating",
-        "them as oracle evidence. Then read",
+        "sensitivity and timing-perturbation boundaries. Then read",
         "`sections.token_quality_summary_rows` and",
         "`sections.oracle_reference_summary_rows` to inspect selected-token",
         "top-k status and HF CPU reference anchors without treating",
@@ -892,6 +1083,16 @@ def trace_report_prompt_section(spec: Mapping[str, Any]) -> list[str]:
         "`sections.introspection_artifact_summary_rows`, then",
         "`sections.introspection_section_inventory`, to decide which tracing",
         "sidecars exist before opening heavier sidecar-specific sections.",
+        "When the inventory says they are available, read",
+        "`sections.tensor_payload_sidecar_rows` and",
+        "`sections.kv_payload_digest_sidecar_rows` to inspect provider/runtime",
+        "payload summaries and scheduler K/V digest rows without treating",
+        "them as oracle evidence, and read",
+        "`sections.scheduler_packet_lineage_sidecar_rows` and",
+        "`sections.scheduler_kv_shard_lifecycle_sidecar_rows` to inspect",
+        "scheduler packet shape, sparse-listener delivery, and K/V shard",
+        "lifecycle diagnostics without treating scheduler metadata as",
+        "hardware-counter evidence.",
         "If the current trace cannot answer the failing gate, run the named",
         "next-measurement query or capture command before editing production code.",
         "",

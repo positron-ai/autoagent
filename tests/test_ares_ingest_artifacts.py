@@ -432,6 +432,36 @@ class AresIngestArtifactTest(unittest.TestCase):
                                     ),
                                 },
                                 {
+                                    "heading": "Scheduler Packet Lineage Sidecar Rows",
+                                    "json_path": (
+                                        "sections.scheduler_packet_lineage_sidecar_rows"
+                                    ),
+                                    "json_section": (
+                                        "scheduler_packet_lineage_sidecar_rows"
+                                    ),
+                                    "section_kind": "sidecar",
+                                    "claim_boundary": (
+                                        "system_under_test_scheduler_packet_diagnostic"
+                                    ),
+                                },
+                                {
+                                    "heading": (
+                                        "Scheduler K/V Shard Lifecycle Sidecar Rows"
+                                    ),
+                                    "json_path": (
+                                        "sections."
+                                        "scheduler_kv_shard_lifecycle_sidecar_rows"
+                                    ),
+                                    "json_section": (
+                                        "scheduler_kv_shard_lifecycle_sidecar_rows"
+                                    ),
+                                    "section_kind": "sidecar",
+                                    "claim_boundary": (
+                                        "system_under_test_scheduler_kv_lifecycle_"
+                                        "diagnostic"
+                                    ),
+                                },
+                                {
                                     "heading": "Next Measurements",
                                     "json_path": "sections.next_measurements",
                                     "json_section": "next_measurements",
@@ -608,6 +638,69 @@ class AresIngestArtifactTest(unittest.TestCase):
                                     "sample_values": "[0.125, 0.25, 0.375, 0.5]",
                                 }
                             ],
+                            "scheduler_packet_lineage_sidecar_rows": [
+                                {
+                                    "status": "ok",
+                                    "evidence_role": "system_under_test",
+                                    "request_id": "7002",
+                                    "generation_id": "rinzler-7002",
+                                    "location_id": "4",
+                                    "parent_location_id": "3",
+                                    "executor_shape": (
+                                        "fullscheduler_forward_batch_v1"
+                                    ),
+                                    "executor_status": (
+                                        "executed_fullscheduler_forward_batch_v1"
+                                    ),
+                                    "attention_mode": "software_attention",
+                                    "token_job_count": "2",
+                                    "runtime_request_token_count": "2",
+                                    "tokens_reused": "5",
+                                    "visible_token_slots": "2",
+                                    "kv_context_rows": "64",
+                                    "kv_save_rows": "64",
+                                    "kv_page_count": "1",
+                                    "hw_shard_allocation_requests": "1",
+                                    "hw_gof_page_infos": "1",
+                                    "prior_host_gof_staging_status": (
+                                        "page_info_published"
+                                    ),
+                                    "prior_host_gof_dma_completions": "1",
+                                    "listener_sparse_rows": "1",
+                                    "listener_sparse_tokens": "3",
+                                }
+                            ],
+                            "scheduler_kv_shard_lifecycle_sidecar_rows": [
+                                {
+                                    "status": "ok",
+                                    "evidence_role": "system_under_test",
+                                    "request_id": "7002",
+                                    "generation_id": "rinzler-7002",
+                                    "location_id": "4",
+                                    "parent_location_id": "3",
+                                    "executor_shape": (
+                                        "fullscheduler_forward_batch_v1"
+                                    ),
+                                    "executor_status": (
+                                        "executed_fullscheduler_forward_batch_v1"
+                                    ),
+                                    "attention_mode": "software_attention",
+                                    "kv_lifecycle_status": "observed",
+                                    "token_job_count": "2",
+                                    "kv_job_count": "1",
+                                    "runtime_request_token_count": "2",
+                                    "visible_token_slots": "2",
+                                    "kv_context_rows": "64",
+                                    "kv_save_rows": "64",
+                                    "kv_page_count": "1",
+                                    "hw_shard_allocation_requests": "1",
+                                    "hw_gof_page_infos": "1",
+                                    "prior_host_gof_staging_status": (
+                                        "page_info_published"
+                                    ),
+                                    "prior_host_gof_dma_completions": "1",
+                                }
+                            ],
                             "introspection_capability_rows": [
                                 {
                                     "capture_capability": "token_quality",
@@ -739,7 +832,23 @@ class AresIngestArtifactTest(unittest.TestCase):
                 gate["detail"]["kv_payload_digest_sidecar_role_counts"],
                 {"kv_key": 1},
             )
-            self.assertEqual(gate["detail"]["report_json_section_count"], 10)
+            self.assertEqual(
+                gate["detail"]["scheduler_packet_lineage_sidecar_status_counts"],
+                {"ok": 1},
+            )
+            self.assertEqual(
+                gate["detail"]["scheduler_packet_lineage_sidecar_executor_counts"],
+                {"executed_fullscheduler_forward_batch_v1": 1},
+            )
+            self.assertEqual(
+                gate["detail"]["scheduler_kv_shard_lifecycle_sidecar_status_counts"],
+                {"ok": 1},
+            )
+            self.assertEqual(
+                gate["detail"]["scheduler_kv_shard_lifecycle_sidecar_lifecycle_counts"],
+                {"observed": 1},
+            )
+            self.assertEqual(gate["detail"]["report_json_section_count"], 12)
             self.assertEqual(
                 gate["detail"]["report_json_section_kind_counts"],
                 {
@@ -748,7 +857,7 @@ class AresIngestArtifactTest(unittest.TestCase):
                     "introspection": 1,
                     "introspection_inventory": 2,
                     "measurement_guidance": 1,
-                    "sidecar": 4,
+                    "sidecar": 6,
                 },
             )
             self.assertEqual(
@@ -827,6 +936,30 @@ class AresIngestArtifactTest(unittest.TestCase):
             self.assertEqual(
                 gate["detail"]["kv_payload_digest_sidecar_samples"][0]["digest_sha256"],
                 SHA_B,
+            )
+            self.assertEqual(
+                gate["detail"]["scheduler_packet_lineage_sidecar_samples"][0][
+                    "executor_status"
+                ],
+                "executed_fullscheduler_forward_batch_v1",
+            )
+            self.assertEqual(
+                gate["detail"]["scheduler_packet_lineage_sidecar_samples"][0][
+                    "listener_sparse_rows"
+                ],
+                "1",
+            )
+            self.assertEqual(
+                gate["detail"]["scheduler_kv_shard_lifecycle_sidecar_samples"][0][
+                    "kv_lifecycle_status"
+                ],
+                "observed",
+            )
+            self.assertEqual(
+                gate["detail"]["scheduler_kv_shard_lifecycle_sidecar_samples"][0][
+                    "kv_context_rows"
+                ],
+                "64",
             )
             self.assertEqual(
                 gate["detail"]["introspection_capability_samples"][0][
@@ -948,6 +1081,22 @@ class AresIngestArtifactTest(unittest.TestCase):
             gate["detail"]["kv_payload_digest_sidecar_role_counts"],
             {"kv_key": 1},
         )
+        self.assertEqual(
+            gate["detail"]["scheduler_packet_lineage_sidecar_status_counts"],
+            {"ok": 1},
+        )
+        self.assertEqual(
+            gate["detail"]["scheduler_packet_lineage_sidecar_executor_counts"],
+            {"executed_fullscheduler_forward_batch_v1": 1},
+        )
+        self.assertEqual(
+            gate["detail"]["scheduler_kv_shard_lifecycle_sidecar_status_counts"],
+            {"ok": 1},
+        )
+        self.assertEqual(
+            gate["detail"]["scheduler_kv_shard_lifecycle_sidecar_lifecycle_counts"],
+            {"observed": 1},
+        )
         section_paths = {
             sample["json_path"]
             for sample in gate["detail"]["report_json_section_samples"]
@@ -958,6 +1107,11 @@ class AresIngestArtifactTest(unittest.TestCase):
         self.assertIn("sections.oracle_reference_summary_rows", section_paths)
         self.assertIn("sections.tensor_payload_sidecar_rows", section_paths)
         self.assertIn("sections.kv_payload_digest_sidecar_rows", section_paths)
+        self.assertIn("sections.scheduler_packet_lineage_sidecar_rows", section_paths)
+        self.assertIn(
+            "sections.scheduler_kv_shard_lifecycle_sidecar_rows",
+            section_paths,
+        )
         self.assertIn("sections.introspection_capability_rows", section_paths)
         self.assertIn("sections.introspection_artifact_summary_rows", section_paths)
         self.assertIn("sections.introspection_section_inventory", section_paths)
@@ -1038,6 +1192,30 @@ class AresIngestArtifactTest(unittest.TestCase):
         self.assertEqual(
             gate["detail"]["kv_payload_digest_sidecar_samples"][0]["tensor_role"],
             "kv_key",
+        )
+        self.assertEqual(
+            gate["detail"]["scheduler_packet_lineage_sidecar_samples"][0][
+                "executor_status"
+            ],
+            "executed_fullscheduler_forward_batch_v1",
+        )
+        self.assertEqual(
+            gate["detail"]["scheduler_packet_lineage_sidecar_samples"][0][
+                "listener_sparse_tokens"
+            ],
+            "3",
+        )
+        self.assertEqual(
+            gate["detail"]["scheduler_kv_shard_lifecycle_sidecar_samples"][0][
+                "kv_lifecycle_status"
+            ],
+            "observed",
+        )
+        self.assertEqual(
+            gate["detail"]["scheduler_kv_shard_lifecycle_sidecar_samples"][0][
+                "prior_host_gof_staging_status"
+            ],
+            "page_info_published",
         )
         self.assertEqual(
             gate["detail"]["introspection_section_inventory_samples"][0][

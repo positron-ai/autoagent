@@ -137,6 +137,22 @@ def trace_report_payload() -> dict:
                     ),
                 },
                 {
+                    "heading": "Scheduler Packet Lineage Sidecar Rows",
+                    "json_path": "sections.scheduler_packet_lineage_sidecar_rows",
+                    "json_section": "scheduler_packet_lineage_sidecar_rows",
+                    "section_kind": "sidecar",
+                    "claim_boundary": ("system_under_test_scheduler_packet_diagnostic"),
+                },
+                {
+                    "heading": "Scheduler K/V Shard Lifecycle Sidecar Rows",
+                    "json_path": ("sections.scheduler_kv_shard_lifecycle_sidecar_rows"),
+                    "json_section": "scheduler_kv_shard_lifecycle_sidecar_rows",
+                    "section_kind": "sidecar",
+                    "claim_boundary": (
+                        "system_under_test_scheduler_kv_lifecycle_diagnostic"
+                    ),
+                },
+                {
                     "heading": "Next Measurements",
                     "json_path": "sections.next_measurements",
                     "json_section": "next_measurements",
@@ -298,6 +314,57 @@ def trace_report_payload() -> dict:
                     "sample_pos_inf_count": "0",
                     "sample_neg_inf_count": "0",
                     "sample_values": "[0.125, 0.25, 0.375, 0.5]",
+                }
+            ],
+            "scheduler_packet_lineage_sidecar_rows": [
+                {
+                    "status": "ok",
+                    "evidence_role": "system_under_test",
+                    "request_id": "7002",
+                    "generation_id": "rinzler-7002",
+                    "location_id": "4",
+                    "parent_location_id": "3",
+                    "executor_shape": "fullscheduler_forward_batch_v1",
+                    "executor_status": "executed_fullscheduler_forward_batch_v1",
+                    "attention_mode": "software_attention",
+                    "token_job_count": "2",
+                    "runtime_request_token_count": "2",
+                    "tokens_reused": "5",
+                    "visible_token_slots": "2",
+                    "kv_context_rows": "64",
+                    "kv_save_rows": "64",
+                    "kv_page_count": "1",
+                    "hw_shard_allocation_requests": "1",
+                    "hw_gof_page_infos": "1",
+                    "prior_host_gof_staging_status": "page_info_published",
+                    "prior_host_gof_dma_completions": "1",
+                    "listener_sparse_rows": "1",
+                    "listener_sparse_tokens": "3",
+                }
+            ],
+            "scheduler_kv_shard_lifecycle_sidecar_rows": [
+                {
+                    "status": "ok",
+                    "evidence_role": "system_under_test",
+                    "request_id": "7002",
+                    "generation_id": "rinzler-7002",
+                    "location_id": "4",
+                    "parent_location_id": "3",
+                    "executor_shape": "fullscheduler_forward_batch_v1",
+                    "executor_status": "executed_fullscheduler_forward_batch_v1",
+                    "attention_mode": "software_attention",
+                    "kv_lifecycle_status": "observed",
+                    "token_job_count": "2",
+                    "kv_job_count": "1",
+                    "runtime_request_token_count": "2",
+                    "visible_token_slots": "2",
+                    "kv_context_rows": "64",
+                    "kv_save_rows": "64",
+                    "kv_page_count": "1",
+                    "hw_shard_allocation_requests": "1",
+                    "hw_gof_page_infos": "1",
+                    "prior_host_gof_staging_status": "page_info_published",
+                    "prior_host_gof_dma_completions": "1",
                 }
             ],
             "introspection_section_inventory": [
@@ -567,6 +634,28 @@ class AresIngestCliTest(unittest.TestCase):
                 {"kv_key": 1},
             )
             self.assertEqual(
+                state["trace_report"]["scheduler_packet_lineage_sidecar_status_counts"],
+                {"ok": 1},
+            )
+            self.assertEqual(
+                state["trace_report"][
+                    "scheduler_packet_lineage_sidecar_executor_counts"
+                ],
+                {"executed_fullscheduler_forward_batch_v1": 1},
+            )
+            self.assertEqual(
+                state["trace_report"][
+                    "scheduler_kv_shard_lifecycle_sidecar_status_counts"
+                ],
+                {"ok": 1},
+            )
+            self.assertEqual(
+                state["trace_report"][
+                    "scheduler_kv_shard_lifecycle_sidecar_lifecycle_counts"
+                ],
+                {"observed": 1},
+            )
+            self.assertEqual(
                 state["trace_report"]["introspection_section_inventory_status_counts"],
                 {"available": 1, "capability_without_artifact": 1},
             )
@@ -576,7 +665,7 @@ class AresIngestCliTest(unittest.TestCase):
                 ],
                 {"deep_introspection": 1, "token_quality": 1},
             )
-            self.assertEqual(state["trace_report"]["report_json_section_count"], 10)
+            self.assertEqual(state["trace_report"]["report_json_section_count"], 12)
             self.assertEqual(
                 state["trace_report"]["report_json_section_kind_counts"],
                 {
@@ -585,7 +674,7 @@ class AresIngestCliTest(unittest.TestCase):
                     "introspection": 1,
                     "introspection_inventory": 2,
                     "measurement_guidance": 1,
-                    "sidecar": 4,
+                    "sidecar": 6,
                 },
             )
             spec = json.loads((run_dir / "model_spec.json").read_text())
@@ -623,6 +712,16 @@ class AresIngestCliTest(unittest.TestCase):
             self.assertIn("K/V payload digest sidecar: request=7006", handoff)
             self.assertIn("role=kv_key", handoff)
             self.assertIn("sample_min=0.125", handoff)
+            self.assertIn("Scheduler packet executors", handoff)
+            self.assertIn("Scheduler packet lineage: request=7002", handoff)
+            self.assertIn("executor=executed_fullscheduler_forward_batch_v1", handoff)
+            self.assertIn("tokens_reused=5", handoff)
+            self.assertIn("sparse_tokens=3", handoff)
+            self.assertIn("Scheduler K/V lifecycle status", handoff)
+            self.assertIn("Scheduler K/V lifecycle: request=7002", handoff)
+            self.assertIn("lifecycle=observed", handoff)
+            self.assertIn("kv_context_rows=64", handoff)
+            self.assertIn("staging=page_info_published", handoff)
             self.assertIn("Token quality summaries", handoff)
             self.assertIn("Token quality top-k status", handoff)
             self.assertIn("Token quality summary: request=7001", handoff)
@@ -666,6 +765,11 @@ class AresIngestCliTest(unittest.TestCase):
             self.assertIn("sections.debug_payload_artifact_summary_rows", prompt)
             self.assertIn("sections.tensor_payload_sidecar_rows", prompt)
             self.assertIn("sections.kv_payload_digest_sidecar_rows", prompt)
+            self.assertIn("sections.scheduler_packet_lineage_sidecar_rows", prompt)
+            self.assertIn(
+                "sections.scheduler_kv_shard_lifecycle_sidecar_rows",
+                prompt,
+            )
             self.assertIn("sections.token_quality_summary_rows", prompt)
             self.assertIn("sections.oracle_reference_summary_rows", prompt)
             self.assertIn("sections.introspection_section_inventory", prompt)
@@ -680,6 +784,10 @@ class AresIngestCliTest(unittest.TestCase):
             self.assertIn("digest_sha256=", prompt)
             self.assertIn("K/V payload digest sidecar: request=7006", prompt)
             self.assertIn("scheduler K/V digest rows", prompt)
+            self.assertIn("Scheduler packet lineage: request=7002", prompt)
+            self.assertIn("scheduler packet shape", prompt)
+            self.assertIn("Scheduler K/V lifecycle: request=7002", prompt)
+            self.assertIn("hardware-counter evidence", prompt)
             self.assertIn("without treating", prompt)
             self.assertIn("oracle evidence", prompt)
             self.assertIn("Token quality summary: request=7001", prompt)
