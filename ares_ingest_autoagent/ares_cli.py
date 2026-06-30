@@ -26,6 +26,7 @@ from ares_ingest_autoagent.artifacts import (
     one_token_logits_gate,
     target_plan_gate,
     token_agreement_gate,
+    trace_report_gate,
 )
 from ares_ingest_autoagent.commands import build_command_wrapper_plan
 from ares_ingest_autoagent.gates import read_payload, shortcut_scan_gate, write_json
@@ -138,6 +139,261 @@ def reward_fingerprint(reward: dict[str, Any]) -> dict[str, Any]:
             if isinstance(detail, dict)
         },
     }
+
+
+def trace_report_summary_from_spec(spec: Mapping[str, Any]) -> dict[str, Any] | None:
+    gates = spec.get("validated_gates")
+    if not isinstance(gates, Mapping):
+        gates = spec.get("explicit_gates")
+    if not isinstance(gates, Mapping):
+        return None
+    gate = gates.get("trace_report")
+    if not isinstance(gate, Mapping):
+        return None
+    detail = gate.get("detail")
+    if not isinstance(detail, Mapping):
+        detail = {}
+
+    summary: dict[str, Any] = {
+        "path": gate.get("path"),
+        "sha256": detail.get("sha256"),
+        "passed": gate.get("passed"),
+        "artifact_validator": gate.get("artifact_validator"),
+        "schema_version": detail.get("schema_version"),
+        "title": detail.get("title"),
+        "metadata": detail.get("metadata"),
+        "trace": detail.get("trace"),
+        "preflight_status": detail.get("preflight_status"),
+        "report_grade": detail.get("report_grade"),
+        "proof_grade_status": detail.get("proof_grade_status"),
+        "answerability_count": detail.get("answerability_count"),
+        "answerability_status_counts": detail.get("answerability_status_counts"),
+        "unsupported_claim_count": detail.get("unsupported_claim_count"),
+        "next_measurement_count": detail.get("next_measurement_count"),
+        "report_json_section_count": detail.get("report_json_section_count"),
+        "report_json_section_kind_counts": detail.get(
+            "report_json_section_kind_counts"
+        ),
+        "trace_config_count": detail.get("trace_config_count"),
+        "trace_config_status_counts": detail.get("trace_config_status_counts"),
+        "introspection_capability_count": detail.get("introspection_capability_count"),
+        "introspection_capability_status_counts": detail.get(
+            "introspection_capability_status_counts"
+        ),
+        "introspection_artifact_summary_count": detail.get(
+            "introspection_artifact_summary_count"
+        ),
+        "introspection_artifact_summary_status_counts": detail.get(
+            "introspection_artifact_summary_status_counts"
+        ),
+        "next_measurement_samples": detail.get("next_measurement_samples"),
+        "unsupported_claim_samples": detail.get("unsupported_claim_samples"),
+        "analysis_command_samples": detail.get("analysis_command_samples"),
+        "report_json_section_samples": detail.get("report_json_section_samples"),
+        "trace_config_samples": detail.get("trace_config_samples"),
+        "introspection_capability_samples": detail.get(
+            "introspection_capability_samples"
+        ),
+        "introspection_artifact_summary_samples": detail.get(
+            "introspection_artifact_summary_samples"
+        ),
+        "section_names": detail.get("section_names"),
+    }
+    errors = gate.get("errors")
+    if isinstance(errors, list) and errors:
+        summary["errors"] = errors
+    return {
+        key: value for key, value in summary.items() if value not in (None, "", [], {})
+    }
+
+
+def render_trace_report_lines(summary: Mapping[str, Any]) -> list[str]:
+    lines = [
+        f"- Path: `{summary.get('path', 'unknown')}`",
+        f"- SHA-256: `{summary.get('sha256', 'unknown')}`",
+        f"- Validator passed: `{summary.get('passed', 'unknown')}`",
+    ]
+    grade_parts = []
+    for key in ("report_grade", "proof_grade_status", "preflight_status"):
+        value = summary.get(key)
+        if value:
+            grade_parts.append(f"{key}={value}")
+    if grade_parts:
+        lines.append("- Trace grade: " + ", ".join(f"`{part}`" for part in grade_parts))
+    if summary.get("answerability_status_counts"):
+        lines.append(
+            "- Answerability: "
+            f"`{json.dumps(summary['answerability_status_counts'], sort_keys=True)}`"
+        )
+    if summary.get("report_json_section_kind_counts"):
+        lines.append(
+            "- Report JSON sections: "
+            "`"
+            + json.dumps(summary["report_json_section_kind_counts"], sort_keys=True)
+            + "`"
+        )
+    if summary.get("trace_config_status_counts"):
+        lines.append(
+            "- Trace config: "
+            f"`{json.dumps(summary['trace_config_status_counts'], sort_keys=True)}`"
+        )
+    if summary.get("introspection_capability_status_counts"):
+        lines.append(
+            "- Introspection capabilities: "
+            "`"
+            + json.dumps(
+                summary["introspection_capability_status_counts"],
+                sort_keys=True,
+            )
+            + "`"
+        )
+    if summary.get("introspection_artifact_summary_status_counts"):
+        lines.append(
+            "- Introspection artifacts: "
+            "`"
+            + json.dumps(
+                summary["introspection_artifact_summary_status_counts"],
+                sort_keys=True,
+            )
+            + "`"
+        )
+    for sample in summary.get("report_json_section_samples", [])[:6]:
+        if not isinstance(sample, Mapping):
+            continue
+        json_path = sample.get("json_path") or sample.get("json_section")
+        section_kind = sample.get("section_kind")
+        boundary = sample.get("claim_boundary")
+        if json_path:
+            parts = []
+            if section_kind:
+                parts.append(f"kind={section_kind}")
+            if boundary:
+                parts.append(f"boundary={boundary}")
+            line = f"- Report JSON section: {json_path}"
+            if parts:
+                line += " " + " ".join(parts)
+            lines.append(line)
+    for sample in summary.get("trace_config_samples", [])[:3]:
+        if not isinstance(sample, Mapping):
+            continue
+        status = sample.get("config_status")
+        requested = sample.get("requested_sidecar_controls")
+        recorded = sample.get("recorded_sidecar_capabilities")
+        level = sample.get("introspection_level")
+        compile_feature = sample.get("compile_feature_trace_introspection")
+        deep_effective = sample.get("deep_introspection_effective")
+        next_action = sample.get("next_action")
+        if status:
+            parts = []
+            if requested:
+                parts.append(f"requested={requested}")
+            if recorded:
+                parts.append(f"recorded={recorded}")
+            if level:
+                parts.append(f"level={level}")
+            if compile_feature:
+                parts.append(f"compile_feature={compile_feature}")
+            if deep_effective:
+                parts.append(f"deep_effective={deep_effective}")
+            line = f"- Trace config: {status}"
+            if parts:
+                line += " " + " ".join(parts)
+            lines.append(line)
+        if next_action:
+            lines.append(f"  Next action: `{next_action}`")
+    for sample in summary.get("introspection_capability_samples", [])[:3]:
+        if not isinstance(sample, Mapping):
+            continue
+        capability = sample.get("capture_capability")
+        status = sample.get("capability_status")
+        artifact_count = sample.get("matching_artifact_count")
+        boundary = sample.get("claim_boundary")
+        next_action = sample.get("next_action")
+        if capability:
+            parts = [f"status={status}" if status else ""]
+            if artifact_count:
+                parts.append(f"artifacts={artifact_count}")
+            if boundary:
+                parts.append(f"boundary={boundary}")
+            line = f"- Introspection capability: {capability}"
+            if any(parts):
+                line += " " + " ".join(part for part in parts if part)
+            lines.append(line)
+        if next_action:
+            lines.append(f"  Next action: `{next_action}`")
+    for sample in summary.get("introspection_artifact_summary_samples", [])[:3]:
+        if not isinstance(sample, Mapping):
+            continue
+        artifact_kind = sample.get("artifact_kind")
+        status = sample.get("summary_status")
+        row_count = sample.get("row_count_total")
+        sections = sample.get("report_sections")
+        if artifact_kind:
+            parts = [f"status={status}" if status else ""]
+            if row_count:
+                parts.append(f"rows={row_count}")
+            if sections:
+                parts.append(f"sections={sections}")
+            line = f"- Introspection artifact: {artifact_kind}"
+            if any(parts):
+                line += " " + " ".join(part for part in parts if part)
+            lines.append(line)
+    for sample in summary.get("next_measurement_samples", [])[:3]:
+        if not isinstance(sample, Mapping):
+            continue
+        measurement = sample.get("next_measurement") or sample.get("priority")
+        reason = sample.get("reason")
+        command = sample.get("command_hint")
+        if measurement:
+            suffix = f" - {reason}" if reason else ""
+            lines.append(f"- Next measurement: {measurement}{suffix}")
+        if command:
+            lines.append(f"  Command hint: `{command}`")
+    for sample in summary.get("unsupported_claim_samples", [])[:3]:
+        if not isinstance(sample, Mapping):
+            continue
+        claim = sample.get("claim")
+        reason = sample.get("reason")
+        if claim:
+            suffix = f" - {reason}" if reason else ""
+            lines.append(f"- Unsupported claim: {claim}{suffix}")
+    errors = summary.get("errors")
+    if isinstance(errors, list) and errors:
+        lines.append("- Validator errors: " + "; ".join(str(error) for error in errors))
+    return lines
+
+
+def trace_report_handoff_section(state: Mapping[str, Any] | None) -> str:
+    if not isinstance(state, Mapping):
+        return ""
+    summary = state.get("trace_report")
+    if not isinstance(summary, Mapping):
+        return ""
+    lines = ["## Trace Report", "", *render_trace_report_lines(summary), ""]
+    return "\n".join(lines)
+
+
+def trace_report_prompt_section(spec: Mapping[str, Any]) -> list[str]:
+    summary = trace_report_summary_from_spec(spec)
+    if not summary:
+        return []
+    return [
+        "## Trace Report Summary",
+        "",
+        *render_trace_report_lines(summary),
+        "",
+        "Prefer the report's `sections.answerability`, `sections.unsupported_claims`,",
+        "and `sections.next_measurements` before ad hoc log parsing. Use",
+        "`sections.report_json_section_inventory` to discover available JSON",
+        "sections. Then read `sections.trace_config_rows` first to distinguish",
+        "requested controls from recorded sidecars, then use",
+        "`sections.introspection_capability_rows` and",
+        "`sections.introspection_artifact_summary_rows` to decide which tracing",
+        "sidecars exist before opening heavier sidecar-specific sections.",
+        "If the current trace cannot answer the failing gate, run the named",
+        "next-measurement query or capture command before editing production code.",
+        "",
+    ]
 
 
 def empty_steering() -> dict[str, Any]:
@@ -634,7 +890,9 @@ def read_json_or_jsonl(path: Path) -> Any:
 def mmlu_pro_expectations(spec: Mapping[str, Any]) -> dict[str, Any]:
     mmlu_cfg = spec.get("mmlu_pro")
     mmlu_cfg = mmlu_cfg if isinstance(mmlu_cfg, Mapping) else {}
-    expected_model = mmlu_cfg.get("model") or spec.get("mmlu_model") or spec.get("model")
+    expected_model = (
+        mmlu_cfg.get("model") or spec.get("mmlu_model") or spec.get("model")
+    )
     coverage = (
         mmlu_cfg.get("required_coverage_percent")
         or mmlu_cfg.get("coverage_percent")
@@ -711,6 +969,7 @@ Latest refinement prompt: `{latest_prompt or "none"}`
 
 {skill_text}
 
+{trace_report_handoff_section(state)}
 ## Operator Steering
 
 {chr(10).join(steering_prompt_lines(cfg))}
@@ -953,6 +1212,13 @@ def evaluate_run(cfg: AresIngestConfig) -> tuple[dict[str, Any], dict[str, Any]]
             resolve_run_path(str(mmlu_pro), cfg),
             **mmlu_pro_expectations(spec),
         )
+    trace_report_spec = spec.get("trace_report_json") or spec.get("trace_report")
+    if trace_report_spec:
+        if not isinstance(trace_report_spec, str):
+            raise AresIngestError("model_spec trace_report_json must be a string path")
+        validated_gates["trace_report"] = trace_report_gate(
+            resolve_run_path(trace_report_spec, cfg)
+        )
     command_wrapper_plan = build_command_wrapper_plan(
         spec,
         run_dir=cfg.run_dir,
@@ -981,11 +1247,12 @@ def evaluate_run(cfg: AresIngestConfig) -> tuple[dict[str, Any], dict[str, Any]]
 
 
 def initialize_run(cfg: AresIngestConfig) -> dict[str, Any]:
-    _, reward = evaluate_run(cfg)
+    spec, reward = evaluate_run(cfg)
     workflow_skills = selected_workflow_skills(
         cfg,
         first_failed_gate=str(reward.get("first_failed_gate", "unknown")),
     )
+    trace_report = trace_report_summary_from_spec(spec)
     state = {
         "status": "initialized_setup_only",
         "model": cfg.model_slug,
@@ -1007,6 +1274,8 @@ def initialize_run(cfg: AresIngestConfig) -> dict[str, Any]:
         "reward": reward_fingerprint(reward),
         "history": [],
     }
+    if trace_report:
+        state["trace_report"] = trace_report
     write_json(cfg.state_path, state)
     write_handoff(cfg, reward, state=state)
     return state
@@ -1031,6 +1300,14 @@ def gate_guidance(
             common.append(
                 f"- `{field}` artifact: `{resolve_run_path(str(value), cfg)}`"
             )
+    if value := spec.get("trace_report_json") or spec.get("trace_report"):
+        common.extend(
+            [
+                f"- Trace report JSON: `{resolve_run_path(str(value), cfg)}`",
+                "- Inspect `sections.answerability`, `sections.unsupported_claims`, and `sections.next_measurements` before ad hoc parsing.",
+                "- Read `sections.report_json_section_inventory` to discover available report sections, then read `sections.trace_config_rows` before choosing sidecar-specific report sections.",
+            ]
+        )
     if value := spec.get("command_wrapper_plan"):
         common.append(f"- Command wrapper plan: `{resolve_run_path(str(value), cfg)}`")
     specific: dict[str, list[str]] = {
@@ -1170,6 +1447,7 @@ def write_refinement_prompt(
                 iteration=iteration,
             ),
             "",
+            *trace_report_prompt_section(spec),
             "## Ares Rules",
             "",
             "- HF Transformers on PyTorch CPU is the only model-correctness oracle.",
@@ -1451,18 +1729,26 @@ def append_history(
         first_failed_gate=str(reward.get("first_failed_gate", "unknown")),
     )
     state["reward"] = reward_fingerprint(reward)
+    trace_report = None
+    if cfg.model_spec_path.exists():
+        trace_report = trace_report_summary_from_spec(load_json(cfg.model_spec_path))
+    if trace_report:
+        state["trace_report"] = trace_report
+    else:
+        state.pop("trace_report", None)
     if prompt_path is not None:
         state["latest_refinement_prompt"] = str(prompt_path)
-    state["history"].append(
-        {
-            "iteration": iteration,
-            "status": status,
-            "model_spec": str(cfg.model_spec_path),
-            "reward_json": str(cfg.run_dir / "reward.json"),
-            "logs_dir": str(cfg.logs_dir),
-            **reward_fingerprint(reward),
-        }
-    )
+    history_entry = {
+        "iteration": iteration,
+        "status": status,
+        "model_spec": str(cfg.model_spec_path),
+        "reward_json": str(cfg.run_dir / "reward.json"),
+        "logs_dir": str(cfg.logs_dir),
+        **reward_fingerprint(reward),
+    }
+    if trace_report:
+        history_entry["trace_report"] = trace_report
+    state["history"].append(history_entry)
     write_json(cfg.state_path, state)
     write_handoff(cfg, reward, state=state)
 
@@ -1500,6 +1786,15 @@ def write_failure_state(cfg: AresIngestConfig, error: BaseException) -> None:
         cfg,
         first_failed_gate=first_failed_gate,
     )
+    if cfg.model_spec_path.exists():
+        try:
+            trace_report = trace_report_summary_from_spec(
+                load_json(cfg.model_spec_path)
+            )
+        except AresIngestError:
+            trace_report = None
+        if trace_report:
+            state["trace_report"] = trace_report
     state["updated_at"] = datetime.now(timezone.utc).isoformat()
     write_json(cfg.state_path, state)
     if reward_payload is not None:

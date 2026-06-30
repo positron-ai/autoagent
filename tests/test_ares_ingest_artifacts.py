@@ -14,6 +14,7 @@ from ares_ingest_autoagent.artifacts import (
     depth_performance_gate,
     mmlu_pro_gate,
     one_token_logits_gate,
+    trace_report_gate,
     token_agreement_gate,
     validate_cpp_tvd_evidence,
 )
@@ -278,6 +279,220 @@ class AresIngestArtifactTest(unittest.TestCase):
 
             self.assertFalse(gate["passed"])
             self.assertIn("backend must match", " ".join(gate["errors"]))
+
+    def test_trace_report_gate_accepts_machine_readable_report_json(self) -> None:
+        with TemporaryDirectory() as tmp:
+            path = Path(tmp) / "trace-report.json"
+            path.write_text(
+                json.dumps(
+                    {
+                        "schema_version": 1,
+                        "title": "Synthetic Ares Trace Report",
+                        "summary": "diagnostic trace report",
+                        "inputs": {
+                            "metadata": "run.trace-meta.json",
+                            "trace": "run.chrome.json",
+                        },
+                        "sections": {
+                            "preflight": [{"status": "pass", "ok": 2, "warn": 0}],
+                            "analysis_commands": [
+                                {
+                                    "purpose": "report",
+                                    "command": "bin/ares-trace-report --format json",
+                                }
+                            ],
+                            "report_grade": [
+                                {
+                                    "report_grade": "diagnostic",
+                                    "proof_grade_status": "not_established_by_report",
+                                }
+                            ],
+                            "answerability": [
+                                {
+                                    "question": "backend JSONL evidence",
+                                    "status": "not_present",
+                                    "basis": "missing backend_event_artifacts",
+                                }
+                            ],
+                            "unsupported_claims": [
+                                {
+                                    "claim": "backend JSONL evidence is unsupported",
+                                    "reason": "not_present",
+                                }
+                            ],
+                            "next_measurements": [
+                                {
+                                    "priority": "backend_jsonl",
+                                    "next_measurement": "Capture backend JSONL",
+                                    "command_hint": "set ARES_BACKEND_EVENT_ARTIFACT_DIR",
+                                }
+                            ],
+                            "report_json_section_inventory": [
+                                {
+                                    "heading": "Trace Config Rows",
+                                    "json_path": "sections.trace_config_rows",
+                                    "json_section": "trace_config_rows",
+                                    "section_kind": "capture_configuration",
+                                    "claim_boundary": (
+                                        "requested_controls_not_recorded_evidence"
+                                    ),
+                                },
+                                {
+                                    "heading": "Introspection Capability Rows",
+                                    "json_path": (
+                                        "sections.introspection_capability_rows"
+                                    ),
+                                    "json_section": "introspection_capability_rows",
+                                    "section_kind": "introspection",
+                                    "claim_boundary": (
+                                        "capability_presence_not_payload_evidence"
+                                    ),
+                                },
+                                {
+                                    "heading": "Next Measurements",
+                                    "json_path": "sections.next_measurements",
+                                    "json_section": "next_measurements",
+                                    "section_kind": "measurement_guidance",
+                                    "claim_boundary": "next_action_not_evidence",
+                                },
+                            ],
+                            "trace_config_rows": [
+                                {
+                                    "config_status": "requested_and_recorded",
+                                    "requested_sidecar_controls": "tensor_payloads",
+                                    "recorded_sidecar_capabilities": "tensor_payloads",
+                                    "introspection_level": "payload",
+                                    "compile_feature_trace_introspection": True,
+                                    "deep_introspection_effective": True,
+                                    "next_action": (
+                                        "inspect_matching_introspection_report_sections"
+                                    ),
+                                }
+                            ],
+                            "introspection_capability_rows": [
+                                {
+                                    "capture_capability": "token_quality",
+                                    "capability_status": "recorded",
+                                    "matching_artifact_count": 1,
+                                    "claim_boundary": (
+                                        "system_under_test_diagnostic_not_oracle"
+                                    ),
+                                    "next_action": "inspect_token_quality_rows",
+                                }
+                            ],
+                            "introspection_artifact_summary_rows": [
+                                {
+                                    "artifact_kind": "token_quality",
+                                    "summary_status": "recorded_and_locally_present",
+                                    "artifact_count": 1,
+                                    "local_present_count": 1,
+                                    "local_missing_count": 0,
+                                    "row_count_total": 1,
+                                    "report_sections": (
+                                        "token_quality_summary_rows,"
+                                        "oracle_reference_summary_rows"
+                                    ),
+                                    "claim_boundaries": (
+                                        "system_under_test_diagnostic_not_oracle"
+                                    ),
+                                }
+                            ],
+                        },
+                    }
+                )
+            )
+
+            gate = trace_report_gate(path)
+
+            self.assertTrue(gate["passed"])
+            self.assertEqual(gate["artifact_validator"], "trace_report")
+            self.assertEqual(gate["detail"]["report_grade"], "diagnostic")
+            self.assertEqual(gate["detail"]["preflight_status"], "pass")
+            self.assertEqual(gate["detail"]["unsupported_claim_count"], 1)
+            self.assertEqual(gate["detail"]["next_measurement_count"], 1)
+            self.assertEqual(
+                gate["detail"]["introspection_capability_status_counts"],
+                {"recorded": 1},
+            )
+            self.assertEqual(
+                gate["detail"]["introspection_artifact_summary_status_counts"],
+                {"recorded_and_locally_present": 1},
+            )
+            self.assertEqual(
+                gate["detail"]["trace_config_status_counts"],
+                {"requested_and_recorded": 1},
+            )
+            self.assertEqual(gate["detail"]["report_json_section_count"], 3)
+            self.assertEqual(
+                gate["detail"]["report_json_section_kind_counts"],
+                {
+                    "capture_configuration": 1,
+                    "introspection": 1,
+                    "measurement_guidance": 1,
+                },
+            )
+            self.assertEqual(
+                gate["detail"]["report_json_section_samples"][0]["json_path"],
+                "sections.trace_config_rows",
+            )
+            self.assertEqual(
+                gate["detail"]["trace_config_samples"][0]["requested_sidecar_controls"],
+                "tensor_payloads",
+            )
+            self.assertEqual(
+                gate["detail"]["introspection_capability_samples"][0][
+                    "matching_artifact_count"
+                ],
+                "1",
+            )
+            self.assertEqual(len(gate["detail"]["sha256"]), 64)
+
+    def test_trace_report_gate_rejects_missing_file(self) -> None:
+        with TemporaryDirectory() as tmp:
+            path = Path(tmp) / "missing-trace-report.json"
+
+            gate = trace_report_gate(path)
+
+            self.assertFalse(gate["passed"])
+            self.assertEqual(gate["artifact_validator"], "trace_report")
+            self.assertIn("missing", " ".join(gate["errors"]))
+
+    def test_trace_report_gate_rejects_invalid_json_with_hash(self) -> None:
+        with TemporaryDirectory() as tmp:
+            path = Path(tmp) / "trace-report.json"
+            path.write_text("{not valid json")
+
+            gate = trace_report_gate(path)
+
+            self.assertFalse(gate["passed"])
+            self.assertEqual(gate["artifact_validator"], "trace_report")
+            self.assertIn("invalid JSON", " ".join(gate["errors"]))
+            self.assertEqual(len(gate["detail"]["sha256"]), 64)
+
+    def test_trace_report_gate_rejects_missing_required_sections(self) -> None:
+        with TemporaryDirectory() as tmp:
+            path = Path(tmp) / "trace-report.json"
+            path.write_text(
+                json.dumps(
+                    {
+                        "schema_version": 1,
+                        "title": "Incomplete Ares Trace Report",
+                        "inputs": {"metadata": "run.trace-meta.json"},
+                        "sections": {
+                            "preflight": [{"status": "pass"}],
+                            "analysis_commands": [{"purpose": "report"}],
+                        },
+                    }
+                )
+            )
+
+            gate = trace_report_gate(path)
+
+            self.assertFalse(gate["passed"])
+            errors = " ".join(gate["errors"])
+            self.assertIn("report_grade", errors)
+            self.assertIn("answerability", errors)
+            self.assertIn("next_measurements", errors)
 
     def test_one_token_logits_gate_requires_hf_cpu_oracle_and_replay_context(
         self,
@@ -671,15 +886,15 @@ class AresIngestArtifactTest(unittest.TestCase):
 
             self.assertFalse(gate["passed"])
             self.assertIn("endpoint_models must be an object", " ".join(gate["errors"]))
-            self.assertIn("systems_test.config must be an object", " ".join(gate["errors"]))
+            self.assertIn(
+                "systems_test.config must be an object", " ".join(gate["errors"])
+            )
 
     def test_mmlu_pro_gate_rejects_undercoverage_for_spec(self) -> None:
         with TemporaryDirectory() as tmp:
             root = Path(tmp)
             path = root / "mmlu-pro.json"
-            path.write_text(
-                json.dumps(mmlu_pro_payload(root, coverage_percent=1))
-            )
+            path.write_text(json.dumps(mmlu_pro_payload(root, coverage_percent=1)))
 
             gate = mmlu_pro_gate(path, required_coverage_percent=10)
 
