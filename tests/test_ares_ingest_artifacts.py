@@ -591,6 +591,17 @@ class AresIngestArtifactTest(unittest.TestCase):
                                     "boundary_status": (
                                         "available_from_scheduler_protocol_boundary"
                                     ),
+                                    "producer_status": "provider_callback_present",
+                                    "producer_contract": (
+                                        "fpga_scheduler_batch_dispatch_returns_"
+                                        "completed_targetplan_listener_logits"
+                                    ),
+                                    "payload_record_policy": (
+                                        "sha256_digest_plus_bounded_f32_sample"
+                                    ),
+                                    "payload_sensitivity": (
+                                        "scheduler_kv_save_values"
+                                    ),
                                     "claim_boundary": (
                                         "system_under_test_scheduler_kv_payload_"
                                         "diagnostic"
@@ -1344,6 +1355,24 @@ class AresIngestArtifactTest(unittest.TestCase):
                 "fpga",
             )
             self.assertEqual(
+                gate["detail"]["provider_payload_boundary_samples"][0][
+                    "producer_status"
+                ],
+                "provider_callback_present",
+            )
+            self.assertEqual(
+                gate["detail"]["provider_payload_boundary_samples"][0][
+                    "payload_record_policy"
+                ],
+                "sha256_digest_plus_bounded_f32_sample",
+            )
+            self.assertEqual(
+                gate["detail"]["provider_payload_boundary_samples"][0][
+                    "payload_sensitivity"
+                ],
+                "scheduler_kv_save_values",
+            )
+            self.assertEqual(
                 gate["detail"]["debug_payload_artifact_summary_samples"][0][
                     "artifact_kind"
                 ],
@@ -1525,7 +1554,8 @@ class AresIngestArtifactTest(unittest.TestCase):
             {
                 "blocked_no_supported_boundary": 1,
                 "capability_without_matching_provider_artifact": 5,
-                "recorded_artifact": 5,
+                "recorded_artifact": 4,
+                "route_available_no_provider_producer": 1,
             },
         )
         self.assertEqual(
@@ -1737,6 +1767,24 @@ class AresIngestArtifactTest(unittest.TestCase):
                 "artifact_kind_recorded_backend_ids"
             ],
             "fpga",
+        )
+        self.assertEqual(
+            gate["detail"]["provider_payload_boundary_samples"][0][
+                "producer_status"
+            ],
+            "provider_callback_present",
+        )
+        self.assertEqual(
+            gate["detail"]["provider_payload_boundary_samples"][0][
+                "payload_record_policy"
+            ],
+            "sha256_digest_plus_bounded_f32_sample",
+        )
+        self.assertEqual(
+            gate["detail"]["provider_payload_boundary_samples"][0][
+                "payload_sensitivity"
+            ],
+            "final_logits",
         )
         self.assertEqual(
             gate["detail"]["introspection_artifact_summary_samples"][0][

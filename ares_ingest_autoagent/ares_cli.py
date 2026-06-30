@@ -829,6 +829,10 @@ def render_trace_report_lines(summary: Mapping[str, Any]) -> list[str]:
         artifact_backend_count = sample.get("artifact_kind_recorded_backend_count")
         artifact_backend_ids = sample.get("artifact_kind_recorded_backend_ids")
         report_section = sample.get("report_section")
+        producer_status = sample.get("producer_status")
+        producer_contract = sample.get("producer_contract")
+        payload_policy = sample.get("payload_record_policy")
+        payload_sensitivity = sample.get("payload_sensitivity")
         boundary = sample.get("claim_boundary")
         next_action = sample.get("next_action")
         if provider_id and payload_lane:
@@ -843,6 +847,14 @@ def render_trace_report_lines(summary: Mapping[str, Any]) -> list[str]:
                 parts.append(f"same_kind_backend_count={artifact_backend_count}")
             if report_section:
                 parts.append(f"section={report_section}")
+            if producer_status:
+                parts.append(f"producer={producer_status}")
+            if producer_contract:
+                parts.append(f"contract={producer_contract}")
+            if payload_policy:
+                parts.append(f"policy={payload_policy}")
+            if payload_sensitivity:
+                parts.append(f"sensitivity={payload_sensitivity}")
             if boundary:
                 parts.append(f"boundary={boundary}")
             line = f"- Provider payload boundary: {provider_id}/{payload_lane}"

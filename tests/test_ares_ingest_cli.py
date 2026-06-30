@@ -256,6 +256,13 @@ def trace_report_payload() -> dict:
                     "artifact_kind_recorded_backend_ids": "fpga",
                     "report_section": "kv_payload_digest_sidecar_rows",
                     "boundary_status": "available_from_scheduler_protocol_boundary",
+                    "producer_status": "provider_callback_present",
+                    "producer_contract": (
+                        "fpga_scheduler_batch_dispatch_returns_completed_"
+                        "targetplan_listener_logits"
+                    ),
+                    "payload_record_policy": "sha256_digest_plus_bounded_f32_sample",
+                    "payload_sensitivity": "scheduler_kv_save_values",
                     "claim_boundary": "system_under_test_scheduler_kv_payload_diagnostic",
                     "next_action": "inspect_report_section",
                 }
@@ -1103,6 +1110,13 @@ class AresIngestCliTest(unittest.TestCase):
             self.assertIn("provider_artifacts=2", handoff)
             self.assertIn("same_kind_artifacts=2", handoff)
             self.assertIn("same_kind_backends=fpga", handoff)
+            self.assertIn("producer=provider_callback_present", handoff)
+            self.assertIn(
+                "contract=fpga_scheduler_batch_dispatch_returns_completed_targetplan_listener_logits",
+                handoff,
+            )
+            self.assertIn("policy=sha256_digest_plus_bounded_f32_sample", handoff)
+            self.assertIn("sensitivity=scheduler_kv_save_values", handoff)
             self.assertIn("Capture backend event JSONL", handoff)
             self.assertIn("Debug payload artifacts", handoff)
             self.assertIn("Debug payload artifact: attention_page_trace", handoff)
@@ -1231,6 +1245,9 @@ class AresIngestCliTest(unittest.TestCase):
             self.assertIn("provider_artifacts=2", prompt)
             self.assertIn("same_kind_artifacts=2", prompt)
             self.assertIn("same_kind_backends=fpga", prompt)
+            self.assertIn("producer=provider_callback_present", prompt)
+            self.assertIn("policy=sha256_digest_plus_bounded_f32_sample", prompt)
+            self.assertIn("sensitivity=scheduler_kv_save_values", prompt)
             self.assertIn("Debug payload artifact: attention_page_trace", prompt)
             self.assertIn("features=trace-introspection", prompt)
             self.assertIn("Planning decision sidecar: row=lean_planning_phase", prompt)
