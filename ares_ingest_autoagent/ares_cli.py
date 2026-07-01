@@ -213,6 +213,9 @@ def trace_report_summary_from_spec(spec: Mapping[str, Any]) -> dict[str, Any] | 
         "metadata": detail.get("metadata"),
         "trace": detail.get("trace"),
         "preflight_status": detail.get("preflight_status"),
+        "preflight_ok_count": detail.get("preflight_ok_count"),
+        "preflight_warn_count": detail.get("preflight_warn_count"),
+        "preflight_fail_count": detail.get("preflight_fail_count"),
         "report_grade": detail.get("report_grade"),
         "proof_grade_status": detail.get("proof_grade_status"),
         "answerability_count": detail.get("answerability_count"),
@@ -292,6 +295,22 @@ def trace_report_summary_from_spec(spec: Mapping[str, Any]) -> dict[str, Any] | 
         "report_json_section_count": detail.get("report_json_section_count"),
         "report_json_section_kind_counts": detail.get(
             "report_json_section_kind_counts"
+        ),
+        "report_section_inventory_count": detail.get(
+            "report_section_inventory_count"
+        ),
+        "report_section_inventory_native_sql_counts": detail.get(
+            "report_section_inventory_native_sql_counts"
+        ),
+        "preflight_finding_count": detail.get("preflight_finding_count"),
+        "preflight_finding_kind_counts": detail.get(
+            "preflight_finding_kind_counts"
+        ),
+        "evidence_classification_count": detail.get(
+            "evidence_classification_count"
+        ),
+        "evidence_classification_kind_counts": detail.get(
+            "evidence_classification_kind_counts"
         ),
         "capture_count": detail.get("capture_count"),
         "capture_process_kind_counts": detail.get("capture_process_kind_counts"),
@@ -589,6 +608,13 @@ def trace_report_summary_from_spec(spec: Mapping[str, Any]) -> dict[str, Any] | 
         "unsupported_claim_samples": detail.get("unsupported_claim_samples"),
         "analysis_command_samples": detail.get("analysis_command_samples"),
         "report_json_section_samples": detail.get("report_json_section_samples"),
+        "report_section_inventory_samples": detail.get(
+            "report_section_inventory_samples"
+        ),
+        "preflight_finding_samples": detail.get("preflight_finding_samples"),
+        "evidence_classification_samples": detail.get(
+            "evidence_classification_samples"
+        ),
         "capture_samples": detail.get("capture_samples"),
         "run_provenance_samples": detail.get("run_provenance_samples"),
         "artifact_identity_samples": detail.get("artifact_identity_samples"),
@@ -710,10 +736,43 @@ def render_trace_report_lines(summary: Mapping[str, Any]) -> list[str]:
             grade_parts.append(f"{key}={value}")
     if grade_parts:
         lines.append("- Trace grade: " + ", ".join(f"`{part}`" for part in grade_parts))
+    preflight_counts = {
+        key: summary.get(f"preflight_{key}_count") for key in ("ok", "warn", "fail")
+    }
+    preflight_counts = {
+        key: value
+        for key, value in preflight_counts.items()
+        if _trace_report_sample_value_present(value)
+    }
+    if preflight_counts:
+        lines.append(
+            "- Preflight counts: "
+            f"`{json.dumps(preflight_counts, sort_keys=True)}`"
+        )
     if summary.get("answerability_status_counts"):
         lines.append(
             "- Answerability: "
             f"`{json.dumps(summary['answerability_status_counts'], sort_keys=True)}`"
+        )
+    if summary.get("preflight_finding_kind_counts"):
+        lines.append(
+            "- Preflight findings: "
+            "`"
+            + json.dumps(
+                summary["preflight_finding_kind_counts"],
+                sort_keys=True,
+            )
+            + "`"
+        )
+    if summary.get("evidence_classification_kind_counts"):
+        lines.append(
+            "- Evidence classification: "
+            "`"
+            + json.dumps(
+                summary["evidence_classification_kind_counts"],
+                sort_keys=True,
+            )
+            + "`"
         )
     if summary.get("correctness_evidence_status_counts"):
         lines.append(
@@ -824,6 +883,16 @@ def render_trace_report_lines(summary: Mapping[str, Any]) -> list[str]:
             "- Report JSON sections: "
             "`"
             + json.dumps(summary["report_json_section_kind_counts"], sort_keys=True)
+            + "`"
+        )
+    if summary.get("report_section_inventory_native_sql_counts"):
+        lines.append(
+            "- Report section inventory: "
+            "`"
+            + json.dumps(
+                summary["report_section_inventory_native_sql_counts"],
+                sort_keys=True,
+            )
             + "`"
         )
     if summary.get("capture_trace_mode_counts"):
@@ -1421,18 +1490,61 @@ def render_trace_report_lines(summary: Mapping[str, Any]) -> list[str]:
         if not isinstance(sample, Mapping):
             continue
         json_path = sample.get("json_path") or sample.get("json_section")
+        heading = sample.get("heading")
         section_kind = sample.get("section_kind")
+        requires_timeline = sample.get("requires_timeline_trace")
         boundary = sample.get("claim_boundary")
         if json_path:
             parts = []
+            if heading:
+                parts.append(f"heading={heading}")
             if section_kind:
                 parts.append(f"kind={section_kind}")
+            if _trace_report_sample_value_present(requires_timeline):
+                parts.append(f"requires_timeline={requires_timeline}")
             if boundary:
                 parts.append(f"boundary={boundary}")
             line = f"- Report JSON section: {json_path}"
             if parts:
                 line += " " + " ".join(parts)
             lines.append(line)
+    for sample in summary.get("report_section_inventory_samples", [])[:8]:
+        if not isinstance(sample, Mapping):
+            continue
+        heading = sample.get("heading")
+        query = sample.get("query")
+        native_sql = sample.get("native_sql")
+        portable_command = sample.get("portable_command")
+        native_sql_command = sample.get("native_sql_command")
+        label = heading or query or "unknown"
+        parts = []
+        if query:
+            parts.append(f"query={query}")
+        if _trace_report_sample_value_present(native_sql):
+            parts.append(f"native_sql={native_sql}")
+        line = f"- Report section inventory: {label}"
+        if parts:
+            line += " " + " ".join(parts)
+        lines.append(line)
+        if portable_command:
+            lines.append(f"  Portable command: `{portable_command}`")
+        if native_sql_command:
+            lines.append(f"  Native SQL command: `{native_sql_command}`")
+    for finding in summary.get("preflight_finding_samples", [])[:8]:
+        if isinstance(finding, str) and finding:
+            lines.append(f"- Preflight finding: {finding}")
+    for classification in summary.get("evidence_classification_samples", [])[:4]:
+        if isinstance(classification, str) and classification:
+            lines.append(f"- Evidence classification: {classification}")
+    for sample in summary.get("analysis_command_samples", [])[:3]:
+        if not isinstance(sample, Mapping):
+            continue
+        purpose = sample.get("purpose")
+        command = sample.get("command")
+        if purpose:
+            lines.append(f"- Analysis command: {purpose}")
+        if command:
+            lines.append(f"  Command: `{command}`")
     for sample in summary.get("capture_samples", [])[:3]:
         if not isinstance(sample, Mapping):
             continue
@@ -3182,9 +3294,12 @@ def trace_report_prompt_section(spec: Mapping[str, Any]) -> list[str]:
         *render_trace_report_lines(summary),
         "",
         "Prefer the report's `sections.answerability`, `sections.unsupported_claims`,",
-        "and `sections.next_measurements` before ad hoc log parsing. Use",
-        "`sections.report_json_section_inventory` to discover available JSON",
-        "sections. Then read `sections.capture`, `sections.run_provenance`,",
+        "`sections.next_measurements`, `sections.preflight_findings`, and",
+        "`sections.evidence_classification` before ad hoc log parsing. Use",
+        "`sections.report_json_section_inventory` and",
+        "`sections.report_section_inventory` to discover available JSON",
+        "sections and timeline queries. Then read `sections.capture`,",
+        "`sections.run_provenance`,",
         "`sections.artifact_identities`, `sections.artifact_identity_checks`,",
         "and `sections.capture_capabilities` to verify capture provenance,",
         "artifact hashes, and capability booleans before heavier evidence. Read",
@@ -4314,8 +4429,8 @@ def gate_guidance(
         common.extend(
             [
                 f"- Trace report JSON: `{resolve_run_path(str(value), cfg)}`",
-                "- Inspect `sections.answerability`, `sections.unsupported_claims`, and `sections.next_measurements` before ad hoc parsing.",
-                "- Read `sections.report_json_section_inventory` to discover available report sections, then read `sections.capture`, `sections.run_provenance`, `sections.artifact_identities`, `sections.artifact_identity_checks`, `sections.capture_capabilities`, `sections.trace_config_rows` including `missing_requested_sidecar_controls`, `sections.provider_payload_boundary_inventory_rows` including recorded provider-callback rows and route-only runtime-sidecar rows, `sections.trace_event_artifacts`, `sections.backend_event_artifacts`, `sections.backend_event_rows`, `sections.backend_provider_boundaries`, `sections.backend_fail_closed_root_causes`, `sections.debug_payload_artifact_summary_rows`, `sections.token_quality_summary_rows`, `sections.oracle_reference_summary_rows`, `sections.introspection_capability_rows`, `sections.introspection_artifacts`, `sections.introspection_artifact_summary_rows`, and `sections.introspection_section_inventory` before choosing sidecar-specific report sections such as `sections.planning_decision_sidecar_rows`, `sections.token_quality_sidecar_rows`, `sections.topk_token_sidecar_rows`, `sections.tensor_payload_sidecar_rows`, `sections.kv_payload_digest_sidecar_rows`, `sections.logit_slice_sidecar_rows`, `sections.activation_digest_sidecar_rows`, `sections.scheduler_packet_lineage_sidecar_rows`, `sections.scheduler_listener_sparse_logit_sidecar_rows`, `sections.device_dma_lifecycle_sidecar_rows`, `sections.attention_page_trace_sidecar_rows`, and `sections.device_result_digest_sidecar_rows`; use `sections.timeline_query_summary` only after capture/report provenance supports timeline analysis.",
+                "- Inspect `sections.answerability`, `sections.unsupported_claims`, `sections.next_measurements`, `sections.preflight_findings`, and `sections.evidence_classification` before ad hoc parsing.",
+                "- Read `sections.report_json_section_inventory` and `sections.report_section_inventory` to discover available report sections and timeline queries, then read `sections.capture`, `sections.run_provenance`, `sections.artifact_identities`, `sections.artifact_identity_checks`, `sections.capture_capabilities`, `sections.trace_config_rows` including `missing_requested_sidecar_controls`, `sections.provider_payload_boundary_inventory_rows` including recorded provider-callback rows and route-only runtime-sidecar rows, `sections.trace_event_artifacts`, `sections.backend_event_artifacts`, `sections.backend_event_rows`, `sections.backend_provider_boundaries`, `sections.backend_fail_closed_root_causes`, `sections.debug_payload_artifact_summary_rows`, `sections.token_quality_summary_rows`, `sections.oracle_reference_summary_rows`, `sections.introspection_capability_rows`, `sections.introspection_artifacts`, `sections.introspection_artifact_summary_rows`, and `sections.introspection_section_inventory` before choosing sidecar-specific report sections such as `sections.planning_decision_sidecar_rows`, `sections.token_quality_sidecar_rows`, `sections.topk_token_sidecar_rows`, `sections.tensor_payload_sidecar_rows`, `sections.kv_payload_digest_sidecar_rows`, `sections.logit_slice_sidecar_rows`, `sections.activation_digest_sidecar_rows`, `sections.scheduler_packet_lineage_sidecar_rows`, `sections.scheduler_listener_sparse_logit_sidecar_rows`, `sections.device_dma_lifecycle_sidecar_rows`, `sections.attention_page_trace_sidecar_rows`, and `sections.device_result_digest_sidecar_rows`; use `sections.timeline_query_summary` only after capture/report provenance supports timeline analysis.",
             ]
         )
     if value := spec.get("command_wrapper_plan"):

@@ -2355,6 +2355,16 @@ class AresIngestCliTest(unittest.TestCase):
         self.assertIsNotNone(summary)
         lines = "\n".join(render_trace_report_lines(summary or {}))
 
+        self.assertIn("Preflight finding: warn: metadata.device_counters", lines)
+        self.assertIn(
+            "Evidence classification: diagnostic: preflight passed",
+            lines,
+        )
+        self.assertIn("Report section inventory: Run Summary", lines)
+        self.assertIn("query=run-summary", lines)
+        self.assertIn("Report JSON section: sections.preflight_findings", lines)
+        self.assertIn("Report JSON section: sections.evidence_classification", lines)
+        self.assertIn("Report JSON section: sections.report_section_inventory", lines)
         self.assertIn("Report JSON section: sections.introspection_artifacts", lines)
         self.assertIn("Introspection raw artifact: token_quality", lines)
         self.assertIn("path=introspection_token_quality_sidecar.jsonl", lines)

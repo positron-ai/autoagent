@@ -130,6 +130,9 @@ TRACE_REPORT_JSON_SECTION_SAMPLE_KEYS = (
     "ab_comparability",
     "ab_coverage",
     "ab_repeatability",
+    "report_section_inventory",
+    "preflight_findings",
+    "evidence_classification",
     "answerability",
     "unsupported_claims",
     "next_measurements",
@@ -1647,6 +1650,9 @@ def validate_trace_report_json(report: Any) -> ArtifactValidation:
     ab_coverage_rows: list[dict[str, Any]] = []
     ab_repeatability_rows: list[dict[str, Any]] = []
     report_json_section_rows: list[dict[str, Any]] = []
+    report_section_inventory_rows: list[dict[str, Any]] = []
+    preflight_finding_rows: list[str] = []
+    evidence_classification_rows: list[str] = []
     trace_config_rows: list[dict[str, Any]] = []
     provider_payload_boundary_rows: list[dict[str, Any]] = []
     trace_event_artifact_rows: list[dict[str, Any]] = []
@@ -1782,6 +1788,24 @@ def validate_trace_report_json(report: Any) -> ArtifactValidation:
             errors,
             sections,
             "report_json_section_inventory",
+            required=False,
+        )
+        report_section_inventory_rows = _trace_report_section_rows(
+            errors,
+            sections,
+            "report_section_inventory",
+            required=False,
+        )
+        preflight_finding_rows = _trace_report_string_rows(
+            errors,
+            sections,
+            "preflight_findings",
+            required=False,
+        )
+        evidence_classification_rows = _trace_report_string_rows(
+            errors,
+            sections,
+            "evidence_classification",
             required=False,
         )
         trace_config_rows = _trace_report_section_rows(
@@ -2010,6 +2034,21 @@ def validate_trace_report_json(report: Any) -> ArtifactValidation:
             row.get("byte_count"),
             f"trace report sections.introspection_artifacts[{index}].byte_count",
         )
+    preflight_ok_count = _trace_report_optional_count(
+        errors,
+        first_preflight.get("ok"),
+        "trace report sections.preflight[0].ok",
+    )
+    preflight_warn_count = _trace_report_optional_count(
+        errors,
+        first_preflight.get("warn"),
+        "trace report sections.preflight[0].warn",
+    )
+    preflight_fail_count = _trace_report_optional_count(
+        errors,
+        first_preflight.get("fail"),
+        "trace report sections.preflight[0].fail",
+    )
 
     detail = {
         "schema_version": report.get("schema_version"),
@@ -2019,6 +2058,9 @@ def validate_trace_report_json(report: Any) -> ArtifactValidation:
         "section_count": len(section_names),
         "section_names": section_names,
         "preflight_status": first_preflight.get("status"),
+        "preflight_ok_count": preflight_ok_count,
+        "preflight_warn_count": preflight_warn_count,
+        "preflight_fail_count": preflight_fail_count,
         "report_grade": first_grade.get("report_grade"),
         "proof_grade_status": first_grade.get("proof_grade_status"),
         "answerability_count": len(answerability_rows),
@@ -2132,6 +2174,19 @@ def validate_trace_report_json(report: Any) -> ArtifactValidation:
         "report_json_section_kind_counts": _trace_report_value_counts(
             report_json_section_rows,
             "section_kind",
+        ),
+        "report_section_inventory_count": len(report_section_inventory_rows),
+        "report_section_inventory_native_sql_counts": _trace_report_value_counts(
+            report_section_inventory_rows,
+            "native_sql",
+        ),
+        "preflight_finding_count": len(preflight_finding_rows),
+        "preflight_finding_kind_counts": _trace_report_string_prefix_counts(
+            preflight_finding_rows,
+        ),
+        "evidence_classification_count": len(evidence_classification_rows),
+        "evidence_classification_kind_counts": _trace_report_string_prefix_counts(
+            evidence_classification_rows,
         ),
         "capture_count": len(capture_rows),
         "capture_process_kind_counts": _trace_report_value_counts(
@@ -2616,8 +2671,34 @@ def validate_trace_report_json(report: Any) -> ArtifactValidation:
         ),
         "report_json_section_samples": _trace_report_samples(
             report_json_section_sample_rows,
-            ("json_path", "json_section", "section_kind", "claim_boundary"),
+            (
+                "heading",
+                "json_path",
+                "json_section",
+                "section_kind",
+                "requires_timeline_trace",
+                "claim_boundary",
+            ),
             limit=64,
+        ),
+        "report_section_inventory_samples": _trace_report_samples(
+            report_section_inventory_rows,
+            (
+                "heading",
+                "query",
+                "native_sql",
+                "portable_command",
+                "native_sql_command",
+            ),
+            limit=8,
+        ),
+        "preflight_finding_samples": _trace_report_string_samples(
+            preflight_finding_rows,
+            limit=8,
+        ),
+        "evidence_classification_samples": _trace_report_string_samples(
+            evidence_classification_rows,
+            limit=4,
         ),
         "capture_samples": _trace_report_samples(
             capture_rows,
@@ -3692,6 +3773,28 @@ def _trace_report_section_rows(
     return typed_rows
 
 
+def _trace_report_string_rows(
+    errors: list[str],
+    sections: Mapping[str, Any],
+    name: str,
+    *,
+    required: bool = True,
+) -> list[str]:
+    rows = sections.get(name)
+    if rows is None and not required:
+        return []
+    if not isinstance(rows, list):
+        errors.append(f"trace report sections.{name} must be a list")
+        return []
+    typed_rows: list[str] = []
+    for index, row in enumerate(rows):
+        if isinstance(row, str):
+            typed_rows.append(row)
+        else:
+            errors.append(f"trace report sections.{name}[{index}] must be a string")
+    return typed_rows
+
+
 def _trace_report_value_counts(
     rows: list[dict[str, Any]],
     key: str,
@@ -3777,6 +3880,22 @@ def _trace_report_samples(
         if sample:
             samples.append(sample)
     return samples
+
+
+def _trace_report_string_samples(rows: list[str], *, limit: int = 3) -> list[str]:
+    return [row.strip() for row in rows[:limit] if row.strip()]
+
+
+def _trace_report_string_prefix_counts(rows: list[str]) -> dict[str, int]:
+    counts: dict[str, int] = {}
+    for row in rows:
+        text = row.strip()
+        if not text:
+            continue
+        prefix, separator, _ = text.partition(":")
+        label = prefix.strip() if separator and prefix.strip() else "other"
+        counts[label] = counts.get(label, 0) + 1
+    return dict(sorted(counts.items()))
 
 
 def _trace_report_provider_payload_lanes(rows: list[dict[str, Any]]) -> list[str]:

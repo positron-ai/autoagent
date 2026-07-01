@@ -2587,7 +2587,45 @@ class AresIngestArtifactTest(unittest.TestCase):
         self.assertEqual(gate["artifact_validator"], "trace_report")
         self.assertEqual(gate["detail"]["report_grade"], "diagnostic")
         self.assertEqual(gate["detail"]["preflight_status"], "pass")
+        self.assertEqual(gate["detail"]["preflight_ok_count"], 41)
+        self.assertEqual(gate["detail"]["preflight_warn_count"], 1)
+        self.assertEqual(gate["detail"]["preflight_fail_count"], 0)
         self.assertEqual(gate["detail"]["report_json_section_count"], 52)
+        self.assertEqual(gate["detail"]["preflight_finding_count"], 1)
+        self.assertEqual(
+            gate["detail"]["preflight_finding_kind_counts"],
+            {"warn": 1},
+        )
+        self.assertIn(
+            "metadata.device_counters",
+            gate["detail"]["preflight_finding_samples"][0],
+        )
+        self.assertEqual(gate["detail"]["evidence_classification_count"], 1)
+        self.assertEqual(
+            gate["detail"]["evidence_classification_kind_counts"],
+            {"diagnostic": 1},
+        )
+        self.assertIn(
+            "diagnostic: preflight passed",
+            gate["detail"]["evidence_classification_samples"][0],
+        )
+        self.assertEqual(gate["detail"]["report_section_inventory_count"], 66)
+        self.assertEqual(
+            gate["detail"]["report_section_inventory_native_sql_counts"],
+            {"True": 66},
+        )
+        self.assertEqual(
+            gate["detail"]["report_section_inventory_samples"][0]["heading"],
+            "Run Summary",
+        )
+        self.assertEqual(
+            gate["detail"]["report_section_inventory_samples"][0]["query"],
+            "run-summary",
+        )
+        self.assertEqual(
+            gate["detail"]["report_section_inventory_samples"][0]["native_sql"],
+            "True",
+        )
         self.assertEqual(
             gate["detail"]["capture_process_kind_counts"],
             {"test": 1},
@@ -3034,6 +3072,9 @@ class AresIngestArtifactTest(unittest.TestCase):
         self.assertIn("sections.introspection_artifacts", section_paths)
         self.assertIn("sections.introspection_artifact_summary_rows", section_paths)
         self.assertIn("sections.introspection_section_inventory", section_paths)
+        self.assertIn("sections.report_section_inventory", section_paths)
+        self.assertIn("sections.preflight_findings", section_paths)
+        self.assertIn("sections.evidence_classification", section_paths)
         self.assertIn(
             "device_result_digest_sidecar_rows",
             gate["detail"]["section_names"],
@@ -3307,6 +3348,67 @@ class AresIngestArtifactTest(unittest.TestCase):
             )
             self.assertIn(
                 "trace report sections.introspection_artifacts[1].byte_count "
+                "must be a non-negative integer",
+                joined,
+            )
+
+    def test_trace_report_gate_rejects_malformed_string_and_inventory_sections(
+        self,
+    ) -> None:
+        fixture_path = FIXTURE_DIR / "ares_trace_report_introspection_real.json"
+        payload = json.loads(fixture_path.read_text())
+        payload["sections"]["preflight_findings"][0] = {"warning": "not a string"}
+        payload["sections"]["evidence_classification"][0] = 42
+        payload["sections"]["report_section_inventory"][0] = "not an object"
+
+        with TemporaryDirectory() as tmp:
+            path = Path(tmp) / "trace-report.json"
+            path.write_text(json.dumps(payload))
+
+            gate = trace_report_gate(path)
+
+            self.assertFalse(gate["passed"])
+            joined = " ".join(gate["errors"])
+            self.assertIn(
+                "trace report sections.preflight_findings[0] must be a string",
+                joined,
+            )
+            self.assertIn(
+                "trace report sections.evidence_classification[0] must be a string",
+                joined,
+            )
+            self.assertIn(
+                "trace report sections.report_section_inventory[0] must be an object",
+                joined,
+            )
+
+    def test_trace_report_gate_rejects_malformed_preflight_counts(self) -> None:
+        fixture_path = FIXTURE_DIR / "ares_trace_report_introspection_real.json"
+        payload = json.loads(fixture_path.read_text())
+        payload["sections"]["preflight"][0]["ok"] = "not-int"
+        payload["sections"]["preflight"][0]["warn"] = -3
+        payload["sections"]["preflight"][0]["fail"] = {"count": 1}
+
+        with TemporaryDirectory() as tmp:
+            path = Path(tmp) / "trace-report.json"
+            path.write_text(json.dumps(payload))
+
+            gate = trace_report_gate(path)
+
+            self.assertFalse(gate["passed"])
+            joined = " ".join(gate["errors"])
+            self.assertIn(
+                "trace report sections.preflight[0].ok "
+                "must be a non-negative integer",
+                joined,
+            )
+            self.assertIn(
+                "trace report sections.preflight[0].warn "
+                "must be a non-negative integer",
+                joined,
+            )
+            self.assertIn(
+                "trace report sections.preflight[0].fail "
                 "must be a non-negative integer",
                 joined,
             )
