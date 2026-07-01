@@ -72,6 +72,8 @@ TRACE_REPORT_REQUIRED_SECTIONS = (
 TRACE_REPORT_JSON_SECTION_SAMPLE_KEYS = (
     "trace_config_rows",
     "provider_payload_boundary_inventory_rows",
+    "backend_event_artifacts",
+    "backend_event_rows",
     "backend_provider_boundaries",
     "backend_fail_closed_root_causes",
     "debug_payload_artifact_summary_rows",
@@ -1588,6 +1590,8 @@ def validate_trace_report_json(report: Any) -> ArtifactValidation:
     report_json_section_rows: list[dict[str, Any]] = []
     trace_config_rows: list[dict[str, Any]] = []
     provider_payload_boundary_rows: list[dict[str, Any]] = []
+    backend_event_artifact_rows: list[dict[str, Any]] = []
+    backend_event_rows: list[dict[str, Any]] = []
     backend_provider_boundary_rows: list[dict[str, Any]] = []
     backend_fail_closed_root_cause_rows: list[dict[str, Any]] = []
     debug_payload_artifact_summary_rows: list[dict[str, Any]] = []
@@ -1644,6 +1648,18 @@ def validate_trace_report_json(report: Any) -> ArtifactValidation:
             errors,
             sections,
             "provider_payload_boundary_inventory_rows",
+            required=False,
+        )
+        backend_event_artifact_rows = _trace_report_section_rows(
+            errors,
+            sections,
+            "backend_event_artifacts",
+            required=False,
+        )
+        backend_event_rows = _trace_report_section_rows(
+            errors,
+            sections,
+            "backend_event_rows",
             required=False,
         )
         backend_provider_boundary_rows = _trace_report_section_rows(
@@ -1864,6 +1880,26 @@ def validate_trace_report_json(report: Any) -> ArtifactValidation:
         ),
         "provider_payload_boundary_recorded_lanes": (
             _trace_report_provider_payload_lanes(provider_payload_recorded_rows)
+        ),
+        "backend_event_artifact_count": len(backend_event_artifact_rows),
+        "backend_event_artifact_status_counts": _trace_report_value_counts(
+            backend_event_artifact_rows,
+            "status",
+        ),
+        "backend_event_artifact_event_kind_counts": (
+            _trace_report_comma_value_counts(
+                backend_event_artifact_rows,
+                "event_kinds",
+            )
+        ),
+        "backend_event_row_count": len(backend_event_rows),
+        "backend_event_row_event_kind_counts": _trace_report_value_counts(
+            backend_event_rows,
+            "event_kind",
+        ),
+        "backend_event_row_backend_counts": _trace_report_value_counts(
+            backend_event_rows,
+            "backend_id",
         ),
         "backend_provider_boundary_count": len(backend_provider_boundary_rows),
         "backend_provider_boundary_status_counts": _trace_report_value_counts(
@@ -2219,6 +2255,35 @@ def validate_trace_report_json(report: Any) -> ArtifactValidation:
                 "payload_sensitivity",
                 "claim_boundary",
                 "next_action",
+            ),
+        ),
+        "backend_event_artifact_samples": _trace_report_samples(
+            backend_event_artifact_rows,
+            (
+                "index",
+                "path",
+                "sha256",
+                "row_count",
+                "matching_trace_run_id_rows",
+                "event_kinds",
+                "status",
+            ),
+        ),
+        "backend_event_samples": _trace_report_samples(
+            backend_event_rows,
+            (
+                "artifact_index",
+                "row_index",
+                "timestamp_ns",
+                "backend_id",
+                "event_kind",
+                "model_id",
+                "request_id",
+                "generation_id",
+                "targetplan_op_id",
+                "artifact",
+                "message",
+                "metadata_keys",
             ),
         ),
         "backend_provider_boundary_samples": _trace_report_samples(

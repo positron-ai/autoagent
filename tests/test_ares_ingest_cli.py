@@ -192,6 +192,20 @@ def trace_report_payload() -> dict:
                     "claim_boundary": "payload_boundary_inventory_not_evidence",
                 },
                 {
+                    "heading": "Backend Event Artifacts",
+                    "json_path": "sections.backend_event_artifacts",
+                    "json_section": "backend_event_artifacts",
+                    "section_kind": "backend_diagnostic",
+                    "claim_boundary": "system_under_test_diagnostic",
+                },
+                {
+                    "heading": "Backend Event Rows",
+                    "json_path": "sections.backend_event_rows",
+                    "json_section": "backend_event_rows",
+                    "section_kind": "backend_diagnostic",
+                    "claim_boundary": "system_under_test_diagnostic",
+                },
+                {
                     "heading": "Backend Provider Boundaries",
                     "json_path": "sections.backend_provider_boundaries",
                     "json_section": "backend_provider_boundaries",
@@ -411,6 +425,47 @@ def trace_report_payload() -> dict:
                     ),
                     "next_action": "wait_for_explicit_provider_payload_boundary",
                 }
+            ],
+            "backend_event_artifacts": [
+                {
+                    "index": 0,
+                    "path": "backend-events.jsonl",
+                    "sha256": "b" * 64,
+                    "row_count": 2,
+                    "matching_trace_run_id_rows": 2,
+                    "event_kinds": "backend_selected,forward_failed",
+                    "status": "ok",
+                }
+            ],
+            "backend_event_rows": [
+                {
+                    "artifact_index": 0,
+                    "row_index": 0,
+                    "timestamp_ns": "1000",
+                    "backend_id": "fpga",
+                    "event_kind": "backend_selected",
+                    "model_id": "trace-model",
+                    "request_id": "",
+                    "generation_id": "",
+                    "targetplan_op_id": "",
+                    "artifact": "backend-events.jsonl",
+                    "message": "backend selected",
+                    "metadata_keys": "provider_stage,target_plan_validation_status",
+                },
+                {
+                    "artifact_index": 0,
+                    "row_index": 1,
+                    "timestamp_ns": "2000",
+                    "backend_id": "fpga",
+                    "event_kind": "forward_failed",
+                    "model_id": "trace-model",
+                    "request_id": "boundary-req-0",
+                    "generation_id": "boundary-gen-0",
+                    "targetplan_op_id": "tp.boundary.0",
+                    "artifact": "backend-events.jsonl",
+                    "message": "fpga target plan rejected",
+                    "metadata_keys": "provider_stage,root_cause_stage,root_cause",
+                },
             ],
             "backend_provider_boundaries": [
                 {
@@ -1207,6 +1262,22 @@ class AresIngestCliTest(unittest.TestCase):
                 ["fpga/kv_payload_digests"],
             )
             self.assertEqual(
+                state["trace_report"]["backend_event_artifact_status_counts"],
+                {"ok": 1},
+            )
+            self.assertEqual(
+                state["trace_report"]["backend_event_artifact_event_kind_counts"],
+                {"backend_selected": 1, "forward_failed": 1},
+            )
+            self.assertEqual(
+                state["trace_report"]["backend_event_row_event_kind_counts"],
+                {"backend_selected": 1, "forward_failed": 1},
+            )
+            self.assertEqual(
+                state["trace_report"]["backend_event_row_backend_counts"],
+                {"fpga": 2},
+            )
+            self.assertEqual(
                 state["trace_report"]["backend_provider_boundary_status_counts"],
                 {"fail_closed": 1, "ok": 1},
             )
@@ -1403,11 +1474,11 @@ class AresIngestCliTest(unittest.TestCase):
                     "topk_rows": 1,
                 },
             )
-            self.assertEqual(state["trace_report"]["report_json_section_count"], 22)
+            self.assertEqual(state["trace_report"]["report_json_section_count"], 24)
             self.assertEqual(
                 state["trace_report"]["report_json_section_kind_counts"],
                 {
-                    "backend_diagnostic": 2,
+                    "backend_diagnostic": 4,
                     "capture_configuration": 1,
                     "debug_payload_diagnostic": 1,
                     "introspection": 1,
@@ -1452,6 +1523,17 @@ class AresIngestCliTest(unittest.TestCase):
                 handoff,
             )
             self.assertIn("control=ARES_TRACE_RECORD_DEVICE_RESULTS=1", handoff)
+            self.assertIn("Backend event artifacts", handoff)
+            self.assertIn("Backend event artifact kinds", handoff)
+            self.assertIn("Backend event artifact: backend-events.jsonl", handoff)
+            self.assertIn("matching=2", handoff)
+            self.assertIn("Backend event rows", handoff)
+            self.assertIn("Backend event backends", handoff)
+            self.assertIn("Backend event row: fpga", handoff)
+            self.assertIn(
+                "metadata_keys=provider_stage,root_cause_stage,root_cause",
+                handoff,
+            )
             self.assertIn("Backend provider boundaries", handoff)
             self.assertIn("Backend provider boundary stages", handoff)
             self.assertIn("Backend provider root stages", handoff)
@@ -1577,6 +1659,8 @@ class AresIngestCliTest(unittest.TestCase):
             self.assertIn("sections.report_json_section_inventory", prompt)
             self.assertIn("sections.trace_config_rows", prompt)
             self.assertIn("sections.provider_payload_boundary_inventory_rows", prompt)
+            self.assertIn("sections.backend_event_artifacts", prompt)
+            self.assertIn("sections.backend_event_rows", prompt)
             self.assertIn("sections.backend_provider_boundaries", prompt)
             self.assertIn("sections.backend_fail_closed_root_causes", prompt)
             self.assertIn("sections.debug_payload_artifact_summary_rows", prompt)
@@ -1622,6 +1706,13 @@ class AresIngestCliTest(unittest.TestCase):
             self.assertIn("producer=provider_callback_present", prompt)
             self.assertIn(
                 "producer=runtime_route_only_no_provider_producer",
+                prompt,
+            )
+            self.assertIn("Backend event artifacts", prompt)
+            self.assertIn("Backend event artifact: backend-events.jsonl", prompt)
+            self.assertIn("Backend event row: fpga", prompt)
+            self.assertIn(
+                "raw backend JSONL artifacts",
                 prompt,
             )
             self.assertIn("Backend provider boundaries", prompt)

@@ -210,6 +210,20 @@ def trace_report_summary_from_spec(spec: Mapping[str, Any]) -> dict[str, Any] | 
         "provider_payload_boundary_recorded_lanes": detail.get(
             "provider_payload_boundary_recorded_lanes"
         ),
+        "backend_event_artifact_count": detail.get("backend_event_artifact_count"),
+        "backend_event_artifact_status_counts": detail.get(
+            "backend_event_artifact_status_counts"
+        ),
+        "backend_event_artifact_event_kind_counts": detail.get(
+            "backend_event_artifact_event_kind_counts"
+        ),
+        "backend_event_row_count": detail.get("backend_event_row_count"),
+        "backend_event_row_event_kind_counts": detail.get(
+            "backend_event_row_event_kind_counts"
+        ),
+        "backend_event_row_backend_counts": detail.get(
+            "backend_event_row_backend_counts"
+        ),
         "backend_provider_boundary_count": detail.get(
             "backend_provider_boundary_count"
         ),
@@ -423,6 +437,10 @@ def trace_report_summary_from_spec(spec: Mapping[str, Any]) -> dict[str, Any] | 
         "provider_payload_boundary_recorded_samples": detail.get(
             "provider_payload_boundary_recorded_samples"
         ),
+        "backend_event_artifact_samples": detail.get(
+            "backend_event_artifact_samples"
+        ),
+        "backend_event_samples": detail.get("backend_event_samples"),
         "backend_provider_boundary_samples": detail.get(
             "backend_provider_boundary_samples"
         ),
@@ -556,6 +574,46 @@ def render_trace_report_lines(summary: Mapping[str, Any]) -> list[str]:
             "`"
             + json.dumps(
                 summary["provider_payload_boundary_recorded_lanes"],
+                sort_keys=True,
+            )
+            + "`"
+        )
+    if summary.get("backend_event_artifact_status_counts"):
+        lines.append(
+            "- Backend event artifacts: "
+            "`"
+            + json.dumps(
+                summary["backend_event_artifact_status_counts"],
+                sort_keys=True,
+            )
+            + "`"
+        )
+    if summary.get("backend_event_artifact_event_kind_counts"):
+        lines.append(
+            "- Backend event artifact kinds: "
+            "`"
+            + json.dumps(
+                summary["backend_event_artifact_event_kind_counts"],
+                sort_keys=True,
+            )
+            + "`"
+        )
+    if summary.get("backend_event_row_event_kind_counts"):
+        lines.append(
+            "- Backend event rows: "
+            "`"
+            + json.dumps(
+                summary["backend_event_row_event_kind_counts"],
+                sort_keys=True,
+            )
+            + "`"
+        )
+    if summary.get("backend_event_row_backend_counts"):
+        lines.append(
+            "- Backend event backends: "
+            "`"
+            + json.dumps(
+                summary["backend_event_row_backend_counts"],
                 sort_keys=True,
             )
             + "`"
@@ -1162,6 +1220,63 @@ def render_trace_report_lines(summary: Mapping[str, Any]) -> list[str]:
             lines.append(line)
         if next_action:
             lines.append(f"  Next action: `{next_action}`")
+    for sample in summary.get("backend_event_artifact_samples", [])[:3]:
+        if not isinstance(sample, Mapping):
+            continue
+        path = sample.get("path")
+        index = sample.get("index")
+        status = sample.get("status")
+        row_count = sample.get("row_count")
+        matching_rows = sample.get("matching_trace_run_id_rows")
+        event_kinds = sample.get("event_kinds")
+        sha256 = sample.get("sha256")
+        label = path or index or "unknown"
+        parts = []
+        if status:
+            parts.append(f"status={status}")
+        if _trace_report_sample_value_present(row_count):
+            parts.append(f"rows={row_count}")
+        if _trace_report_sample_value_present(matching_rows):
+            parts.append(f"matching={matching_rows}")
+        if event_kinds:
+            parts.append(f"event_kinds={event_kinds}")
+        if sha256:
+            parts.append(f"sha256={sha256}")
+        line = f"- Backend event artifact: {label}"
+        if parts:
+            line += " " + " ".join(parts)
+        lines.append(line)
+    for sample in summary.get("backend_event_samples", [])[:3]:
+        if not isinstance(sample, Mapping):
+            continue
+        backend_id = sample.get("backend_id")
+        event_kind = sample.get("event_kind")
+        request_id = sample.get("request_id")
+        generation_id = sample.get("generation_id")
+        targetplan_op_id = sample.get("targetplan_op_id")
+        artifact = sample.get("artifact")
+        metadata_keys = sample.get("metadata_keys")
+        message = sample.get("message")
+        label = backend_id or event_kind or "unknown"
+        parts = []
+        if event_kind:
+            parts.append(f"event={event_kind}")
+        if _trace_report_sample_value_present(request_id):
+            parts.append(f"request={request_id}")
+        if _trace_report_sample_value_present(generation_id):
+            parts.append(f"generation={generation_id}")
+        if targetplan_op_id:
+            parts.append(f"op={targetplan_op_id}")
+        if artifact:
+            parts.append(f"artifact={artifact}")
+        if metadata_keys:
+            parts.append(f"metadata_keys={metadata_keys}")
+        if message:
+            parts.append(f"message={message}")
+        line = f"- Backend event row: {label}"
+        if parts:
+            line += " " + " ".join(parts)
+        lines.append(line)
     for sample in summary.get("backend_provider_boundary_samples", [])[:3]:
         if not isinstance(sample, Mapping):
             continue
@@ -2287,6 +2402,9 @@ def trace_report_prompt_section(spec: Mapping[str, Any]) -> list[str]:
         "`sections.provider_payload_boundary_inventory_rows` to distinguish",
         "available, recorded, blocked, route-only runtime-sidecar, and",
         "other-backend provider/runtime payload lanes, then read",
+        "`sections.backend_event_artifacts` and",
+        "`sections.backend_event_rows` to inspect raw backend JSONL artifacts",
+        "and matching backend event rows before higher-level classification, then read",
         "`sections.backend_provider_boundaries` and",
         "`sections.backend_fail_closed_root_causes` to inspect provider",
         "validation stages and fail-closed root causes, then read",
@@ -3316,7 +3434,7 @@ def gate_guidance(
             [
                 f"- Trace report JSON: `{resolve_run_path(str(value), cfg)}`",
                 "- Inspect `sections.answerability`, `sections.unsupported_claims`, and `sections.next_measurements` before ad hoc parsing.",
-                "- Read `sections.report_json_section_inventory` to discover available report sections, then read `sections.trace_config_rows` including `missing_requested_sidecar_controls`, `sections.provider_payload_boundary_inventory_rows` including recorded provider-callback rows and route-only runtime-sidecar rows, `sections.backend_provider_boundaries`, `sections.backend_fail_closed_root_causes`, `sections.debug_payload_artifact_summary_rows`, `sections.token_quality_summary_rows`, `sections.oracle_reference_summary_rows`, `sections.introspection_capability_rows`, `sections.introspection_artifact_summary_rows`, and `sections.introspection_section_inventory` before choosing sidecar-specific report sections such as `sections.planning_decision_sidecar_rows`, `sections.token_quality_sidecar_rows`, `sections.topk_token_sidecar_rows`, `sections.tensor_payload_sidecar_rows`, `sections.kv_payload_digest_sidecar_rows`, `sections.logit_slice_sidecar_rows`, `sections.activation_digest_sidecar_rows`, `sections.scheduler_packet_lineage_sidecar_rows`, `sections.scheduler_listener_sparse_logit_sidecar_rows`, `sections.device_dma_lifecycle_sidecar_rows`, `sections.attention_page_trace_sidecar_rows`, and `sections.device_result_digest_sidecar_rows`.",
+                "- Read `sections.report_json_section_inventory` to discover available report sections, then read `sections.trace_config_rows` including `missing_requested_sidecar_controls`, `sections.provider_payload_boundary_inventory_rows` including recorded provider-callback rows and route-only runtime-sidecar rows, `sections.backend_event_artifacts`, `sections.backend_event_rows`, `sections.backend_provider_boundaries`, `sections.backend_fail_closed_root_causes`, `sections.debug_payload_artifact_summary_rows`, `sections.token_quality_summary_rows`, `sections.oracle_reference_summary_rows`, `sections.introspection_capability_rows`, `sections.introspection_artifact_summary_rows`, and `sections.introspection_section_inventory` before choosing sidecar-specific report sections such as `sections.planning_decision_sidecar_rows`, `sections.token_quality_sidecar_rows`, `sections.topk_token_sidecar_rows`, `sections.tensor_payload_sidecar_rows`, `sections.kv_payload_digest_sidecar_rows`, `sections.logit_slice_sidecar_rows`, `sections.activation_digest_sidecar_rows`, `sections.scheduler_packet_lineage_sidecar_rows`, `sections.scheduler_listener_sparse_logit_sidecar_rows`, `sections.device_dma_lifecycle_sidecar_rows`, `sections.attention_page_trace_sidecar_rows`, and `sections.device_result_digest_sidecar_rows`.",
             ]
         )
     if value := spec.get("command_wrapper_plan"):

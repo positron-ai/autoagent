@@ -464,6 +464,20 @@ class AresIngestArtifactTest(unittest.TestCase):
                                     ),
                                 },
                                 {
+                                    "heading": "Backend Event Artifacts",
+                                    "json_path": "sections.backend_event_artifacts",
+                                    "json_section": "backend_event_artifacts",
+                                    "section_kind": "backend_diagnostic",
+                                    "claim_boundary": "system_under_test_diagnostic",
+                                },
+                                {
+                                    "heading": "Backend Event Rows",
+                                    "json_path": "sections.backend_event_rows",
+                                    "json_section": "backend_event_rows",
+                                    "section_kind": "backend_diagnostic",
+                                    "claim_boundary": "system_under_test_diagnostic",
+                                },
+                                {
                                     "heading": "Backend Provider Boundaries",
                                     "json_path": "sections.backend_provider_boundaries",
                                     "json_section": "backend_provider_boundaries",
@@ -765,6 +779,51 @@ class AresIngestArtifactTest(unittest.TestCase):
                                         "wait_for_explicit_provider_payload_boundary"
                                     ),
                                 }
+                            ],
+                            "backend_event_artifacts": [
+                                {
+                                    "index": 0,
+                                    "path": "backend-events.jsonl",
+                                    "sha256": SHA_B,
+                                    "row_count": 2,
+                                    "matching_trace_run_id_rows": 2,
+                                    "event_kinds": "backend_selected,forward_failed",
+                                    "status": "ok",
+                                }
+                            ],
+                            "backend_event_rows": [
+                                {
+                                    "artifact_index": 0,
+                                    "row_index": 0,
+                                    "timestamp_ns": "1000",
+                                    "backend_id": "fpga",
+                                    "event_kind": "backend_selected",
+                                    "model_id": "trace-model",
+                                    "request_id": "",
+                                    "generation_id": "",
+                                    "targetplan_op_id": "",
+                                    "artifact": "backend-events.jsonl",
+                                    "message": "backend selected",
+                                    "metadata_keys": (
+                                        "provider_stage,target_plan_validation_status"
+                                    ),
+                                },
+                                {
+                                    "artifact_index": 0,
+                                    "row_index": 1,
+                                    "timestamp_ns": "2000",
+                                    "backend_id": "fpga",
+                                    "event_kind": "forward_failed",
+                                    "model_id": "trace-model",
+                                    "request_id": "boundary-req-0",
+                                    "generation_id": "boundary-gen-0",
+                                    "targetplan_op_id": "tp.boundary.0",
+                                    "artifact": "backend-events.jsonl",
+                                    "message": "fpga target plan rejected",
+                                    "metadata_keys": (
+                                        "provider_stage,root_cause_stage,root_cause"
+                                    ),
+                                },
                             ],
                             "backend_provider_boundaries": [
                                 {
@@ -1481,6 +1540,22 @@ class AresIngestArtifactTest(unittest.TestCase):
                 ["fpga/kv_payload_digests"],
             )
             self.assertEqual(
+                gate["detail"]["backend_event_artifact_status_counts"],
+                {"ok": 1},
+            )
+            self.assertEqual(
+                gate["detail"]["backend_event_artifact_event_kind_counts"],
+                {"backend_selected": 1, "forward_failed": 1},
+            )
+            self.assertEqual(
+                gate["detail"]["backend_event_row_event_kind_counts"],
+                {"backend_selected": 1, "forward_failed": 1},
+            )
+            self.assertEqual(
+                gate["detail"]["backend_event_row_backend_counts"],
+                {"fpga": 2},
+            )
+            self.assertEqual(
                 gate["detail"]["backend_provider_boundary_status_counts"],
                 {"fail_closed": 1, "ok": 1},
             )
@@ -1648,11 +1723,11 @@ class AresIngestArtifactTest(unittest.TestCase):
                 gate["detail"]["attention_page_trace_sidecar_action_counts"],
                 {"attention": 1},
             )
-            self.assertEqual(gate["detail"]["report_json_section_count"], 22)
+            self.assertEqual(gate["detail"]["report_json_section_count"], 24)
             self.assertEqual(
                 gate["detail"]["report_json_section_kind_counts"],
                 {
-                    "backend_diagnostic": 2,
+                    "backend_diagnostic": 4,
                     "capture_configuration": 1,
                     "debug_payload_diagnostic": 1,
                     "introspection": 1,
@@ -1750,6 +1825,24 @@ class AresIngestArtifactTest(unittest.TestCase):
                     "matching_provider_artifact_count"
                 ],
                 "2",
+            )
+            self.assertEqual(
+                gate["detail"]["backend_event_artifact_samples"][0]["path"],
+                "backend-events.jsonl",
+            )
+            self.assertEqual(
+                gate["detail"]["backend_event_artifact_samples"][0][
+                    "matching_trace_run_id_rows"
+                ],
+                "2",
+            )
+            self.assertEqual(
+                gate["detail"]["backend_event_samples"][1]["event_kind"],
+                "forward_failed",
+            )
+            self.assertEqual(
+                gate["detail"]["backend_event_samples"][1]["metadata_keys"],
+                "provider_stage,root_cause_stage,root_cause",
             )
             self.assertEqual(
                 gate["detail"]["backend_provider_boundary_samples"][1][
