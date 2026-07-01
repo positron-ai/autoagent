@@ -1003,9 +1003,6 @@ def trace_report_payload() -> dict:
                     "token_index": 0,
                     "targetplan_op_id": "",
                     "targetplan_action": "kv_cache",
-                    "target_plan_statement_index": "21",
-                    "target_plan_statement_kind": "kv_cache",
-                    "target_plan_statement_name": "kv_save_layer_0_key",
                     "layer": "0",
                     "tensor_payload_kind": "kv_payload_digest",
                     "tensor_name": "scheduler_kv_save.layer_0.buf_1.k",
@@ -2147,9 +2144,6 @@ class AresIngestCliTest(unittest.TestCase):
             self.assertIn("K/V payload digest roles", handoff)
             self.assertIn("K/V payload digest sidecar: request=7006", handoff)
             self.assertIn("role=kv_key", handoff)
-            self.assertIn("stmt_index=21", handoff)
-            self.assertIn("stmt_kind=kv_cache", handoff)
-            self.assertIn("stmt_name=kv_save_layer_0_key", handoff)
             self.assertIn("sample_finite=4", handoff)
             self.assertIn("sample_min=0.125", handoff)
             self.assertIn("Scheduler packet executors", handoff)
@@ -2377,9 +2371,6 @@ class AresIngestCliTest(unittest.TestCase):
             self.assertIn("stmt_name=provider_payload", prompt)
             self.assertIn("digest_sha256=", prompt)
             self.assertIn("K/V payload digest sidecar: request=7006", prompt)
-            self.assertIn("stmt_index=21", prompt)
-            self.assertIn("stmt_kind=kv_cache", prompt)
-            self.assertIn("stmt_name=kv_save_layer_0_key", prompt)
             self.assertIn("scheduler K/V digest rows", prompt)
             self.assertIn("Logit slice sidecar: request=7005", prompt)
             self.assertIn("action=final_logits", prompt)

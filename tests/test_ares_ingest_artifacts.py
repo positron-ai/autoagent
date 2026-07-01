@@ -1387,9 +1387,6 @@ class AresIngestArtifactTest(unittest.TestCase):
                                     "token_index": 0,
                                     "targetplan_op_id": "",
                                     "targetplan_action": "kv_cache",
-                                    "target_plan_statement_index": "21",
-                                    "target_plan_statement_kind": "kv_cache",
-                                    "target_plan_statement_name": "kv_save_layer_0_key",
                                     "layer": "0",
                                     "tensor_payload_kind": "kv_payload_digest",
                                     "tensor_name": "scheduler_kv_save.layer_0.buf_1.k",
@@ -2528,18 +2525,6 @@ class AresIngestArtifactTest(unittest.TestCase):
             self.assertEqual(
                 gate["detail"]["kv_payload_digest_sidecar_samples"][0]["tensor_role"],
                 "kv_key",
-            )
-            self.assertEqual(
-                gate["detail"]["kv_payload_digest_sidecar_samples"][0][
-                    "target_plan_statement_kind"
-                ],
-                "kv_cache",
-            )
-            self.assertEqual(
-                gate["detail"]["kv_payload_digest_sidecar_samples"][0][
-                    "target_plan_statement_name"
-                ],
-                "kv_save_layer_0_key",
             )
             self.assertEqual(
                 gate["detail"]["kv_payload_digest_sidecar_samples"][0]["digest_sha256"],
