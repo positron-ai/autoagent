@@ -84,10 +84,35 @@ TRACE_REPORT_REQUIRED_SECTIONS = (
     "preflight",
     "analysis_commands",
     "report_grade",
+    "report_triage",
     "answerability",
     "unsupported_claims",
     "next_measurements",
 )
+TRACE_REPORT_TRIAGE_REQUIRED_FIELDS = (
+    "triage_status",
+    "report_grade",
+    "proof_grade_status",
+    "first_blocked_gate",
+    "first_blocked_gate_status",
+    "first_blocked_gate_basis",
+    "first_next_measurement_priority",
+    "first_next_measurement_reason",
+    "first_next_measurement",
+    "first_next_measurement_command_hint",
+    "first_answerable_question",
+    "first_unsupported_claim",
+    "first_useful_section",
+    "first_action",
+    "claim_boundary",
+)
+TRACE_REPORT_TRIAGE_STATUSES = {
+    "needs_measurement",
+    "review_blocked_gate",
+    "inspect_answerable_sections",
+    "inspect_report_grade",
+}
+TRACE_REPORT_GRADES = {"inconclusive", "diagnostic", "comparison-grade"}
 TRACE_REPORT_JSON_SECTION_SAMPLE_KEYS = (
     "preflight",
     "analysis_commands",
@@ -1699,8 +1724,8 @@ def validate_trace_report_json(report: Any) -> ArtifactValidation:
             errors,
             sections,
             "report_triage",
-            required=False,
         )
+        _validate_trace_report_triage_rows(errors, report_triage_rows)
         answerability_rows = _trace_report_section_rows(
             errors, sections, "answerability"
         )
@@ -3802,6 +3827,63 @@ def _trace_report_section_rows(
         else:
             errors.append(f"trace report sections.{name}[{index}] must be an object")
     return typed_rows
+
+
+def _validate_trace_report_triage_rows(
+    errors: list[str],
+    rows: list[dict[str, Any]],
+) -> None:
+    for index, row in enumerate(rows):
+        context = f"trace report sections.report_triage[{index}]"
+        _require_fields(errors, row, TRACE_REPORT_TRIAGE_REQUIRED_FIELDS, context)
+        for field in TRACE_REPORT_TRIAGE_REQUIRED_FIELDS:
+            if field in row and not isinstance(row.get(field), str):
+                errors.append(f"{context}.{field} must be a string")
+
+        triage_status = row.get("triage_status")
+        if isinstance(triage_status, str) and (
+            triage_status not in TRACE_REPORT_TRIAGE_STATUSES
+        ):
+            errors.append(
+                f"{context}.triage_status must be one of: "
+                + ", ".join(sorted(TRACE_REPORT_TRIAGE_STATUSES))
+            )
+
+        report_grade = row.get("report_grade")
+        if isinstance(report_grade, str) and report_grade not in TRACE_REPORT_GRADES:
+            errors.append(
+                f"{context}.report_grade must be one of: "
+                + ", ".join(sorted(TRACE_REPORT_GRADES))
+            )
+
+        proof_grade_status = row.get("proof_grade_status")
+        if (
+            isinstance(proof_grade_status, str)
+            and proof_grade_status != "not_established_by_report"
+        ):
+            errors.append(
+                f"{context}.proof_grade_status must be not_established_by_report"
+            )
+
+        first_useful_section = row.get("first_useful_section")
+        if isinstance(first_useful_section, str):
+            if re.fullmatch(r"sections\.[a-z0-9_]+", first_useful_section) is None:
+                errors.append(
+                    f"{context}.first_useful_section must match sections.<name>"
+                )
+
+        first_action = row.get("first_action")
+        if isinstance(first_action, str) and not first_action.strip():
+            errors.append(f"{context}.first_action must be a non-empty string")
+
+        claim_boundary = row.get("claim_boundary")
+        if (
+            isinstance(claim_boundary, str)
+            and claim_boundary != "diagnostic_routing_not_evidence"
+        ):
+            errors.append(
+                f"{context}.claim_boundary must be diagnostic_routing_not_evidence"
+            )
 
 
 def _trace_report_string_rows(

@@ -3421,6 +3421,83 @@ class AresIngestArtifactTest(unittest.TestCase):
                 joined,
             )
 
+    def test_trace_report_gate_rejects_missing_report_triage(self) -> None:
+        fixture_path = FIXTURE_DIR / "ares_trace_report_introspection_real.json"
+        payload = json.loads(fixture_path.read_text())
+        del payload["sections"]["report_triage"]
+
+        with TemporaryDirectory() as tmp:
+            path = Path(tmp) / "trace-report.json"
+            path.write_text(json.dumps(payload))
+
+            gate = trace_report_gate(path)
+
+            self.assertFalse(gate["passed"])
+            joined = " ".join(gate["errors"])
+            self.assertIn(
+                "trace report sections missing required section: report_triage",
+                joined,
+            )
+            self.assertIn(
+                "trace report sections.report_triage must be a list",
+                joined,
+            )
+
+    def test_trace_report_gate_rejects_malformed_report_triage(self) -> None:
+        fixture_path = FIXTURE_DIR / "ares_trace_report_introspection_real.json"
+        payload = json.loads(fixture_path.read_text())
+        row = payload["sections"]["report_triage"][0]
+        del row["report_grade"]
+        row["triage_status"] = "proof_ready"
+        row["proof_grade_status"] = "proof_ready"
+        row["first_useful_section"] = "next_measurements"
+        row["first_action"] = ""
+        row["claim_boundary"] = "promotion_evidence"
+        row["first_answerable_question"] = 42
+
+        with TemporaryDirectory() as tmp:
+            path = Path(tmp) / "trace-report.json"
+            path.write_text(json.dumps(payload))
+
+            gate = trace_report_gate(path)
+
+            self.assertFalse(gate["passed"])
+            joined = " ".join(gate["errors"])
+            self.assertIn(
+                "trace report sections.report_triage[0] missing required "
+                "field(s): report_grade",
+                joined,
+            )
+            self.assertIn(
+                "trace report sections.report_triage[0].triage_status must be one of",
+                joined,
+            )
+            self.assertIn(
+                "trace report sections.report_triage[0].proof_grade_status "
+                "must be not_established_by_report",
+                joined,
+            )
+            self.assertIn(
+                "trace report sections.report_triage[0].first_useful_section "
+                "must match sections.<name>",
+                joined,
+            )
+            self.assertIn(
+                "trace report sections.report_triage[0].first_action "
+                "must be a non-empty string",
+                joined,
+            )
+            self.assertIn(
+                "trace report sections.report_triage[0].claim_boundary "
+                "must be diagnostic_routing_not_evidence",
+                joined,
+            )
+            self.assertIn(
+                "trace report sections.report_triage[0].first_answerable_question "
+                "must be a string",
+                joined,
+            )
+
     def test_trace_report_gate_rejects_malformed_string_and_inventory_sections(
         self,
     ) -> None:
