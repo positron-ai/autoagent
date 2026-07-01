@@ -20,17 +20,21 @@ from ares_ingest_autoagent.ares_cli import (
     evaluate_run,
     initialize_run,
     main,
+    render_trace_report_lines,
     selected_workflow_skills,
     slugify,
+    trace_report_summary_from_spec,
     write_handoff,
     write_failure_state,
     write_refinement_prompt,
 )
+from ares_ingest_autoagent.artifacts import trace_report_gate
 
 
 SHA_A = "a" * 64
 SHA_B = "b" * 64
 SHA_C = "c" * 64
+FIXTURE_DIR = Path(__file__).resolve().parent / "fixtures"
 
 
 def sha256_file(path: Path) -> str:
@@ -409,6 +413,13 @@ def trace_report_payload() -> dict:
                     "json_section": "introspection_capability_rows",
                     "section_kind": "introspection",
                     "claim_boundary": "capability_presence_not_payload_evidence",
+                },
+                {
+                    "heading": "Introspection Artifacts",
+                    "json_path": "sections.introspection_artifacts",
+                    "json_section": "introspection_artifacts",
+                    "section_kind": "introspection",
+                    "claim_boundary": "system_under_test_diagnostic",
                 },
                 {
                     "heading": "Introspection Section Inventory",
@@ -1288,6 +1299,38 @@ def trace_report_payload() -> dict:
                     ),
                 }
             ],
+            "introspection_artifacts": [
+                {
+                    "index": 0,
+                    "kind": "token_quality",
+                    "artifact_kind": "token_quality_jsonl",
+                    "path": "introspection_token_quality.jsonl",
+                    "sha256": SHA_A,
+                    "status": "recorded",
+                    "row_count": "3",
+                    "byte_count": "120",
+                    "token_window": "0:3",
+                    "sampling_policy": (
+                        "selected token rows; top-k rows only when requested"
+                    ),
+                    "sensitivity": "local-only",
+                    "compile_features": "trace-introspection,deep-trace",
+                },
+                {
+                    "index": 1,
+                    "kind": "tensor_payload",
+                    "artifact_kind": "tensor_payload_jsonl",
+                    "path": "introspection_tensor_payload.jsonl",
+                    "sha256": SHA_B,
+                    "status": "missing",
+                    "row_count": 2,
+                    "byte_count": 80,
+                    "token_window": "tensor-payload:7008",
+                    "sampling_policy": "bounded tensor payload summaries only",
+                    "sensitivity": "tensor_digest",
+                    "compile_features": "trace-introspection",
+                },
+            ],
             "introspection_artifact_summary_rows": [
                 {
                     "artifact_kind": "token_quality",
@@ -1603,6 +1646,35 @@ class AresIngestCliTest(unittest.TestCase):
                 state["trace_report"]["introspection_capability_status_counts"],
                 {"recorded": 1},
             )
+            self.assertEqual(state["trace_report"]["introspection_artifact_count"], 2)
+            self.assertEqual(
+                state["trace_report"]["introspection_artifact_status_counts"],
+                {"missing": 1, "recorded": 1},
+            )
+            self.assertEqual(
+                state["trace_report"]["introspection_artifact_kind_counts"],
+                {"tensor_payload": 1, "token_quality": 1},
+            )
+            self.assertEqual(
+                state["trace_report"]["introspection_artifact_format_counts"],
+                {"tensor_payload_jsonl": 1, "token_quality_jsonl": 1},
+            )
+            self.assertEqual(
+                state["trace_report"]["introspection_artifact_sensitivity_counts"],
+                {"local-only": 1, "tensor_digest": 1},
+            )
+            self.assertEqual(
+                state["trace_report"]["introspection_artifact_compile_feature_counts"],
+                {"deep-trace": 1, "trace-introspection": 2},
+            )
+            self.assertEqual(
+                state["trace_report"]["introspection_artifact_row_count_total"],
+                5,
+            )
+            self.assertEqual(
+                state["trace_report"]["introspection_artifact_byte_count_total"],
+                200,
+            )
             self.assertEqual(
                 state["trace_report"]["trace_config_status_counts"],
                 {
@@ -1862,7 +1934,7 @@ class AresIngestCliTest(unittest.TestCase):
                     "topk_rows": 1,
                 },
             )
-            self.assertEqual(state["trace_report"]["report_json_section_count"], 28)
+            self.assertEqual(state["trace_report"]["report_json_section_count"], 29)
             self.assertEqual(
                 state["trace_report"]["report_json_section_kind_counts"],
                 {
@@ -1870,7 +1942,7 @@ class AresIngestCliTest(unittest.TestCase):
                     "capture_configuration": 1,
                     "comparison": 4,
                     "debug_payload_diagnostic": 1,
-                    "introspection": 1,
+                    "introspection": 2,
                     "introspection_inventory": 2,
                     "measurement_guidance": 1,
                     "sidecar": 14,
@@ -1890,6 +1962,10 @@ class AresIngestCliTest(unittest.TestCase):
             self.assertIn("Report JSON section: sections.ab_comparability", handoff)
             self.assertIn("Report JSON section: sections.ab_coverage", handoff)
             self.assertIn("Report JSON section: sections.ab_repeatability", handoff)
+            self.assertIn(
+                "Report JSON section: sections.introspection_artifacts",
+                handoff,
+            )
             self.assertIn("Capture trace modes", handoff)
             self.assertIn("A/B provenance", handoff)
             self.assertIn("A/B artifact hashes", handoff)
@@ -1905,6 +1981,11 @@ class AresIngestCliTest(unittest.TestCase):
             self.assertIn("matched=4", handoff)
             self.assertIn("A/B repeatability: insufficient_for_proof", handoff)
             self.assertIn("required_runs=3", handoff)
+            self.assertIn("Introspection raw artifacts", handoff)
+            self.assertIn("Introspection raw artifact: token_quality", handoff)
+            self.assertIn("path=introspection_token_quality.jsonl", handoff)
+            self.assertIn(f"sha256={SHA_A}", handoff)
+            self.assertIn("features=trace-introspection,deep-trace", handoff)
             self.assertIn("Capture backends", handoff)
             self.assertIn("Run provenance source states", handoff)
             self.assertIn("Artifact identities", handoff)
@@ -2144,6 +2225,7 @@ class AresIngestCliTest(unittest.TestCase):
             self.assertIn("missing_requested_sidecar_controls", prompt)
             self.assertIn("sections.token_quality_summary_rows", prompt)
             self.assertIn("sections.oracle_reference_summary_rows", prompt)
+            self.assertIn("sections.introspection_artifacts", prompt)
             self.assertIn("sections.introspection_section_inventory", prompt)
             self.assertIn("sections.timeline_query_summary", prompt)
             self.assertIn("Capture: trace-run-001", prompt)
@@ -2162,6 +2244,10 @@ class AresIngestCliTest(unittest.TestCase):
             self.assertIn("A/B comparability: comparison-grade", prompt)
             self.assertIn("A/B coverage: partial_overlap", prompt)
             self.assertIn("A/B repeatability: insufficient_for_proof", prompt)
+            self.assertIn("Introspection raw artifact: token_quality", prompt)
+            self.assertIn("path=introspection_token_quality.jsonl", prompt)
+            self.assertIn(f"sha256={SHA_A}", prompt)
+            self.assertIn("features=trace-introspection,deep-trace", prompt)
             self.assertIn("Provider payload boundary: fpga/kv_payload_digests", prompt)
             self.assertIn(
                 "Recorded provider payload boundary: fpga/kv_payload_digests",
@@ -2249,6 +2335,7 @@ class AresIngestCliTest(unittest.TestCase):
             self.assertIn("system-under-test rows as oracle evidence", prompt)
             self.assertIn("inspect_matching_introspection_report_sections", prompt)
             self.assertIn("sections.introspection_capability_rows", prompt)
+            self.assertIn("sections.introspection_artifacts", prompt)
             self.assertIn("sections.introspection_artifact_summary_rows", prompt)
             self.assertIn(
                 "Introspection section: token_quality_summary_rows",
@@ -2257,6 +2344,24 @@ class AresIngestCliTest(unittest.TestCase):
             self.assertIn("capability=token_quality", prompt)
             self.assertIn("Introspection artifact: token_quality", prompt)
             self.assertIn("set ARES_BACKEND_EVENT_ARTIFACT_DIR", prompt)
+
+    def test_real_trace_report_renders_raw_introspection_section(self) -> None:
+        path = FIXTURE_DIR / "ares_trace_report_introspection_real.json"
+        gate = trace_report_gate(path)
+        summary = trace_report_summary_from_spec(
+            {"validated_gates": {"trace_report": gate}}
+        )
+
+        self.assertIsNotNone(summary)
+        lines = "\n".join(render_trace_report_lines(summary or {}))
+
+        self.assertIn("Report JSON section: sections.introspection_artifacts", lines)
+        self.assertIn("Introspection raw artifact: token_quality", lines)
+        self.assertIn("path=introspection_token_quality_sidecar.jsonl", lines)
+        self.assertIn(
+            "sha256=4255461c82b837e9c6196aba804042ac967ee637602826962b70fe4a9576534e",
+            lines,
+        )
 
     def test_no_refiner_blocks_below_target(self) -> None:
         with TemporaryDirectory() as tmp:

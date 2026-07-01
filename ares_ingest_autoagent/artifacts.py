@@ -117,6 +117,7 @@ TRACE_REPORT_JSON_SECTION_SAMPLE_KEYS = (
     "scheduler_listener_sparse_logit_sidecar_rows",
     "device_dma_lifecycle_sidecar_rows",
     "attention_page_trace_sidecar_rows",
+    "introspection_artifacts",
     "introspection_capability_rows",
     "introspection_artifact_summary_rows",
     "introspection_section_inventory",
@@ -1669,6 +1670,7 @@ def validate_trace_report_json(report: Any) -> ArtifactValidation:
     scheduler_listener_sparse_logit_sidecar_rows: list[dict[str, Any]] = []
     device_dma_lifecycle_sidecar_rows: list[dict[str, Any]] = []
     attention_page_trace_sidecar_rows: list[dict[str, Any]] = []
+    introspection_artifact_rows: list[dict[str, Any]] = []
     introspection_capability_rows: list[dict[str, Any]] = []
     introspection_artifact_summary_rows: list[dict[str, Any]] = []
     introspection_section_inventory_rows: list[dict[str, Any]] = []
@@ -1920,6 +1922,12 @@ def validate_trace_report_json(report: Any) -> ArtifactValidation:
             "attention_page_trace_sidecar_rows",
             required=False,
         )
+        introspection_artifact_rows = _trace_report_section_rows(
+            errors,
+            sections,
+            "introspection_artifacts",
+            required=False,
+        )
         introspection_capability_rows = _trace_report_section_rows(
             errors,
             sections,
@@ -1989,6 +1997,19 @@ def validate_trace_report_json(report: Any) -> ArtifactValidation:
         report_json_section_sample_rows = report_json_section_rows
     ab_coverage_row = ab_coverage_rows[0] if ab_coverage_rows else {}
     ab_repeatability_row = ab_repeatability_rows[0] if ab_repeatability_rows else {}
+    introspection_artifact_row_count_total = 0
+    introspection_artifact_byte_count_total = 0
+    for index, row in enumerate(introspection_artifact_rows):
+        introspection_artifact_row_count_total += _trace_report_optional_count(
+            errors,
+            row.get("row_count"),
+            f"trace report sections.introspection_artifacts[{index}].row_count",
+        )
+        introspection_artifact_byte_count_total += _trace_report_optional_count(
+            errors,
+            row.get("byte_count"),
+            f"trace report sections.introspection_artifacts[{index}].byte_count",
+        )
 
     detail = {
         "schema_version": report.get("schema_version"),
@@ -2439,6 +2460,35 @@ def validate_trace_report_json(report: Any) -> ArtifactValidation:
         "attention_page_trace_sidecar_action_counts": _trace_report_value_counts(
             attention_page_trace_sidecar_rows,
             "targetplan_action",
+        ),
+        "introspection_artifact_count": len(introspection_artifact_rows),
+        "introspection_artifact_status_counts": _trace_report_value_counts(
+            introspection_artifact_rows,
+            "status",
+        ),
+        "introspection_artifact_kind_counts": _trace_report_value_counts(
+            introspection_artifact_rows,
+            "kind",
+        ),
+        "introspection_artifact_format_counts": _trace_report_value_counts(
+            introspection_artifact_rows,
+            "artifact_kind",
+        ),
+        "introspection_artifact_sensitivity_counts": _trace_report_value_counts(
+            introspection_artifact_rows,
+            "sensitivity",
+        ),
+        "introspection_artifact_compile_feature_counts": (
+            _trace_report_comma_value_counts(
+                introspection_artifact_rows,
+                "compile_features",
+            )
+        ),
+        "introspection_artifact_row_count_total": (
+            introspection_artifact_row_count_total
+        ),
+        "introspection_artifact_byte_count_total": (
+            introspection_artifact_byte_count_total
         ),
         "introspection_capability_count": len(introspection_capability_rows),
         "introspection_capability_status_counts": _trace_report_value_counts(
@@ -3211,6 +3261,24 @@ def validate_trace_report_json(report: Any) -> ArtifactValidation:
                 "next_action",
             ),
         ),
+        "introspection_artifact_samples": _trace_report_samples(
+            introspection_artifact_rows,
+            (
+                "index",
+                "kind",
+                "artifact_kind",
+                "path",
+                "sha256",
+                "status",
+                "row_count",
+                "byte_count",
+                "token_window",
+                "sampling_policy",
+                "sensitivity",
+                "compile_features",
+            ),
+            limit=16,
+        ),
         "introspection_artifact_summary_samples": _trace_report_samples(
             introspection_artifact_summary_rows,
             (
@@ -3663,6 +3731,31 @@ def _trace_report_int(value: Any) -> int:
             return int(value)
         except ValueError:
             return 0
+    return 0
+
+
+def _trace_report_optional_count(errors: list[str], value: Any, label: str) -> int:
+    if value is None or value == "":
+        return 0
+    if isinstance(value, bool):
+        errors.append(f"{label} must be a non-negative integer")
+        return 0
+    if isinstance(value, int):
+        if value < 0:
+            errors.append(f"{label} must be a non-negative integer")
+            return 0
+        return value
+    if isinstance(value, str):
+        try:
+            parsed = int(value)
+        except ValueError:
+            errors.append(f"{label} must be a non-negative integer")
+            return 0
+        if parsed < 0:
+            errors.append(f"{label} must be a non-negative integer")
+            return 0
+        return parsed
+    errors.append(f"{label} must be a non-negative integer")
     return 0
 
 

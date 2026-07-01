@@ -683,6 +683,15 @@ class AresIngestArtifactTest(unittest.TestCase):
                                     ),
                                 },
                                 {
+                                    "heading": "Introspection Artifacts",
+                                    "json_path": "sections.introspection_artifacts",
+                                    "json_section": "introspection_artifacts",
+                                    "section_kind": "introspection",
+                                    "claim_boundary": (
+                                        "system_under_test_diagnostic"
+                                    ),
+                                },
+                                {
                                     "heading": "Introspection Section Inventory",
                                     "json_path": (
                                         "sections.introspection_section_inventory"
@@ -1719,6 +1728,43 @@ class AresIngestArtifactTest(unittest.TestCase):
                                     ),
                                 }
                             ],
+                            "introspection_artifacts": [
+                                {
+                                    "index": 0,
+                                    "kind": "token_quality",
+                                    "artifact_kind": "token_quality_jsonl",
+                                    "path": "introspection_token_quality.jsonl",
+                                    "sha256": SHA_A,
+                                    "status": "recorded",
+                                    "row_count": "3",
+                                    "byte_count": "120",
+                                    "token_window": "0:3",
+                                    "sampling_policy": (
+                                        "selected token rows; top-k rows only "
+                                        "when requested"
+                                    ),
+                                    "sensitivity": "local-only",
+                                    "compile_features": (
+                                        "trace-introspection,deep-trace"
+                                    ),
+                                },
+                                {
+                                    "index": 1,
+                                    "kind": "tensor_payload",
+                                    "artifact_kind": "tensor_payload_jsonl",
+                                    "path": "introspection_tensor_payload.jsonl",
+                                    "sha256": SHA_B,
+                                    "status": "missing",
+                                    "row_count": 2,
+                                    "byte_count": 80,
+                                    "token_window": "tensor-payload:7008",
+                                    "sampling_policy": (
+                                        "bounded tensor payload summaries only"
+                                    ),
+                                    "sensitivity": "tensor_digest",
+                                    "compile_features": "trace-introspection",
+                                },
+                            ],
                             "introspection_artifact_summary_rows": [
                                 {
                                     "artifact_kind": "token_quality",
@@ -1864,6 +1910,47 @@ class AresIngestArtifactTest(unittest.TestCase):
             self.assertEqual(
                 gate["detail"]["introspection_capability_status_counts"],
                 {"recorded": 1},
+            )
+            self.assertEqual(gate["detail"]["introspection_artifact_count"], 2)
+            self.assertEqual(
+                gate["detail"]["introspection_artifact_status_counts"],
+                {"missing": 1, "recorded": 1},
+            )
+            self.assertEqual(
+                gate["detail"]["introspection_artifact_kind_counts"],
+                {"tensor_payload": 1, "token_quality": 1},
+            )
+            self.assertEqual(
+                gate["detail"]["introspection_artifact_format_counts"],
+                {"tensor_payload_jsonl": 1, "token_quality_jsonl": 1},
+            )
+            self.assertEqual(
+                gate["detail"]["introspection_artifact_sensitivity_counts"],
+                {"local-only": 1, "tensor_digest": 1},
+            )
+            self.assertEqual(
+                gate["detail"]["introspection_artifact_compile_feature_counts"],
+                {"deep-trace": 1, "trace-introspection": 2},
+            )
+            self.assertEqual(
+                gate["detail"]["introspection_artifact_row_count_total"],
+                5,
+            )
+            self.assertEqual(
+                gate["detail"]["introspection_artifact_byte_count_total"],
+                200,
+            )
+            self.assertEqual(
+                gate["detail"]["introspection_artifact_samples"][0]["kind"],
+                "token_quality",
+            )
+            self.assertEqual(
+                gate["detail"]["introspection_artifact_samples"][0]["path"],
+                "introspection_token_quality.jsonl",
+            )
+            self.assertEqual(
+                gate["detail"]["introspection_artifact_samples"][1]["byte_count"],
+                "80",
             )
             self.assertEqual(
                 gate["detail"]["introspection_artifact_summary_status_counts"],
@@ -2152,7 +2239,7 @@ class AresIngestArtifactTest(unittest.TestCase):
                 gate["detail"]["attention_page_trace_sidecar_action_counts"],
                 {"attention": 1},
             )
-            self.assertEqual(gate["detail"]["report_json_section_count"], 28)
+            self.assertEqual(gate["detail"]["report_json_section_count"], 29)
             self.assertEqual(
                 gate["detail"]["report_json_section_kind_counts"],
                 {
@@ -2160,7 +2247,7 @@ class AresIngestArtifactTest(unittest.TestCase):
                     "capture_configuration": 1,
                     "comparison": 4,
                     "debug_payload_diagnostic": 1,
-                    "introspection": 1,
+                    "introspection": 2,
                     "introspection_inventory": 2,
                     "measurement_guidance": 1,
                     "sidecar": 14,
@@ -2525,6 +2612,77 @@ class AresIngestArtifactTest(unittest.TestCase):
             gate["detail"]["capture_capability_present_counts"],
             {"False": 2, "True": 15},
         )
+        self.assertEqual(gate["detail"]["introspection_artifact_count"], 9)
+        self.assertEqual(
+            gate["detail"]["introspection_artifact_status_counts"],
+            {"recorded": 9},
+        )
+        self.assertEqual(
+            gate["detail"]["introspection_artifact_kind_counts"],
+            {
+                "activation_digests": 1,
+                "attention_page_trace": 1,
+                "device_dma_lifecycle": 1,
+                "device_result_digests": 1,
+                "kv_payload_digests": 1,
+                "logit_slices": 1,
+                "scheduler_packet_lineage": 1,
+                "tensor_payload": 1,
+                "token_quality": 1,
+            },
+        )
+        self.assertEqual(
+            gate["detail"]["introspection_artifact_format_counts"],
+            {
+                "attention_page_trace_jsonl": 1,
+                "device_dma_lifecycle_jsonl": 1,
+                "scheduler_packet_lineage_jsonl": 1,
+                "tensor_payload_jsonl": 5,
+                "token_quality_jsonl": 1,
+            },
+        )
+        self.assertEqual(
+            gate["detail"]["introspection_artifact_sensitivity_counts"],
+            {"local-only": 9},
+        )
+        self.assertEqual(
+            gate["detail"]["introspection_artifact_compile_feature_counts"],
+            {"trace-introspection": 9},
+        )
+        self.assertEqual(
+            gate["detail"]["introspection_artifact_row_count_total"],
+            11,
+        )
+        self.assertEqual(
+            gate["detail"]["introspection_artifact_byte_count_total"],
+            10686,
+        )
+        self.assertEqual(
+            gate["detail"]["introspection_artifact_samples"][0]["kind"],
+            "token_quality",
+        )
+        self.assertEqual(
+            gate["detail"]["introspection_artifact_samples"][0]["path"],
+            "introspection_token_quality_sidecar.jsonl",
+        )
+        self.assertEqual(
+            gate["detail"]["introspection_artifact_samples"][0]["sha256"],
+            "4255461c82b837e9c6196aba804042ac967ee637602826962b70fe4a9576534e",
+        )
+        self.assertEqual(
+            gate["detail"]["introspection_artifact_samples"][0]["token_window"],
+            "0:1",
+        )
+        self.assertEqual(
+            gate["detail"]["introspection_artifact_samples"][0]["sensitivity"],
+            "local-only",
+        )
+        self.assertEqual(
+            gate["detail"]["introspection_artifact_samples"][0][
+                "compile_features"
+            ],
+            "trace-introspection",
+        )
         self.assertEqual(
             gate["detail"]["ab_provenance_status_counts"],
             {"not_applicable": 1},
@@ -2873,6 +3031,7 @@ class AresIngestArtifactTest(unittest.TestCase):
         self.assertIn("sections.device_dma_lifecycle_sidecar_rows", section_paths)
         self.assertIn("sections.attention_page_trace_sidecar_rows", section_paths)
         self.assertIn("sections.introspection_capability_rows", section_paths)
+        self.assertIn("sections.introspection_artifacts", section_paths)
         self.assertIn("sections.introspection_artifact_summary_rows", section_paths)
         self.assertIn("sections.introspection_section_inventory", section_paths)
         self.assertIn(
@@ -3124,6 +3283,33 @@ class AresIngestArtifactTest(unittest.TestCase):
         self.assertIn("device_dma_lifecycle_sidecar_rows", introspection_sections)
         self.assertIn("attention_page_trace_sidecar_rows", introspection_sections)
         self.assertIn("kv_payload_digest_sidecar_rows", introspection_sections)
+
+    def test_trace_report_gate_rejects_malformed_introspection_artifact_counts(
+        self,
+    ) -> None:
+        fixture_path = FIXTURE_DIR / "ares_trace_report_introspection_real.json"
+        payload = json.loads(fixture_path.read_text())
+        payload["sections"]["introspection_artifacts"][0]["row_count"] = "not-int"
+        payload["sections"]["introspection_artifacts"][1]["byte_count"] = -1
+
+        with TemporaryDirectory() as tmp:
+            path = Path(tmp) / "trace-report.json"
+            path.write_text(json.dumps(payload))
+
+            gate = trace_report_gate(path)
+
+            self.assertFalse(gate["passed"])
+            joined = " ".join(gate["errors"])
+            self.assertIn(
+                "trace report sections.introspection_artifacts[0].row_count "
+                "must be a non-negative integer",
+                joined,
+            )
+            self.assertIn(
+                "trace report sections.introspection_artifacts[1].byte_count "
+                "must be a non-negative integer",
+                joined,
+            )
 
     def test_trace_report_gate_rejects_missing_file(self) -> None:
         with TemporaryDirectory() as tmp:

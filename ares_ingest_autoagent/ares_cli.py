@@ -540,6 +540,28 @@ def trace_report_summary_from_spec(spec: Mapping[str, Any]) -> dict[str, Any] | 
         "attention_page_trace_sidecar_action_counts": detail.get(
             "attention_page_trace_sidecar_action_counts"
         ),
+        "introspection_artifact_count": detail.get("introspection_artifact_count"),
+        "introspection_artifact_status_counts": detail.get(
+            "introspection_artifact_status_counts"
+        ),
+        "introspection_artifact_kind_counts": detail.get(
+            "introspection_artifact_kind_counts"
+        ),
+        "introspection_artifact_format_counts": detail.get(
+            "introspection_artifact_format_counts"
+        ),
+        "introspection_artifact_sensitivity_counts": detail.get(
+            "introspection_artifact_sensitivity_counts"
+        ),
+        "introspection_artifact_compile_feature_counts": detail.get(
+            "introspection_artifact_compile_feature_counts"
+        ),
+        "introspection_artifact_row_count_total": detail.get(
+            "introspection_artifact_row_count_total"
+        ),
+        "introspection_artifact_byte_count_total": detail.get(
+            "introspection_artifact_byte_count_total"
+        ),
         "introspection_capability_count": detail.get("introspection_capability_count"),
         "introspection_capability_status_counts": detail.get(
             "introspection_capability_status_counts"
@@ -635,6 +657,9 @@ def trace_report_summary_from_spec(spec: Mapping[str, Any]) -> dict[str, Any] | 
         ),
         "introspection_capability_samples": detail.get(
             "introspection_capability_samples"
+        ),
+        "introspection_artifact_samples": detail.get(
+            "introspection_artifact_samples"
         ),
         "introspection_artifact_summary_samples": detail.get(
             "introspection_artifact_summary_samples"
@@ -1342,6 +1367,26 @@ def render_trace_report_lines(summary: Mapping[str, Any]) -> list[str]:
             )
             + "`"
         )
+    if summary.get("introspection_artifact_status_counts"):
+        lines.append(
+            "- Introspection raw artifacts: "
+            "`"
+            + json.dumps(
+                summary["introspection_artifact_status_counts"],
+                sort_keys=True,
+            )
+            + "`"
+        )
+    if summary.get("introspection_artifact_compile_feature_counts"):
+        lines.append(
+            "- Introspection raw artifact compile features: "
+            "`"
+            + json.dumps(
+                summary["introspection_artifact_compile_feature_counts"],
+                sort_keys=True,
+            )
+            + "`"
+        )
     if summary.get("introspection_artifact_summary_status_counts"):
         lines.append(
             "- Introspection artifacts: "
@@ -1372,7 +1417,7 @@ def render_trace_report_lines(summary: Mapping[str, Any]) -> list[str]:
             )
             + "`"
         )
-    for sample in summary.get("report_json_section_samples", [])[:6]:
+    for sample in summary.get("report_json_section_samples", [])[:64]:
         if not isinstance(sample, Mapping):
             continue
         json_path = sample.get("json_path") or sample.get("json_section")
@@ -2897,6 +2942,43 @@ def render_trace_report_lines(summary: Mapping[str, Any]) -> list[str]:
             lines.append(line)
         if next_action:
             lines.append(f"  Next action: `{next_action}`")
+    for sample in summary.get("introspection_artifact_samples", [])[:16]:
+        if not isinstance(sample, Mapping):
+            continue
+        kind = sample.get("kind")
+        artifact_kind = sample.get("artifact_kind")
+        path = sample.get("path")
+        sha256 = sample.get("sha256")
+        status = sample.get("status")
+        row_count = sample.get("row_count")
+        byte_count = sample.get("byte_count")
+        token_window = sample.get("token_window")
+        sensitivity = sample.get("sensitivity")
+        compile_features = sample.get("compile_features")
+        label = kind or artifact_kind or path or "unknown"
+        parts = []
+        if artifact_kind:
+            parts.append(f"artifact={artifact_kind}")
+        if path:
+            parts.append(f"path={path}")
+        if sha256:
+            parts.append(f"sha256={sha256}")
+        if status:
+            parts.append(f"status={status}")
+        if _trace_report_sample_value_present(row_count):
+            parts.append(f"rows={row_count}")
+        if _trace_report_sample_value_present(byte_count):
+            parts.append(f"bytes={byte_count}")
+        if token_window:
+            parts.append(f"window={token_window}")
+        if sensitivity:
+            parts.append(f"sensitivity={sensitivity}")
+        if compile_features:
+            parts.append(f"features={compile_features}")
+        line = f"- Introspection raw artifact: {label}"
+        if parts:
+            line += " " + " ".join(parts)
+        lines.append(line)
     for sample in summary.get("introspection_artifact_summary_samples", [])[:3]:
         if not isinstance(sample, Mapping):
             continue
@@ -3129,7 +3211,8 @@ def trace_report_prompt_section(spec: Mapping[str, Any]) -> list[str]:
         "`sections.oracle_reference_summary_rows` to inspect selected-token",
         "top-k status and HF CPU reference anchors without treating",
         "system-under-test rows as oracle evidence. Then use",
-        "`sections.introspection_capability_rows` and",
+        "`sections.introspection_capability_rows`,",
+        "`sections.introspection_artifacts`, and",
         "`sections.introspection_artifact_summary_rows`, then",
         "`sections.introspection_section_inventory`, to decide which tracing",
         "sidecars exist before opening heavier sidecar-specific sections.",
@@ -4232,7 +4315,7 @@ def gate_guidance(
             [
                 f"- Trace report JSON: `{resolve_run_path(str(value), cfg)}`",
                 "- Inspect `sections.answerability`, `sections.unsupported_claims`, and `sections.next_measurements` before ad hoc parsing.",
-                "- Read `sections.report_json_section_inventory` to discover available report sections, then read `sections.capture`, `sections.run_provenance`, `sections.artifact_identities`, `sections.artifact_identity_checks`, `sections.capture_capabilities`, `sections.trace_config_rows` including `missing_requested_sidecar_controls`, `sections.provider_payload_boundary_inventory_rows` including recorded provider-callback rows and route-only runtime-sidecar rows, `sections.trace_event_artifacts`, `sections.backend_event_artifacts`, `sections.backend_event_rows`, `sections.backend_provider_boundaries`, `sections.backend_fail_closed_root_causes`, `sections.debug_payload_artifact_summary_rows`, `sections.token_quality_summary_rows`, `sections.oracle_reference_summary_rows`, `sections.introspection_capability_rows`, `sections.introspection_artifact_summary_rows`, and `sections.introspection_section_inventory` before choosing sidecar-specific report sections such as `sections.planning_decision_sidecar_rows`, `sections.token_quality_sidecar_rows`, `sections.topk_token_sidecar_rows`, `sections.tensor_payload_sidecar_rows`, `sections.kv_payload_digest_sidecar_rows`, `sections.logit_slice_sidecar_rows`, `sections.activation_digest_sidecar_rows`, `sections.scheduler_packet_lineage_sidecar_rows`, `sections.scheduler_listener_sparse_logit_sidecar_rows`, `sections.device_dma_lifecycle_sidecar_rows`, `sections.attention_page_trace_sidecar_rows`, and `sections.device_result_digest_sidecar_rows`; use `sections.timeline_query_summary` only after capture/report provenance supports timeline analysis.",
+                "- Read `sections.report_json_section_inventory` to discover available report sections, then read `sections.capture`, `sections.run_provenance`, `sections.artifact_identities`, `sections.artifact_identity_checks`, `sections.capture_capabilities`, `sections.trace_config_rows` including `missing_requested_sidecar_controls`, `sections.provider_payload_boundary_inventory_rows` including recorded provider-callback rows and route-only runtime-sidecar rows, `sections.trace_event_artifacts`, `sections.backend_event_artifacts`, `sections.backend_event_rows`, `sections.backend_provider_boundaries`, `sections.backend_fail_closed_root_causes`, `sections.debug_payload_artifact_summary_rows`, `sections.token_quality_summary_rows`, `sections.oracle_reference_summary_rows`, `sections.introspection_capability_rows`, `sections.introspection_artifacts`, `sections.introspection_artifact_summary_rows`, and `sections.introspection_section_inventory` before choosing sidecar-specific report sections such as `sections.planning_decision_sidecar_rows`, `sections.token_quality_sidecar_rows`, `sections.topk_token_sidecar_rows`, `sections.tensor_payload_sidecar_rows`, `sections.kv_payload_digest_sidecar_rows`, `sections.logit_slice_sidecar_rows`, `sections.activation_digest_sidecar_rows`, `sections.scheduler_packet_lineage_sidecar_rows`, `sections.scheduler_listener_sparse_logit_sidecar_rows`, `sections.device_dma_lifecycle_sidecar_rows`, `sections.attention_page_trace_sidecar_rows`, and `sections.device_result_digest_sidecar_rows`; use `sections.timeline_query_summary` only after capture/report provenance supports timeline analysis.",
             ]
         )
     if value := spec.get("command_wrapper_plan"):
