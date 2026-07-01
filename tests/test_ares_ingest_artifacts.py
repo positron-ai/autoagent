@@ -463,6 +463,66 @@ class AresIngestArtifactTest(unittest.TestCase):
                                     ),
                                 }
                             ],
+                            "capture": [
+                                {
+                                    "metadata": "run.trace-meta.json",
+                                    "trace": "run.chrome.json",
+                                    "trace_run_id": "trace-run-001",
+                                    "created_utc": "2026-07-01T00:00:00Z",
+                                    "process_kind": "runares",
+                                    "trace_mode": "timeline-lite",
+                                    "trace_sinks": "jsonl",
+                                    "model_id": "trace-model",
+                                    "backend_id": "fpga",
+                                    "target_plan_sha256": SHA_B,
+                                    "worktree_dirty": "False",
+                                }
+                            ],
+                            "run_provenance": [
+                                {
+                                    "binary": "target/debug/runares",
+                                    "git_sha": SHA_A[:40],
+                                    "worktree_dirty": "False",
+                                    "source_state": "clean",
+                                    "hardware_card_count": 0,
+                                    "hardware_cards": "",
+                                    "provenance_boundary": (
+                                        "clean promotion evidence requires "
+                                        "matched artifacts and hardware identity"
+                                    ),
+                                }
+                            ],
+                            "artifact_identities": [
+                                {
+                                    "artifact": "ares_plan",
+                                    "path": "plan.ares.json",
+                                    "sha256": SHA_A,
+                                    "load_status": "loaded",
+                                    "status_source": "trace_metadata",
+                                },
+                                {
+                                    "artifact": "target_plan",
+                                    "path": "plan.target.json",
+                                    "sha256": SHA_B,
+                                    "load_status": "loaded",
+                                    "status_source": "backend_event_jsonl",
+                                },
+                            ],
+                            "artifact_identity_checks": [
+                                {
+                                    "artifact": "<all>",
+                                    "check": "metadata.artifacts",
+                                    "status": "ok",
+                                    "detail": "2 artifact(s)",
+                                }
+                            ],
+                            "capture_capabilities": [
+                                {"capability": "token_quality", "present": True},
+                                {
+                                    "capability": "device_result_digests",
+                                    "present": False,
+                                },
+                            ],
                             "report_json_section_inventory": [
                                 {
                                     "heading": "Trace Config Rows",
@@ -823,6 +883,17 @@ class AresIngestArtifactTest(unittest.TestCase):
                                     "next_action": (
                                         "wait_for_explicit_provider_payload_boundary"
                                     ),
+                                }
+                            ],
+                            "trace_event_artifacts": [
+                                {
+                                    "index": 0,
+                                    "path": "trace-events.jsonl",
+                                    "sha256": SHA_C,
+                                    "row_count": 3,
+                                    "matching_trace_run_id_rows": 3,
+                                    "event_kinds": "span_start,span_end",
+                                    "status": "ok",
                                 }
                             ],
                             "backend_event_artifacts": [
@@ -1492,6 +1563,24 @@ class AresIngestArtifactTest(unittest.TestCase):
                                     ),
                                 },
                             ],
+                            "timeline_query_summary": [
+                                {
+                                    "section": "Join Key Coverage",
+                                    "query": "join-key-coverage",
+                                    "row_count": 3,
+                                    "rendered_rows": 3,
+                                    "native_sql": True,
+                                    "status": "rendered",
+                                    "portable_command": (
+                                        "bin/ares-trace-query --query "
+                                        "join-key-coverage"
+                                    ),
+                                    "native_sql_command": (
+                                        "bin/ares-trace-sql --query "
+                                        "join-key-coverage"
+                                    ),
+                                }
+                            ],
                             "introspection_artifact_summary_rows": [
                                 {
                                     "artifact_kind": "token_quality",
@@ -1557,6 +1646,38 @@ class AresIngestArtifactTest(unittest.TestCase):
                 {"low_overhead": 1},
             )
             self.assertEqual(
+                gate["detail"]["capture_process_kind_counts"],
+                {"runares": 1},
+            )
+            self.assertEqual(
+                gate["detail"]["capture_backend_counts"],
+                {"fpga": 1},
+            )
+            self.assertEqual(
+                gate["detail"]["capture_trace_mode_counts"],
+                {"timeline-lite": 1},
+            )
+            self.assertEqual(
+                gate["detail"]["run_provenance_source_state_counts"],
+                {"clean": 1},
+            )
+            self.assertEqual(
+                gate["detail"]["artifact_identity_artifact_counts"],
+                {"ares_plan": 1, "target_plan": 1},
+            )
+            self.assertEqual(
+                gate["detail"]["artifact_identity_load_status_counts"],
+                {"loaded": 2},
+            )
+            self.assertEqual(
+                gate["detail"]["artifact_identity_check_status_counts"],
+                {"ok": 1},
+            )
+            self.assertEqual(
+                gate["detail"]["capture_capability_present_counts"],
+                {"False": 1, "True": 1},
+            )
+            self.assertEqual(
                 gate["detail"]["introspection_capability_status_counts"],
                 {"recorded": 1},
             )
@@ -1614,6 +1735,14 @@ class AresIngestArtifactTest(unittest.TestCase):
                 ["fpga/kv_payload_digests"],
             )
             self.assertEqual(
+                gate["detail"]["trace_event_artifact_status_counts"],
+                {"ok": 1},
+            )
+            self.assertEqual(
+                gate["detail"]["trace_event_artifact_event_kind_counts"],
+                {"span_end": 1, "span_start": 1},
+            )
+            self.assertEqual(
                 gate["detail"]["backend_event_artifact_status_counts"],
                 {"ok": 1},
             )
@@ -1640,6 +1769,30 @@ class AresIngestArtifactTest(unittest.TestCase):
             self.assertEqual(
                 gate["detail"]["backend_provider_boundary_root_stage_counts"],
                 {"targetplan_validation": 1},
+            )
+            self.assertEqual(
+                gate["detail"]["timeline_query_summary_status_counts"],
+                {"rendered": 1},
+            )
+            self.assertEqual(
+                gate["detail"]["capture_samples"][0]["trace_run_id"],
+                "trace-run-001",
+            )
+            self.assertEqual(
+                gate["detail"]["run_provenance_samples"][0]["source_state"],
+                "clean",
+            )
+            self.assertEqual(
+                gate["detail"]["artifact_identity_samples"][1]["artifact"],
+                "target_plan",
+            )
+            self.assertEqual(
+                gate["detail"]["trace_event_artifact_samples"][0]["event_kinds"],
+                "span_start,span_end",
+            )
+            self.assertEqual(
+                gate["detail"]["timeline_query_summary_samples"][0]["query"],
+                "join-key-coverage",
             )
             self.assertEqual(
                 gate["detail"]["backend_fail_closed_root_cause_backend_counts"],
@@ -2145,6 +2298,54 @@ class AresIngestArtifactTest(unittest.TestCase):
         self.assertEqual(gate["detail"]["report_grade"], "diagnostic")
         self.assertEqual(gate["detail"]["preflight_status"], "pass")
         self.assertEqual(gate["detail"]["report_json_section_count"], 52)
+        self.assertEqual(
+            gate["detail"]["capture_process_kind_counts"],
+            {"test": 1},
+        )
+        self.assertEqual(
+            gate["detail"]["capture_backend_counts"],
+            {"fpga": 1},
+        )
+        self.assertEqual(
+            gate["detail"]["capture_trace_mode_counts"],
+            {"debug-heavy": 1},
+        )
+        self.assertEqual(
+            gate["detail"]["run_provenance_source_state_counts"],
+            {"unknown": 1},
+        )
+        self.assertEqual(
+            gate["detail"]["artifact_identity_check_status_counts"],
+            {"ok": 1},
+        )
+        self.assertEqual(
+            gate["detail"]["capture_capability_present_counts"],
+            {"False": 2, "True": 15},
+        )
+        self.assertEqual(
+            gate["detail"]["timeline_query_summary_status_counts"],
+            {"not_available": 1},
+        )
+        self.assertEqual(
+            gate["detail"]["capture_samples"][0]["trace_run_id"],
+            "ares-fixture-introspection",
+        )
+        self.assertEqual(
+            gate["detail"]["run_provenance_samples"][0]["source_state"],
+            "unknown",
+        )
+        self.assertEqual(
+            gate["detail"]["artifact_identity_check_samples"][0]["detail"],
+            "0 artifact(s)",
+        )
+        self.assertEqual(
+            gate["detail"]["capture_capability_samples"][0]["capability"],
+            "activation_digests",
+        )
+        self.assertEqual(
+            gate["detail"]["timeline_query_summary_samples"][0]["status"],
+            "not_available",
+        )
         self.assertEqual(
             gate["detail"]["trace_config_status_counts"],
             {"requested_and_recorded": 1},

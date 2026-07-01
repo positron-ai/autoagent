@@ -29,6 +29,7 @@ from ares_ingest_autoagent.ares_cli import (
 
 
 SHA_A = "a" * 64
+SHA_B = "b" * 64
 SHA_C = "c" * 64
 
 
@@ -211,6 +212,63 @@ def trace_report_payload() -> dict:
                     "overhead_boundary": "low_overhead",
                     "claim_guardrail": "do not treat trace timing as promotion proof",
                 }
+            ],
+            "capture": [
+                {
+                    "metadata": "run.trace-meta.json",
+                    "trace": "run.chrome.json",
+                    "trace_run_id": "trace-run-001",
+                    "created_utc": "2026-07-01T00:00:00Z",
+                    "process_kind": "runares",
+                    "trace_mode": "timeline-lite",
+                    "trace_sinks": "jsonl",
+                    "model_id": "trace-model",
+                    "backend_id": "fpga",
+                    "target_plan_sha256": SHA_B,
+                    "worktree_dirty": "False",
+                }
+            ],
+            "run_provenance": [
+                {
+                    "binary": "target/debug/runares",
+                    "git_sha": SHA_A[:40],
+                    "worktree_dirty": "False",
+                    "source_state": "clean",
+                    "hardware_card_count": 0,
+                    "hardware_cards": "",
+                    "provenance_boundary": (
+                        "clean promotion evidence requires matched artifacts "
+                        "and hardware identity"
+                    ),
+                }
+            ],
+            "artifact_identities": [
+                {
+                    "artifact": "ares_plan",
+                    "path": "plan.ares.json",
+                    "sha256": SHA_A,
+                    "load_status": "loaded",
+                    "status_source": "trace_metadata",
+                },
+                {
+                    "artifact": "target_plan",
+                    "path": "plan.target.json",
+                    "sha256": SHA_B,
+                    "load_status": "loaded",
+                    "status_source": "backend_event_jsonl",
+                },
+            ],
+            "artifact_identity_checks": [
+                {
+                    "artifact": "<all>",
+                    "check": "metadata.artifacts",
+                    "status": "ok",
+                    "detail": "2 artifact(s)",
+                }
+            ],
+            "capture_capabilities": [
+                {"capability": "token_quality", "present": True},
+                {"capability": "device_result_digests", "present": False},
             ],
             "report_json_section_inventory": [
                 {
@@ -474,6 +532,17 @@ def trace_report_payload() -> dict:
                         "system_under_test_device_result_digest_diagnostic"
                     ),
                     "next_action": "wait_for_explicit_provider_payload_boundary",
+                }
+            ],
+            "trace_event_artifacts": [
+                {
+                    "index": 0,
+                    "path": "trace-events.jsonl",
+                    "sha256": SHA_C,
+                    "row_count": 3,
+                    "matching_trace_run_id_rows": 3,
+                    "event_kinds": "span_start,span_end",
+                    "status": "ok",
                 }
             ],
             "backend_event_artifacts": [
@@ -1078,6 +1147,22 @@ def trace_report_payload() -> dict:
                     "claim_boundary": "system_under_test_scheduler_diagnostic",
                 },
             ],
+            "timeline_query_summary": [
+                {
+                    "section": "Join Key Coverage",
+                    "query": "join-key-coverage",
+                    "row_count": 3,
+                    "rendered_rows": 3,
+                    "native_sql": True,
+                    "status": "rendered",
+                    "portable_command": (
+                        "bin/ares-trace-query --query join-key-coverage"
+                    ),
+                    "native_sql_command": (
+                        "bin/ares-trace-sql --query join-key-coverage"
+                    ),
+                }
+            ],
             "introspection_artifact_summary_rows": [
                 {
                     "artifact_kind": "token_quality",
@@ -1307,6 +1392,38 @@ class AresIngestCliTest(unittest.TestCase):
                 {"low_overhead": 1},
             )
             self.assertEqual(
+                state["trace_report"]["capture_process_kind_counts"],
+                {"runares": 1},
+            )
+            self.assertEqual(
+                state["trace_report"]["capture_backend_counts"],
+                {"fpga": 1},
+            )
+            self.assertEqual(
+                state["trace_report"]["capture_trace_mode_counts"],
+                {"timeline-lite": 1},
+            )
+            self.assertEqual(
+                state["trace_report"]["run_provenance_source_state_counts"],
+                {"clean": 1},
+            )
+            self.assertEqual(
+                state["trace_report"]["artifact_identity_artifact_counts"],
+                {"ares_plan": 1, "target_plan": 1},
+            )
+            self.assertEqual(
+                state["trace_report"]["artifact_identity_load_status_counts"],
+                {"loaded": 2},
+            )
+            self.assertEqual(
+                state["trace_report"]["artifact_identity_check_status_counts"],
+                {"ok": 1},
+            )
+            self.assertEqual(
+                state["trace_report"]["capture_capability_present_counts"],
+                {"False": 1, "True": 1},
+            )
+            self.assertEqual(
                 state["trace_report"]["introspection_capability_status_counts"],
                 {"recorded": 1},
             )
@@ -1343,6 +1460,14 @@ class AresIngestCliTest(unittest.TestCase):
             self.assertEqual(
                 state["trace_report"]["provider_payload_boundary_recorded_lanes"],
                 ["fpga/kv_payload_digests"],
+            )
+            self.assertEqual(
+                state["trace_report"]["trace_event_artifact_status_counts"],
+                {"ok": 1},
+            )
+            self.assertEqual(
+                state["trace_report"]["trace_event_artifact_event_kind_counts"],
+                {"span_end": 1, "span_start": 1},
             )
             self.assertEqual(
                 state["trace_report"]["backend_event_artifact_status_counts"],
@@ -1387,6 +1512,10 @@ class AresIngestCliTest(unittest.TestCase):
                     "backend_fail_closed_root_cause_root_stage_counts"
                 ],
                 {"targetplan_validation": 1},
+            )
+            self.assertEqual(
+                state["trace_report"]["timeline_query_summary_status_counts"],
+                {"rendered": 1},
             )
             self.assertEqual(
                 state["trace_report"]["debug_payload_artifact_summary_status_counts"],
@@ -1580,6 +1709,25 @@ class AresIngestCliTest(unittest.TestCase):
             self.assertIn("## Trace Report", handoff)
             self.assertIn("Report JSON sections", handoff)
             self.assertIn("Report JSON section: sections.trace_config_rows", handoff)
+            self.assertIn("Capture trace modes", handoff)
+            self.assertIn("Capture backends", handoff)
+            self.assertIn("Run provenance source states", handoff)
+            self.assertIn("Artifact identities", handoff)
+            self.assertIn("Artifact identity checks", handoff)
+            self.assertIn("Capture capabilities", handoff)
+            self.assertIn("Capture: trace-run-001", handoff)
+            self.assertIn("process=runares", handoff)
+            self.assertIn("mode=timeline-lite", handoff)
+            self.assertIn("Run provenance: target/debug/runares", handoff)
+            self.assertIn("source_state=clean", handoff)
+            self.assertIn("Artifact identity: ares_plan", handoff)
+            self.assertIn("load_status=loaded", handoff)
+            self.assertIn("Artifact identity check: <all>", handoff)
+            self.assertIn("Capture capability: token_quality present=True", handoff)
+            self.assertIn(
+                "Capture capability: device_result_digests present=False",
+                handoff,
+            )
             self.assertIn("Trace config: requested_and_recorded", handoff)
             self.assertIn("recorded=tensor_payloads", handoff)
             self.assertIn("Missing requested sidecars", handoff)
@@ -1606,6 +1754,10 @@ class AresIngestCliTest(unittest.TestCase):
                 handoff,
             )
             self.assertIn("control=ARES_TRACE_RECORD_DEVICE_RESULTS=1", handoff)
+            self.assertIn("Trace event artifacts", handoff)
+            self.assertIn("Trace event artifact kinds", handoff)
+            self.assertIn("Trace event artifact: trace-events.jsonl", handoff)
+            self.assertIn("event_kinds=span_start,span_end", handoff)
             self.assertIn("Backend event artifacts", handoff)
             self.assertIn("Backend event artifact kinds", handoff)
             self.assertIn("Backend event artifact: backend-events.jsonl", handoff)
@@ -1723,6 +1875,14 @@ class AresIngestCliTest(unittest.TestCase):
             self.assertIn("status=available", handoff)
             self.assertIn("capability=token_quality", handoff)
             self.assertIn("artifacts=1", handoff)
+            self.assertIn("Timeline query summary", handoff)
+            self.assertIn("Timeline query summary: join-key-coverage", handoff)
+            self.assertIn("rows=3", handoff)
+            self.assertIn("native_sql=True", handoff)
+            self.assertIn(
+                "Command: `bin/ares-trace-query --query join-key-coverage`",
+                handoff,
+            )
             self.assertIn("Supported claim: trace preflight is answerable", handoff)
             self.assertIn("Correctness evidence: hf_cpu_oracle_tokens_logits", handoff)
             self.assertIn("Evidence artifact check: metadata.evidence_artifacts", handoff)
@@ -1750,8 +1910,14 @@ class AresIngestCliTest(unittest.TestCase):
             self.assertIn("Promotion gate: capture_preflight", prompt)
             self.assertIn("Trace mode guardrail: timeline-lite", prompt)
             self.assertIn("sections.report_json_section_inventory", prompt)
+            self.assertIn("sections.capture", prompt)
+            self.assertIn("sections.run_provenance", prompt)
+            self.assertIn("sections.artifact_identities", prompt)
+            self.assertIn("sections.artifact_identity_checks", prompt)
+            self.assertIn("sections.capture_capabilities", prompt)
             self.assertIn("sections.trace_config_rows", prompt)
             self.assertIn("sections.provider_payload_boundary_inventory_rows", prompt)
+            self.assertIn("sections.trace_event_artifacts", prompt)
             self.assertIn("sections.backend_event_artifacts", prompt)
             self.assertIn("sections.backend_event_rows", prompt)
             self.assertIn("sections.backend_provider_boundaries", prompt)
@@ -1780,6 +1946,17 @@ class AresIngestCliTest(unittest.TestCase):
             self.assertIn("sections.token_quality_summary_rows", prompt)
             self.assertIn("sections.oracle_reference_summary_rows", prompt)
             self.assertIn("sections.introspection_section_inventory", prompt)
+            self.assertIn("sections.timeline_query_summary", prompt)
+            self.assertIn("Capture: trace-run-001", prompt)
+            self.assertIn("process=runares", prompt)
+            self.assertIn("Run provenance: target/debug/runares", prompt)
+            self.assertIn("Artifact identity: ares_plan", prompt)
+            self.assertIn("Artifact identity check: <all>", prompt)
+            self.assertIn("Capture capability: token_quality present=True", prompt)
+            self.assertIn("Trace event artifact: trace-events.jsonl", prompt)
+            self.assertIn("Timeline query summary: join-key-coverage", prompt)
+            self.assertIn("capture provenance", prompt)
+            self.assertIn("artifact hashes, and capability booleans", prompt)
             self.assertIn("Provider payload boundary: fpga/kv_payload_digests", prompt)
             self.assertIn(
                 "Recorded provider payload boundary: fpga/kv_payload_digests",

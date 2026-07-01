@@ -89,8 +89,14 @@ TRACE_REPORT_REQUIRED_SECTIONS = (
     "next_measurements",
 )
 TRACE_REPORT_JSON_SECTION_SAMPLE_KEYS = (
+    "capture",
+    "run_provenance",
+    "artifact_identities",
+    "artifact_identity_checks",
+    "capture_capabilities",
     "trace_config_rows",
     "provider_payload_boundary_inventory_rows",
+    "trace_event_artifacts",
     "backend_event_artifacts",
     "backend_event_rows",
     "backend_provider_boundaries",
@@ -122,6 +128,7 @@ TRACE_REPORT_JSON_SECTION_SAMPLE_KEYS = (
     "answerability",
     "unsupported_claims",
     "next_measurements",
+    "timeline_query_summary",
 )
 
 FLOATING_REVISION_NAMES = {
@@ -1618,6 +1625,11 @@ def validate_trace_report_json(report: Any) -> ArtifactValidation:
     preflight_rows: list[dict[str, Any]] = []
     analysis_command_rows: list[dict[str, Any]] = []
     answerability_rows: list[dict[str, Any]] = []
+    capture_rows: list[dict[str, Any]] = []
+    run_provenance_rows: list[dict[str, Any]] = []
+    artifact_identity_rows: list[dict[str, Any]] = []
+    artifact_identity_check_rows: list[dict[str, Any]] = []
+    capture_capability_rows: list[dict[str, Any]] = []
     supported_claim_rows: list[dict[str, Any]] = []
     unsupported_claim_rows: list[dict[str, Any]] = []
     next_measurement_rows: list[dict[str, Any]] = []
@@ -1628,6 +1640,7 @@ def validate_trace_report_json(report: Any) -> ArtifactValidation:
     report_json_section_rows: list[dict[str, Any]] = []
     trace_config_rows: list[dict[str, Any]] = []
     provider_payload_boundary_rows: list[dict[str, Any]] = []
+    trace_event_artifact_rows: list[dict[str, Any]] = []
     backend_event_artifact_rows: list[dict[str, Any]] = []
     backend_event_rows: list[dict[str, Any]] = []
     backend_provider_boundary_rows: list[dict[str, Any]] = []
@@ -1651,6 +1664,7 @@ def validate_trace_report_json(report: Any) -> ArtifactValidation:
     introspection_capability_rows: list[dict[str, Any]] = []
     introspection_artifact_summary_rows: list[dict[str, Any]] = []
     introspection_section_inventory_rows: list[dict[str, Any]] = []
+    timeline_query_summary_rows: list[dict[str, Any]] = []
     if sections is not None:
         section_names = sorted(str(name) for name in sections)
         for name in TRACE_REPORT_REQUIRED_SECTIONS:
@@ -1663,6 +1677,36 @@ def validate_trace_report_json(report: Any) -> ArtifactValidation:
         report_grade_rows = _trace_report_section_rows(errors, sections, "report_grade")
         answerability_rows = _trace_report_section_rows(
             errors, sections, "answerability"
+        )
+        capture_rows = _trace_report_section_rows(
+            errors,
+            sections,
+            "capture",
+            required=False,
+        )
+        run_provenance_rows = _trace_report_section_rows(
+            errors,
+            sections,
+            "run_provenance",
+            required=False,
+        )
+        artifact_identity_rows = _trace_report_section_rows(
+            errors,
+            sections,
+            "artifact_identities",
+            required=False,
+        )
+        artifact_identity_check_rows = _trace_report_section_rows(
+            errors,
+            sections,
+            "artifact_identity_checks",
+            required=False,
+        )
+        capture_capability_rows = _trace_report_section_rows(
+            errors,
+            sections,
+            "capture_capabilities",
+            required=False,
         )
         supported_claim_rows = _trace_report_section_rows(
             errors,
@@ -1716,6 +1760,12 @@ def validate_trace_report_json(report: Any) -> ArtifactValidation:
             errors,
             sections,
             "provider_payload_boundary_inventory_rows",
+            required=False,
+        )
+        trace_event_artifact_rows = _trace_report_section_rows(
+            errors,
+            sections,
+            "trace_event_artifacts",
             required=False,
         )
         backend_event_artifact_rows = _trace_report_section_rows(
@@ -1856,6 +1906,12 @@ def validate_trace_report_json(report: Any) -> ArtifactValidation:
             "introspection_section_inventory",
             required=False,
         )
+        timeline_query_summary_rows = _trace_report_section_rows(
+            errors,
+            sections,
+            "timeline_query_summary",
+            required=False,
+        )
 
     if not preflight_rows:
         errors.append("trace report sections.preflight must include at least one row")
@@ -1958,6 +2014,43 @@ def validate_trace_report_json(report: Any) -> ArtifactValidation:
             report_json_section_rows,
             "section_kind",
         ),
+        "capture_count": len(capture_rows),
+        "capture_process_kind_counts": _trace_report_value_counts(
+            capture_rows,
+            "process_kind",
+        ),
+        "capture_backend_counts": _trace_report_value_counts(
+            capture_rows,
+            "backend_id",
+        ),
+        "capture_trace_mode_counts": _trace_report_value_counts(
+            capture_rows,
+            "trace_mode",
+        ),
+        "run_provenance_count": len(run_provenance_rows),
+        "run_provenance_source_state_counts": _trace_report_value_counts(
+            run_provenance_rows,
+            "source_state",
+        ),
+        "artifact_identity_count": len(artifact_identity_rows),
+        "artifact_identity_artifact_counts": _trace_report_value_counts(
+            artifact_identity_rows,
+            "artifact",
+        ),
+        "artifact_identity_load_status_counts": _trace_report_value_counts(
+            artifact_identity_rows,
+            "load_status",
+        ),
+        "artifact_identity_check_count": len(artifact_identity_check_rows),
+        "artifact_identity_check_status_counts": _trace_report_value_counts(
+            artifact_identity_check_rows,
+            "status",
+        ),
+        "capture_capability_count": len(capture_capability_rows),
+        "capture_capability_present_counts": _trace_report_value_counts(
+            capture_capability_rows,
+            "present",
+        ),
         "trace_config_count": len(trace_config_rows),
         "trace_config_status_counts": _trace_report_value_counts(
             trace_config_rows,
@@ -1985,6 +2078,17 @@ def validate_trace_report_json(report: Any) -> ArtifactValidation:
         ),
         "provider_payload_boundary_recorded_lanes": (
             _trace_report_provider_payload_lanes(provider_payload_recorded_rows)
+        ),
+        "trace_event_artifact_count": len(trace_event_artifact_rows),
+        "trace_event_artifact_status_counts": _trace_report_value_counts(
+            trace_event_artifact_rows,
+            "status",
+        ),
+        "trace_event_artifact_event_kind_counts": (
+            _trace_report_comma_value_counts(
+                trace_event_artifact_rows,
+                "event_kinds",
+            )
         ),
         "backend_event_artifact_count": len(backend_event_artifact_rows),
         "backend_event_artifact_status_counts": _trace_report_value_counts(
@@ -2263,6 +2367,11 @@ def validate_trace_report_json(report: Any) -> ArtifactValidation:
                 "capture_capability",
             )
         ),
+        "timeline_query_summary_count": len(timeline_query_summary_rows),
+        "timeline_query_summary_status_counts": _trace_report_value_counts(
+            timeline_query_summary_rows,
+            "status",
+        ),
         "supported_claim_samples": _trace_report_samples(
             supported_claim_rows,
             ("claim", "basis", "evidence_grade"),
@@ -2312,7 +2421,47 @@ def validate_trace_report_json(report: Any) -> ArtifactValidation:
         "report_json_section_samples": _trace_report_samples(
             report_json_section_sample_rows,
             ("json_path", "json_section", "section_kind", "claim_boundary"),
-            limit=32,
+            limit=64,
+        ),
+        "capture_samples": _trace_report_samples(
+            capture_rows,
+            (
+                "metadata",
+                "trace",
+                "trace_run_id",
+                "process_kind",
+                "trace_mode",
+                "trace_sinks",
+                "model_id",
+                "backend_id",
+                "target_plan_sha256",
+                "worktree_dirty",
+            ),
+        ),
+        "run_provenance_samples": _trace_report_samples(
+            run_provenance_rows,
+            (
+                "binary",
+                "git_sha",
+                "worktree_dirty",
+                "source_state",
+                "hardware_card_count",
+                "hardware_cards",
+                "provenance_boundary",
+            ),
+        ),
+        "artifact_identity_samples": _trace_report_samples(
+            artifact_identity_rows,
+            ("artifact", "path", "sha256", "load_status", "status_source"),
+        ),
+        "artifact_identity_check_samples": _trace_report_samples(
+            artifact_identity_check_rows,
+            ("artifact", "check", "status", "detail"),
+        ),
+        "capture_capability_samples": _trace_report_samples(
+            capture_capability_rows,
+            ("capability", "present"),
+            limit=8,
         ),
         "trace_config_samples": _trace_report_samples(
             trace_config_rows,
@@ -2325,6 +2474,18 @@ def validate_trace_report_json(report: Any) -> ArtifactValidation:
                 "compile_feature_trace_introspection",
                 "deep_introspection_effective",
                 "next_action",
+            ),
+        ),
+        "trace_event_artifact_samples": _trace_report_samples(
+            trace_event_artifact_rows,
+            (
+                "index",
+                "path",
+                "sha256",
+                "row_count",
+                "matching_trace_run_id_rows",
+                "event_kinds",
+                "status",
             ),
         ),
         "provider_payload_boundary_samples": _trace_report_samples(
@@ -2932,6 +3093,19 @@ def validate_trace_report_json(report: Any) -> ArtifactValidation:
             ),
             limit=16,
         ),
+        "timeline_query_summary_samples": _trace_report_samples(
+            timeline_query_summary_rows,
+            (
+                "section",
+                "query",
+                "row_count",
+                "rendered_rows",
+                "native_sql",
+                "status",
+                "portable_command",
+                "native_sql_command",
+            ),
+        ),
     }
     return _validation(not errors, errors, detail)
 
@@ -3313,6 +3487,9 @@ def _trace_report_value_counts(
         value = row.get(key)
         if isinstance(value, str) and value:
             counts[value] = counts.get(value, 0) + 1
+        elif isinstance(value, (int, float, bool)):
+            label = str(value)
+            counts[label] = counts.get(label, 0) + 1
     return dict(sorted(counts.items()))
 
 

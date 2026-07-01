@@ -249,6 +249,29 @@ def trace_report_summary_from_spec(spec: Mapping[str, Any]) -> dict[str, Any] | 
         "report_json_section_kind_counts": detail.get(
             "report_json_section_kind_counts"
         ),
+        "capture_count": detail.get("capture_count"),
+        "capture_process_kind_counts": detail.get("capture_process_kind_counts"),
+        "capture_backend_counts": detail.get("capture_backend_counts"),
+        "capture_trace_mode_counts": detail.get("capture_trace_mode_counts"),
+        "run_provenance_count": detail.get("run_provenance_count"),
+        "run_provenance_source_state_counts": detail.get(
+            "run_provenance_source_state_counts"
+        ),
+        "artifact_identity_count": detail.get("artifact_identity_count"),
+        "artifact_identity_artifact_counts": detail.get(
+            "artifact_identity_artifact_counts"
+        ),
+        "artifact_identity_load_status_counts": detail.get(
+            "artifact_identity_load_status_counts"
+        ),
+        "artifact_identity_check_count": detail.get("artifact_identity_check_count"),
+        "artifact_identity_check_status_counts": detail.get(
+            "artifact_identity_check_status_counts"
+        ),
+        "capture_capability_count": detail.get("capture_capability_count"),
+        "capture_capability_present_counts": detail.get(
+            "capture_capability_present_counts"
+        ),
         "trace_config_count": detail.get("trace_config_count"),
         "trace_config_status_counts": detail.get("trace_config_status_counts"),
         "trace_config_missing_requested_sidecar_counts": detail.get(
@@ -271,6 +294,13 @@ def trace_report_summary_from_spec(spec: Mapping[str, Any]) -> dict[str, Any] | 
         ),
         "provider_payload_boundary_recorded_lanes": detail.get(
             "provider_payload_boundary_recorded_lanes"
+        ),
+        "trace_event_artifact_count": detail.get("trace_event_artifact_count"),
+        "trace_event_artifact_status_counts": detail.get(
+            "trace_event_artifact_status_counts"
+        ),
+        "trace_event_artifact_event_kind_counts": detail.get(
+            "trace_event_artifact_event_kind_counts"
         ),
         "backend_event_artifact_count": detail.get("backend_event_artifact_count"),
         "backend_event_artifact_status_counts": detail.get(
@@ -485,11 +515,23 @@ def trace_report_summary_from_spec(spec: Mapping[str, Any]) -> dict[str, Any] | 
         "introspection_section_inventory_capability_counts": detail.get(
             "introspection_section_inventory_capability_counts"
         ),
+        "timeline_query_summary_count": detail.get("timeline_query_summary_count"),
+        "timeline_query_summary_status_counts": detail.get(
+            "timeline_query_summary_status_counts"
+        ),
         "next_measurement_samples": detail.get("next_measurement_samples"),
         "unsupported_claim_samples": detail.get("unsupported_claim_samples"),
         "analysis_command_samples": detail.get("analysis_command_samples"),
         "report_json_section_samples": detail.get("report_json_section_samples"),
+        "capture_samples": detail.get("capture_samples"),
+        "run_provenance_samples": detail.get("run_provenance_samples"),
+        "artifact_identity_samples": detail.get("artifact_identity_samples"),
+        "artifact_identity_check_samples": detail.get(
+            "artifact_identity_check_samples"
+        ),
+        "capture_capability_samples": detail.get("capture_capability_samples"),
         "trace_config_samples": detail.get("trace_config_samples"),
+        "trace_event_artifact_samples": detail.get("trace_event_artifact_samples"),
         "provider_payload_boundary_samples": detail.get(
             "provider_payload_boundary_samples"
         ),
@@ -555,6 +597,9 @@ def trace_report_summary_from_spec(spec: Mapping[str, Any]) -> dict[str, Any] | 
         ),
         "introspection_section_inventory_samples": detail.get(
             "introspection_section_inventory_samples"
+        ),
+        "timeline_query_summary_samples": detail.get(
+            "timeline_query_summary_samples"
         ),
         "supported_claim_samples": detail.get("supported_claim_samples"),
         "correctness_evidence_samples": detail.get("correctness_evidence_samples"),
@@ -664,6 +709,60 @@ def render_trace_report_lines(summary: Mapping[str, Any]) -> list[str]:
             + json.dumps(summary["report_json_section_kind_counts"], sort_keys=True)
             + "`"
         )
+    if summary.get("capture_trace_mode_counts"):
+        lines.append(
+            "- Capture trace modes: "
+            "`"
+            + json.dumps(summary["capture_trace_mode_counts"], sort_keys=True)
+            + "`"
+        )
+    if summary.get("capture_backend_counts"):
+        lines.append(
+            "- Capture backends: "
+            "`"
+            + json.dumps(summary["capture_backend_counts"], sort_keys=True)
+            + "`"
+        )
+    if summary.get("run_provenance_source_state_counts"):
+        lines.append(
+            "- Run provenance source states: "
+            "`"
+            + json.dumps(
+                summary["run_provenance_source_state_counts"],
+                sort_keys=True,
+            )
+            + "`"
+        )
+    if summary.get("artifact_identity_artifact_counts"):
+        lines.append(
+            "- Artifact identities: "
+            "`"
+            + json.dumps(
+                summary["artifact_identity_artifact_counts"],
+                sort_keys=True,
+            )
+            + "`"
+        )
+    if summary.get("artifact_identity_check_status_counts"):
+        lines.append(
+            "- Artifact identity checks: "
+            "`"
+            + json.dumps(
+                summary["artifact_identity_check_status_counts"],
+                sort_keys=True,
+            )
+            + "`"
+        )
+    if summary.get("capture_capability_present_counts"):
+        lines.append(
+            "- Capture capabilities: "
+            "`"
+            + json.dumps(
+                summary["capture_capability_present_counts"],
+                sort_keys=True,
+            )
+            + "`"
+        )
     if summary.get("trace_config_status_counts"):
         lines.append(
             "- Trace config: "
@@ -705,6 +804,26 @@ def render_trace_report_lines(summary: Mapping[str, Any]) -> list[str]:
             "`"
             + json.dumps(
                 summary["provider_payload_boundary_recorded_lanes"],
+                sort_keys=True,
+            )
+            + "`"
+        )
+    if summary.get("trace_event_artifact_status_counts"):
+        lines.append(
+            "- Trace event artifacts: "
+            "`"
+            + json.dumps(
+                summary["trace_event_artifact_status_counts"],
+                sort_keys=True,
+            )
+            + "`"
+        )
+    if summary.get("trace_event_artifact_event_kind_counts"):
+        lines.append(
+            "- Trace event artifact kinds: "
+            "`"
+            + json.dumps(
+                summary["trace_event_artifact_event_kind_counts"],
                 sort_keys=True,
             )
             + "`"
@@ -1151,6 +1270,16 @@ def render_trace_report_lines(summary: Mapping[str, Any]) -> list[str]:
             )
             + "`"
         )
+    if summary.get("timeline_query_summary_status_counts"):
+        lines.append(
+            "- Timeline query summary: "
+            "`"
+            + json.dumps(
+                summary["timeline_query_summary_status_counts"],
+                sort_keys=True,
+            )
+            + "`"
+        )
     for sample in summary.get("report_json_section_samples", [])[:6]:
         if not isinstance(sample, Mapping):
             continue
@@ -1166,6 +1295,113 @@ def render_trace_report_lines(summary: Mapping[str, Any]) -> list[str]:
             line = f"- Report JSON section: {json_path}"
             if parts:
                 line += " " + " ".join(parts)
+            lines.append(line)
+    for sample in summary.get("capture_samples", [])[:3]:
+        if not isinstance(sample, Mapping):
+            continue
+        trace_run_id = sample.get("trace_run_id")
+        process_kind = sample.get("process_kind")
+        trace_mode = sample.get("trace_mode")
+        trace_sinks = sample.get("trace_sinks")
+        backend_id = sample.get("backend_id")
+        model_id = sample.get("model_id")
+        target_plan_sha = sample.get("target_plan_sha256")
+        worktree_dirty = sample.get("worktree_dirty")
+        label = trace_run_id or process_kind or "unknown"
+        parts = []
+        if process_kind:
+            parts.append(f"process={process_kind}")
+        if trace_mode:
+            parts.append(f"mode={trace_mode}")
+        if trace_sinks:
+            parts.append(f"sinks={trace_sinks}")
+        if backend_id:
+            parts.append(f"backend={backend_id}")
+        if model_id:
+            parts.append(f"model={model_id}")
+        if target_plan_sha:
+            parts.append(f"target_plan_sha256={target_plan_sha}")
+        if _trace_report_sample_value_present(worktree_dirty):
+            parts.append(f"dirty={worktree_dirty}")
+        line = f"- Capture: {label}"
+        if parts:
+            line += " " + " ".join(parts)
+        lines.append(line)
+    for sample in summary.get("run_provenance_samples", [])[:3]:
+        if not isinstance(sample, Mapping):
+            continue
+        binary = sample.get("binary")
+        source_state = sample.get("source_state")
+        git_sha = sample.get("git_sha")
+        hardware_card_count = sample.get("hardware_card_count")
+        hardware_cards = sample.get("hardware_cards")
+        boundary = sample.get("provenance_boundary")
+        label = binary or source_state or "unknown"
+        parts = []
+        if source_state:
+            parts.append(f"source_state={source_state}")
+        if git_sha:
+            parts.append(f"git_sha={git_sha}")
+        if _trace_report_sample_value_present(hardware_card_count):
+            parts.append(f"hardware_cards={hardware_card_count}")
+        if hardware_cards:
+            parts.append(f"card_ids={hardware_cards}")
+        if boundary:
+            parts.append(f"boundary={boundary}")
+        line = f"- Run provenance: {label}"
+        if parts:
+            line += " " + " ".join(parts)
+        lines.append(line)
+    for sample in summary.get("artifact_identity_samples", [])[:3]:
+        if not isinstance(sample, Mapping):
+            continue
+        artifact = sample.get("artifact")
+        path = sample.get("path")
+        sha256 = sample.get("sha256")
+        load_status = sample.get("load_status")
+        status_source = sample.get("status_source")
+        if artifact:
+            parts = []
+            if path:
+                parts.append(f"path={path}")
+            if sha256:
+                parts.append(f"sha256={sha256}")
+            if load_status:
+                parts.append(f"load_status={load_status}")
+            if status_source:
+                parts.append(f"status_source={status_source}")
+            line = f"- Artifact identity: {artifact}"
+            if parts:
+                line += " " + " ".join(parts)
+            lines.append(line)
+    for sample in summary.get("artifact_identity_check_samples", [])[:3]:
+        if not isinstance(sample, Mapping):
+            continue
+        artifact = sample.get("artifact")
+        check = sample.get("check")
+        status = sample.get("status")
+        detail = sample.get("detail")
+        label = artifact or check or "unknown"
+        parts = []
+        if check:
+            parts.append(f"check={check}")
+        if status:
+            parts.append(f"status={status}")
+        if detail:
+            parts.append(f"detail={detail}")
+        line = f"- Artifact identity check: {label}"
+        if parts:
+            line += " " + " ".join(parts)
+        lines.append(line)
+    for sample in summary.get("capture_capability_samples", [])[:8]:
+        if not isinstance(sample, Mapping):
+            continue
+        capability = sample.get("capability")
+        present = sample.get("present")
+        if capability:
+            line = f"- Capture capability: {capability}"
+            if _trace_report_sample_value_present(present):
+                line += f" present={present}"
             lines.append(line)
     for sample in summary.get("trace_config_samples", [])[:3]:
         if not isinstance(sample, Mapping):
@@ -1198,6 +1434,32 @@ def render_trace_report_lines(summary: Mapping[str, Any]) -> list[str]:
             lines.append(line)
         if next_action:
             lines.append(f"  Next action: `{next_action}`")
+    for sample in summary.get("trace_event_artifact_samples", [])[:3]:
+        if not isinstance(sample, Mapping):
+            continue
+        path = sample.get("path")
+        index = sample.get("index")
+        status = sample.get("status")
+        row_count = sample.get("row_count")
+        matching_rows = sample.get("matching_trace_run_id_rows")
+        event_kinds = sample.get("event_kinds")
+        sha256 = sample.get("sha256")
+        label = path or index or "unknown"
+        parts = []
+        if status:
+            parts.append(f"status={status}")
+        if _trace_report_sample_value_present(row_count):
+            parts.append(f"rows={row_count}")
+        if _trace_report_sample_value_present(matching_rows):
+            parts.append(f"matching={matching_rows}")
+        if event_kinds:
+            parts.append(f"event_kinds={event_kinds}")
+        if sha256:
+            parts.append(f"sha256={sha256}")
+        line = f"- Trace event artifact: {label}"
+        if parts:
+            line += " " + " ".join(parts)
+        lines.append(line)
     for sample in summary.get("provider_payload_boundary_samples", [])[:3]:
         if not isinstance(sample, Mapping):
             continue
@@ -2480,6 +2742,32 @@ def render_trace_report_lines(summary: Mapping[str, Any]) -> list[str]:
             if any(parts):
                 line += " " + " ".join(part for part in parts if part)
             lines.append(line)
+    for sample in summary.get("timeline_query_summary_samples", [])[:3]:
+        if not isinstance(sample, Mapping):
+            continue
+        query = sample.get("query")
+        section = sample.get("section")
+        status = sample.get("status")
+        row_count = sample.get("row_count")
+        rendered_rows = sample.get("rendered_rows")
+        native_sql = sample.get("native_sql")
+        portable_command = sample.get("portable_command")
+        label = query or section or "unknown"
+        parts = []
+        if status:
+            parts.append(f"status={status}")
+        if _trace_report_sample_value_present(row_count):
+            parts.append(f"rows={row_count}")
+        if _trace_report_sample_value_present(rendered_rows):
+            parts.append(f"rendered={rendered_rows}")
+        if _trace_report_sample_value_present(native_sql):
+            parts.append(f"native_sql={native_sql}")
+        line = f"- Timeline query summary: {label}"
+        if parts:
+            line += " " + " ".join(parts)
+        lines.append(line)
+        if portable_command:
+            lines.append(f"  Command: `{portable_command}`")
     for sample in summary.get("supported_claim_samples", [])[:3]:
         if not isinstance(sample, Mapping):
             continue
@@ -2619,12 +2907,16 @@ def trace_report_prompt_section(spec: Mapping[str, Any]) -> list[str]:
         "Prefer the report's `sections.answerability`, `sections.unsupported_claims`,",
         "and `sections.next_measurements` before ad hoc log parsing. Use",
         "`sections.report_json_section_inventory` to discover available JSON",
-        "sections. Then read `sections.trace_config_rows` first to distinguish",
-        "requested controls, recorded sidecars, and",
-        "`missing_requested_sidecar_controls`, then use",
+        "sections. Then read `sections.capture`, `sections.run_provenance`,",
+        "`sections.artifact_identities`, `sections.artifact_identity_checks`,",
+        "and `sections.capture_capabilities` to verify capture provenance,",
+        "artifact hashes, and capability booleans before heavier evidence. Read",
+        "`sections.trace_config_rows` to distinguish requested controls,",
+        "recorded sidecars, and `missing_requested_sidecar_controls`, then use",
         "`sections.provider_payload_boundary_inventory_rows` to distinguish",
         "available, recorded, blocked, route-only runtime-sidecar, and",
         "other-backend provider/runtime payload lanes, then read",
+        "`sections.trace_event_artifacts`,",
         "`sections.backend_event_artifacts` and",
         "`sections.backend_event_rows` to inspect raw backend JSONL artifacts",
         "and matching backend event rows before higher-level classification, then read",
@@ -2665,6 +2957,9 @@ def trace_report_prompt_section(spec: Mapping[str, Any]) -> list[str]:
         "`sections.device_result_digest_sidecar_rows` to inspect compact",
         "device DMA/queue lifecycle, attention page, and result digest diagnostics without",
         "treating debug payload rows as performance proof.",
+        "Use `sections.timeline_query_summary` to choose named timeline",
+        "queries only after the capture/report provenance says the trace can",
+        "support them.",
         "If the current trace cannot answer the failing gate, run the named",
         "next-measurement query or capture command before editing production code.",
         "",
@@ -3737,7 +4032,7 @@ def gate_guidance(
             [
                 f"- Trace report JSON: `{resolve_run_path(str(value), cfg)}`",
                 "- Inspect `sections.answerability`, `sections.unsupported_claims`, and `sections.next_measurements` before ad hoc parsing.",
-                "- Read `sections.report_json_section_inventory` to discover available report sections, then read `sections.trace_config_rows` including `missing_requested_sidecar_controls`, `sections.provider_payload_boundary_inventory_rows` including recorded provider-callback rows and route-only runtime-sidecar rows, `sections.backend_event_artifacts`, `sections.backend_event_rows`, `sections.backend_provider_boundaries`, `sections.backend_fail_closed_root_causes`, `sections.debug_payload_artifact_summary_rows`, `sections.token_quality_summary_rows`, `sections.oracle_reference_summary_rows`, `sections.introspection_capability_rows`, `sections.introspection_artifact_summary_rows`, and `sections.introspection_section_inventory` before choosing sidecar-specific report sections such as `sections.planning_decision_sidecar_rows`, `sections.token_quality_sidecar_rows`, `sections.topk_token_sidecar_rows`, `sections.tensor_payload_sidecar_rows`, `sections.kv_payload_digest_sidecar_rows`, `sections.logit_slice_sidecar_rows`, `sections.activation_digest_sidecar_rows`, `sections.scheduler_packet_lineage_sidecar_rows`, `sections.scheduler_listener_sparse_logit_sidecar_rows`, `sections.device_dma_lifecycle_sidecar_rows`, `sections.attention_page_trace_sidecar_rows`, and `sections.device_result_digest_sidecar_rows`.",
+                "- Read `sections.report_json_section_inventory` to discover available report sections, then read `sections.capture`, `sections.run_provenance`, `sections.artifact_identities`, `sections.artifact_identity_checks`, `sections.capture_capabilities`, `sections.trace_config_rows` including `missing_requested_sidecar_controls`, `sections.provider_payload_boundary_inventory_rows` including recorded provider-callback rows and route-only runtime-sidecar rows, `sections.trace_event_artifacts`, `sections.backend_event_artifacts`, `sections.backend_event_rows`, `sections.backend_provider_boundaries`, `sections.backend_fail_closed_root_causes`, `sections.debug_payload_artifact_summary_rows`, `sections.token_quality_summary_rows`, `sections.oracle_reference_summary_rows`, `sections.introspection_capability_rows`, `sections.introspection_artifact_summary_rows`, and `sections.introspection_section_inventory` before choosing sidecar-specific report sections such as `sections.planning_decision_sidecar_rows`, `sections.token_quality_sidecar_rows`, `sections.topk_token_sidecar_rows`, `sections.tensor_payload_sidecar_rows`, `sections.kv_payload_digest_sidecar_rows`, `sections.logit_slice_sidecar_rows`, `sections.activation_digest_sidecar_rows`, `sections.scheduler_packet_lineage_sidecar_rows`, `sections.scheduler_listener_sparse_logit_sidecar_rows`, `sections.device_dma_lifecycle_sidecar_rows`, `sections.attention_page_trace_sidecar_rows`, and `sections.device_result_digest_sidecar_rows`; use `sections.timeline_query_summary` only after capture/report provenance supports timeline analysis.",
             ]
         )
     if value := spec.get("command_wrapper_plan"):
