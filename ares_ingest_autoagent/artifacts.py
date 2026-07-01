@@ -125,6 +125,10 @@ TRACE_REPORT_JSON_SECTION_SAMPLE_KEYS = (
     "evidence_artifact_checks",
     "promotion_gate_summary",
     "trace_mode_guardrails",
+    "ab_provenance",
+    "ab_comparability",
+    "ab_coverage",
+    "ab_repeatability",
     "answerability",
     "unsupported_claims",
     "next_measurements",
@@ -1637,6 +1641,10 @@ def validate_trace_report_json(report: Any) -> ArtifactValidation:
     evidence_artifact_check_rows: list[dict[str, Any]] = []
     promotion_gate_summary_rows: list[dict[str, Any]] = []
     trace_mode_guardrail_rows: list[dict[str, Any]] = []
+    ab_provenance_rows: list[dict[str, Any]] = []
+    ab_comparability_rows: list[dict[str, Any]] = []
+    ab_coverage_rows: list[dict[str, Any]] = []
+    ab_repeatability_rows: list[dict[str, Any]] = []
     report_json_section_rows: list[dict[str, Any]] = []
     trace_config_rows: list[dict[str, Any]] = []
     provider_payload_boundary_rows: list[dict[str, Any]] = []
@@ -1742,6 +1750,30 @@ def validate_trace_report_json(report: Any) -> ArtifactValidation:
             errors,
             sections,
             "trace_mode_guardrails",
+            required=False,
+        )
+        ab_provenance_rows = _trace_report_section_rows(
+            errors,
+            sections,
+            "ab_provenance",
+            required=False,
+        )
+        ab_comparability_rows = _trace_report_section_rows(
+            errors,
+            sections,
+            "ab_comparability",
+            required=False,
+        )
+        ab_coverage_rows = _trace_report_section_rows(
+            errors,
+            sections,
+            "ab_coverage",
+            required=False,
+        )
+        ab_repeatability_rows = _trace_report_section_rows(
+            errors,
+            sections,
+            "ab_repeatability",
             required=False,
         )
         report_json_section_rows = _trace_report_section_rows(
@@ -1955,6 +1987,8 @@ def validate_trace_report_json(report: Any) -> ArtifactValidation:
     ]
     if not report_json_section_sample_rows:
         report_json_section_sample_rows = report_json_section_rows
+    ab_coverage_row = ab_coverage_rows[0] if ab_coverage_rows else {}
+    ab_repeatability_row = ab_repeatability_rows[0] if ab_repeatability_rows else {}
 
     detail = {
         "schema_version": report.get("schema_version"),
@@ -2008,6 +2042,70 @@ def validate_trace_report_json(report: Any) -> ArtifactValidation:
         "trace_mode_guardrail_overhead_counts": _trace_report_value_counts(
             trace_mode_guardrail_rows,
             "overhead_boundary",
+        ),
+        "ab_provenance_count": len(ab_provenance_rows),
+        "ab_provenance_status_counts": _trace_report_value_counts(
+            ab_provenance_rows,
+            "provenance_status",
+        ),
+        "ab_provenance_source_state_counts": _trace_report_value_counts(
+            ab_provenance_rows,
+            "source_state",
+        ),
+        "ab_provenance_artifact_hash_status_counts": _trace_report_value_counts(
+            ab_provenance_rows,
+            "artifact_hash_status",
+        ),
+        "ab_provenance_proof_grade_status_counts": _trace_report_value_counts(
+            ab_provenance_rows,
+            "proof_grade_status",
+        ),
+        "ab_comparability_count": len(ab_comparability_rows),
+        "ab_comparability_status_counts": _trace_report_value_counts(
+            ab_comparability_rows,
+            "status",
+        ),
+        "ab_coverage_count": len(ab_coverage_rows),
+        "ab_coverage_status_counts": _trace_report_value_counts(
+            ab_coverage_rows,
+            "coverage_status",
+        ),
+        "ab_coverage_total_rows": _trace_report_int(
+            ab_coverage_row.get("total_rows")
+        ),
+        "ab_coverage_matched_rows": _trace_report_int(
+            ab_coverage_row.get("matched_rows")
+        ),
+        "ab_coverage_baseline_only_rows": _trace_report_int(
+            ab_coverage_row.get("baseline_only_rows")
+        ),
+        "ab_coverage_candidate_only_rows": _trace_report_int(
+            ab_coverage_row.get("candidate_only_rows")
+        ),
+        "ab_repeatability_count": len(ab_repeatability_rows),
+        "ab_repeatability_status_counts": _trace_report_value_counts(
+            ab_repeatability_rows,
+            "status",
+        ),
+        "ab_repeatability_proof_grade_status_counts": _trace_report_value_counts(
+            ab_repeatability_rows,
+            "proof_grade_status",
+        ),
+        "ab_repeatability_baseline_runs": _trace_report_int(
+            ab_repeatability_row.get("baseline_runs")
+        ),
+        "ab_repeatability_candidate_runs": _trace_report_int(
+            ab_repeatability_row.get("candidate_runs")
+        ),
+        "ab_repeatability_required_matched_runs_for_hardware_proof": (
+            _trace_report_int(
+                ab_repeatability_row.get(
+                    "required_matched_runs_for_hardware_proof"
+                )
+            )
+        ),
+        "ab_repeatability_matched_rows": _trace_report_int(
+            ab_repeatability_row.get("matched_rows")
         ),
         "report_json_section_count": len(report_json_section_rows),
         "report_json_section_kind_counts": _trace_report_value_counts(
@@ -2408,6 +2506,54 @@ def validate_trace_report_json(report: Any) -> ArtifactValidation:
                 "role",
                 "overhead_boundary",
                 "claim_guardrail",
+            ),
+        ),
+        "ab_provenance_samples": _trace_report_samples(
+            ab_provenance_rows,
+            (
+                "role",
+                "binary",
+                "git_sha",
+                "worktree_dirty",
+                "source_state",
+                "artifact_hash_count",
+                "artifact_hash_status",
+                "hardware_card_count",
+                "hardware_cards",
+                "provenance_status",
+                "proof_grade_status",
+                "basis",
+            ),
+            limit=4,
+        ),
+        "ab_comparability_samples": _trace_report_samples(
+            ab_comparability_rows,
+            ("status", "basis", "promotion_gate"),
+        ),
+        "ab_coverage_samples": _trace_report_samples(
+            ab_coverage_rows,
+            (
+                "align",
+                "coverage_status",
+                "total_rows",
+                "matched_rows",
+                "baseline_only_rows",
+                "candidate_only_rows",
+                "warnings",
+                "basis",
+            ),
+        ),
+        "ab_repeatability_samples": _trace_report_samples(
+            ab_repeatability_rows,
+            (
+                "status",
+                "align",
+                "baseline_runs",
+                "candidate_runs",
+                "required_matched_runs_for_hardware_proof",
+                "matched_rows",
+                "proof_grade_status",
+                "basis",
             ),
         ),
         "next_measurement_samples": _trace_report_samples(

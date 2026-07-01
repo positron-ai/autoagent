@@ -213,6 +213,103 @@ def trace_report_payload() -> dict:
                     "claim_guardrail": "do not treat trace timing as promotion proof",
                 }
             ],
+            "ab_provenance": [
+                {
+                    "role": "baseline",
+                    "binary": "target/debug/runares",
+                    "git_sha": SHA_A[:40],
+                    "worktree_dirty": "False",
+                    "source_state": "clean",
+                    "artifact_hash_count": 2,
+                    "artifact_hashes": "matched",
+                    "artifact_hash_status": "matched",
+                    "hardware_card_count": 1,
+                    "hardware_cards": "0000:01:00.0",
+                    "provenance_status": "clean_provenance",
+                    "proof_grade_status": "not_established_by_report",
+                    "basis": (
+                        "baseline binary, clean source state, artifact hashes, "
+                        "and hardware identity are recorded"
+                    ),
+                },
+                {
+                    "role": "candidate",
+                    "binary": "target/debug/runares",
+                    "git_sha": SHA_A[:40],
+                    "worktree_dirty": "False",
+                    "source_state": "clean",
+                    "artifact_hash_count": 2,
+                    "artifact_hashes": "matched",
+                    "artifact_hash_status": "matched",
+                    "hardware_card_count": 1,
+                    "hardware_cards": "0000:01:00.0",
+                    "provenance_status": "clean_provenance",
+                    "proof_grade_status": "not_established_by_report",
+                    "basis": (
+                        "candidate binary, clean source state, artifact hashes, "
+                        "and hardware identity are recorded"
+                    ),
+                },
+                {
+                    "role": "comparison",
+                    "binary": "",
+                    "git_sha": "",
+                    "worktree_dirty": "",
+                    "source_state": "",
+                    "artifact_hash_count": "",
+                    "artifact_hashes": "matched",
+                    "artifact_hash_status": "matched",
+                    "hardware_card_count": "",
+                    "hardware_cards": "matched",
+                    "provenance_status": "clean_provenance",
+                    "proof_grade_status": "not_established_by_report",
+                    "basis": (
+                        "baseline/candidate binary, clean source state, "
+                        "artifact hashes, and hardware identity are recorded"
+                    ),
+                },
+            ],
+            "ab_comparability": [
+                {
+                    "status": "comparison-grade",
+                    "basis": (
+                        "baseline/candidate preflight passed and metadata "
+                        "comparability checks passed"
+                    ),
+                    "promotion_gate": (
+                        "Still check correctness, provenance, repeatability, "
+                        "and external gates before proof-grade claims."
+                    ),
+                }
+            ],
+            "ab_coverage": [
+                {
+                    "align": "targetplan-op",
+                    "coverage_status": "partial_overlap",
+                    "total_rows": 5,
+                    "matched_rows": 4,
+                    "baseline_only_rows": 1,
+                    "candidate_only_rows": 0,
+                    "warnings": "",
+                    "basis": (
+                        "matched rows are present, but baseline-only or "
+                        "candidate-only rows must be reviewed as sample-count "
+                        "changes before interpreting deltas."
+                    ),
+                }
+            ],
+            "ab_repeatability": [
+                {
+                    "status": "insufficient_for_proof",
+                    "align": "targetplan-op",
+                    "baseline_runs": 1,
+                    "candidate_runs": 1,
+                    "required_matched_runs_for_hardware_proof": 3,
+                    "matched_rows": 4,
+                    "proof_grade_status": "not_established_by_report",
+                    "basis": "hardware A/B proof requires at least three matched runs",
+                }
+            ],
             "capture": [
                 {
                     "metadata": "run.trace-meta.json",
@@ -277,6 +374,34 @@ def trace_report_payload() -> dict:
                     "json_section": "trace_config_rows",
                     "section_kind": "capture_configuration",
                     "claim_boundary": "requested_controls_not_recorded_evidence",
+                },
+                {
+                    "heading": "A/B Provenance",
+                    "json_path": "sections.ab_provenance",
+                    "json_section": "ab_provenance",
+                    "section_kind": "comparison",
+                    "claim_boundary": "comparison_provenance",
+                },
+                {
+                    "heading": "A/B Comparability",
+                    "json_path": "sections.ab_comparability",
+                    "json_section": "ab_comparability",
+                    "section_kind": "comparison",
+                    "claim_boundary": "comparison_gate",
+                },
+                {
+                    "heading": "A/B Coverage",
+                    "json_path": "sections.ab_coverage",
+                    "json_section": "ab_coverage",
+                    "section_kind": "comparison",
+                    "claim_boundary": "comparison_coverage",
+                },
+                {
+                    "heading": "A/B Repeatability",
+                    "json_path": "sections.ab_repeatability",
+                    "json_section": "ab_repeatability",
+                    "section_kind": "comparison",
+                    "claim_boundary": "comparison_repeatability",
                 },
                 {
                     "heading": "Introspection Capability Rows",
@@ -1392,6 +1517,57 @@ class AresIngestCliTest(unittest.TestCase):
                 {"low_overhead": 1},
             )
             self.assertEqual(
+                state["trace_report"]["ab_provenance_status_counts"],
+                {"clean_provenance": 3},
+            )
+            self.assertEqual(
+                state["trace_report"]["ab_provenance_source_state_counts"],
+                {"clean": 2},
+            )
+            self.assertEqual(
+                state["trace_report"]["ab_provenance_artifact_hash_status_counts"],
+                {"matched": 3},
+            )
+            self.assertEqual(
+                state["trace_report"]["ab_provenance_proof_grade_status_counts"],
+                {"not_established_by_report": 3},
+            )
+            self.assertEqual(
+                state["trace_report"]["ab_comparability_status_counts"],
+                {"comparison-grade": 1},
+            )
+            self.assertEqual(
+                state["trace_report"]["ab_coverage_status_counts"],
+                {"partial_overlap": 1},
+            )
+            self.assertEqual(state["trace_report"]["ab_coverage_total_rows"], 5)
+            self.assertEqual(state["trace_report"]["ab_coverage_matched_rows"], 4)
+            self.assertEqual(
+                state["trace_report"]["ab_coverage_baseline_only_rows"],
+                1,
+            )
+            self.assertEqual(
+                state["trace_report"]["ab_coverage_candidate_only_rows"],
+                0,
+            )
+            self.assertEqual(
+                state["trace_report"]["ab_repeatability_status_counts"],
+                {"insufficient_for_proof": 1},
+            )
+            self.assertEqual(
+                state["trace_report"]["ab_repeatability_proof_grade_status_counts"],
+                {"not_established_by_report": 1},
+            )
+            self.assertEqual(state["trace_report"]["ab_repeatability_baseline_runs"], 1)
+            self.assertEqual(state["trace_report"]["ab_repeatability_candidate_runs"], 1)
+            self.assertEqual(
+                state["trace_report"][
+                    "ab_repeatability_required_matched_runs_for_hardware_proof"
+                ],
+                3,
+            )
+            self.assertEqual(state["trace_report"]["ab_repeatability_matched_rows"], 4)
+            self.assertEqual(
                 state["trace_report"]["capture_process_kind_counts"],
                 {"runares": 1},
             )
@@ -1686,12 +1862,13 @@ class AresIngestCliTest(unittest.TestCase):
                     "topk_rows": 1,
                 },
             )
-            self.assertEqual(state["trace_report"]["report_json_section_count"], 24)
+            self.assertEqual(state["trace_report"]["report_json_section_count"], 28)
             self.assertEqual(
                 state["trace_report"]["report_json_section_kind_counts"],
                 {
                     "backend_diagnostic": 4,
                     "capture_configuration": 1,
+                    "comparison": 4,
                     "debug_payload_diagnostic": 1,
                     "introspection": 1,
                     "introspection_inventory": 2,
@@ -1709,7 +1886,25 @@ class AresIngestCliTest(unittest.TestCase):
             self.assertIn("## Trace Report", handoff)
             self.assertIn("Report JSON sections", handoff)
             self.assertIn("Report JSON section: sections.trace_config_rows", handoff)
+            self.assertIn("Report JSON section: sections.ab_provenance", handoff)
+            self.assertIn("Report JSON section: sections.ab_comparability", handoff)
+            self.assertIn("Report JSON section: sections.ab_coverage", handoff)
+            self.assertIn("Report JSON section: sections.ab_repeatability", handoff)
             self.assertIn("Capture trace modes", handoff)
+            self.assertIn("A/B provenance", handoff)
+            self.assertIn("A/B artifact hashes", handoff)
+            self.assertIn("A/B comparability", handoff)
+            self.assertIn("A/B coverage", handoff)
+            self.assertIn("A/B repeatability", handoff)
+            self.assertIn("A/B provenance: comparison", handoff)
+            self.assertIn("status=clean_provenance", handoff)
+            self.assertIn("artifact_hashes=matched", handoff)
+            self.assertIn("A/B comparability: comparison-grade", handoff)
+            self.assertIn("A/B coverage: partial_overlap", handoff)
+            self.assertIn("align=targetplan-op", handoff)
+            self.assertIn("matched=4", handoff)
+            self.assertIn("A/B repeatability: insufficient_for_proof", handoff)
+            self.assertIn("required_runs=3", handoff)
             self.assertIn("Capture backends", handoff)
             self.assertIn("Run provenance source states", handoff)
             self.assertIn("Artifact identities", handoff)
@@ -1915,6 +2110,10 @@ class AresIngestCliTest(unittest.TestCase):
             self.assertIn("sections.artifact_identities", prompt)
             self.assertIn("sections.artifact_identity_checks", prompt)
             self.assertIn("sections.capture_capabilities", prompt)
+            self.assertIn("sections.ab_provenance", prompt)
+            self.assertIn("sections.ab_comparability", prompt)
+            self.assertIn("sections.ab_coverage", prompt)
+            self.assertIn("sections.ab_repeatability", prompt)
             self.assertIn("sections.trace_config_rows", prompt)
             self.assertIn("sections.provider_payload_boundary_inventory_rows", prompt)
             self.assertIn("sections.trace_event_artifacts", prompt)
@@ -1957,6 +2156,12 @@ class AresIngestCliTest(unittest.TestCase):
             self.assertIn("Timeline query summary: join-key-coverage", prompt)
             self.assertIn("capture provenance", prompt)
             self.assertIn("artifact hashes, and capability booleans", prompt)
+            self.assertIn("baseline/candidate delta", prompt)
+            self.assertIn("comparison-grade evidence", prompt)
+            self.assertIn("A/B provenance: comparison", prompt)
+            self.assertIn("A/B comparability: comparison-grade", prompt)
+            self.assertIn("A/B coverage: partial_overlap", prompt)
+            self.assertIn("A/B repeatability: insufficient_for_proof", prompt)
             self.assertIn("Provider payload boundary: fpga/kv_payload_digests", prompt)
             self.assertIn(
                 "Recorded provider payload boundary: fpga/kv_payload_digests",

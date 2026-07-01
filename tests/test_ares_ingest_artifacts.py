@@ -463,6 +463,116 @@ class AresIngestArtifactTest(unittest.TestCase):
                                     ),
                                 }
                             ],
+                            "ab_provenance": [
+                                {
+                                    "role": "baseline",
+                                    "binary": "target/debug/runares",
+                                    "git_sha": SHA_A[:40],
+                                    "worktree_dirty": "False",
+                                    "source_state": "clean",
+                                    "artifact_hash_count": 2,
+                                    "artifact_hashes": "matched",
+                                    "artifact_hash_status": "matched",
+                                    "hardware_card_count": 1,
+                                    "hardware_cards": "0000:01:00.0",
+                                    "provenance_status": "clean_provenance",
+                                    "proof_grade_status": (
+                                        "not_established_by_report"
+                                    ),
+                                    "basis": (
+                                        "baseline binary, clean source state, "
+                                        "artifact hashes, and hardware identity are recorded"
+                                    ),
+                                },
+                                {
+                                    "role": "candidate",
+                                    "binary": "target/debug/runares",
+                                    "git_sha": SHA_A[:40],
+                                    "worktree_dirty": "False",
+                                    "source_state": "clean",
+                                    "artifact_hash_count": 2,
+                                    "artifact_hashes": "matched",
+                                    "artifact_hash_status": "matched",
+                                    "hardware_card_count": 1,
+                                    "hardware_cards": "0000:01:00.0",
+                                    "provenance_status": "clean_provenance",
+                                    "proof_grade_status": (
+                                        "not_established_by_report"
+                                    ),
+                                    "basis": (
+                                        "candidate binary, clean source state, "
+                                        "artifact hashes, and hardware identity are recorded"
+                                    ),
+                                },
+                                {
+                                    "role": "comparison",
+                                    "binary": "",
+                                    "git_sha": "",
+                                    "worktree_dirty": "",
+                                    "source_state": "",
+                                    "artifact_hash_count": "",
+                                    "artifact_hashes": "matched",
+                                    "artifact_hash_status": "matched",
+                                    "hardware_card_count": "",
+                                    "hardware_cards": "matched",
+                                    "provenance_status": "clean_provenance",
+                                    "proof_grade_status": (
+                                        "not_established_by_report"
+                                    ),
+                                    "basis": (
+                                        "baseline/candidate binary, clean source "
+                                        "state, artifact hashes, and hardware "
+                                        "identity are recorded"
+                                    ),
+                                },
+                            ],
+                            "ab_comparability": [
+                                {
+                                    "status": "comparison-grade",
+                                    "basis": (
+                                        "baseline/candidate preflight passed "
+                                        "and metadata comparability checks passed"
+                                    ),
+                                    "promotion_gate": (
+                                        "Still check correctness, provenance, "
+                                        "repeatability, and external gates before "
+                                        "proof-grade claims."
+                                    ),
+                                }
+                            ],
+                            "ab_coverage": [
+                                {
+                                    "align": "targetplan-op",
+                                    "coverage_status": "partial_overlap",
+                                    "total_rows": 5,
+                                    "matched_rows": 4,
+                                    "baseline_only_rows": 1,
+                                    "candidate_only_rows": 0,
+                                    "warnings": "",
+                                    "basis": (
+                                        "matched rows are present, but baseline-only "
+                                        "or candidate-only rows must be reviewed as "
+                                        "sample-count changes before interpreting deltas."
+                                    ),
+                                }
+                            ],
+                            "ab_repeatability": [
+                                {
+                                    "status": "insufficient_for_proof",
+                                    "align": "targetplan-op",
+                                    "baseline_runs": 1,
+                                    "candidate_runs": 1,
+                                    "required_matched_runs_for_hardware_proof": 3,
+                                    "matched_rows": 4,
+                                    "proof_grade_status": (
+                                        "not_established_by_report"
+                                    ),
+                                    "basis": (
+                                        "hardware A/B proof requires at least "
+                                        "three matched runs"
+                                    ),
+                                }
+                            ],
                             "capture": [
                                 {
                                     "metadata": "run.trace-meta.json",
@@ -532,6 +642,34 @@ class AresIngestArtifactTest(unittest.TestCase):
                                     "claim_boundary": (
                                         "requested_controls_not_recorded_evidence"
                                     ),
+                                },
+                                {
+                                    "heading": "A/B Provenance",
+                                    "json_path": "sections.ab_provenance",
+                                    "json_section": "ab_provenance",
+                                    "section_kind": "comparison",
+                                    "claim_boundary": "comparison_provenance",
+                                },
+                                {
+                                    "heading": "A/B Comparability",
+                                    "json_path": "sections.ab_comparability",
+                                    "json_section": "ab_comparability",
+                                    "section_kind": "comparison",
+                                    "claim_boundary": "comparison_gate",
+                                },
+                                {
+                                    "heading": "A/B Coverage",
+                                    "json_path": "sections.ab_coverage",
+                                    "json_section": "ab_coverage",
+                                    "section_kind": "comparison",
+                                    "claim_boundary": "comparison_coverage",
+                                },
+                                {
+                                    "heading": "A/B Repeatability",
+                                    "json_path": "sections.ab_repeatability",
+                                    "json_section": "ab_repeatability",
+                                    "section_kind": "comparison",
+                                    "claim_boundary": "comparison_repeatability",
                                 },
                                 {
                                     "heading": "Introspection Capability Rows",
@@ -1645,6 +1783,52 @@ class AresIngestArtifactTest(unittest.TestCase):
                 gate["detail"]["trace_mode_guardrail_overhead_counts"],
                 {"low_overhead": 1},
             )
+            self.assertEqual(gate["detail"]["ab_provenance_count"], 3)
+            self.assertEqual(
+                gate["detail"]["ab_provenance_status_counts"],
+                {"clean_provenance": 3},
+            )
+            self.assertEqual(
+                gate["detail"]["ab_provenance_source_state_counts"],
+                {"clean": 2},
+            )
+            self.assertEqual(
+                gate["detail"]["ab_provenance_artifact_hash_status_counts"],
+                {"matched": 3},
+            )
+            self.assertEqual(
+                gate["detail"]["ab_provenance_proof_grade_status_counts"],
+                {"not_established_by_report": 3},
+            )
+            self.assertEqual(
+                gate["detail"]["ab_comparability_status_counts"],
+                {"comparison-grade": 1},
+            )
+            self.assertEqual(
+                gate["detail"]["ab_coverage_status_counts"],
+                {"partial_overlap": 1},
+            )
+            self.assertEqual(gate["detail"]["ab_coverage_total_rows"], 5)
+            self.assertEqual(gate["detail"]["ab_coverage_matched_rows"], 4)
+            self.assertEqual(gate["detail"]["ab_coverage_baseline_only_rows"], 1)
+            self.assertEqual(gate["detail"]["ab_coverage_candidate_only_rows"], 0)
+            self.assertEqual(
+                gate["detail"]["ab_repeatability_status_counts"],
+                {"insufficient_for_proof": 1},
+            )
+            self.assertEqual(
+                gate["detail"]["ab_repeatability_proof_grade_status_counts"],
+                {"not_established_by_report": 1},
+            )
+            self.assertEqual(gate["detail"]["ab_repeatability_baseline_runs"], 1)
+            self.assertEqual(gate["detail"]["ab_repeatability_candidate_runs"], 1)
+            self.assertEqual(
+                gate["detail"][
+                    "ab_repeatability_required_matched_runs_for_hardware_proof"
+                ],
+                3,
+            )
+            self.assertEqual(gate["detail"]["ab_repeatability_matched_rows"], 4)
             self.assertEqual(
                 gate["detail"]["capture_process_kind_counts"],
                 {"runares": 1},
@@ -1793,6 +1977,24 @@ class AresIngestArtifactTest(unittest.TestCase):
             self.assertEqual(
                 gate["detail"]["timeline_query_summary_samples"][0]["query"],
                 "join-key-coverage",
+            )
+            self.assertEqual(
+                gate["detail"]["ab_provenance_samples"][2]["role"],
+                "comparison",
+            )
+            self.assertEqual(
+                gate["detail"]["ab_comparability_samples"][0]["status"],
+                "comparison-grade",
+            )
+            self.assertEqual(
+                gate["detail"]["ab_coverage_samples"][0]["align"],
+                "targetplan-op",
+            )
+            self.assertEqual(
+                gate["detail"]["ab_repeatability_samples"][0][
+                    "proof_grade_status"
+                ],
+                "not_established_by_report",
             )
             self.assertEqual(
                 gate["detail"]["backend_fail_closed_root_cause_backend_counts"],
@@ -1950,12 +2152,13 @@ class AresIngestArtifactTest(unittest.TestCase):
                 gate["detail"]["attention_page_trace_sidecar_action_counts"],
                 {"attention": 1},
             )
-            self.assertEqual(gate["detail"]["report_json_section_count"], 24)
+            self.assertEqual(gate["detail"]["report_json_section_count"], 28)
             self.assertEqual(
                 gate["detail"]["report_json_section_kind_counts"],
                 {
                     "backend_diagnostic": 4,
                     "capture_configuration": 1,
+                    "comparison": 4,
                     "debug_payload_diagnostic": 1,
                     "introspection": 1,
                     "introspection_inventory": 2,
@@ -2321,6 +2524,42 @@ class AresIngestArtifactTest(unittest.TestCase):
         self.assertEqual(
             gate["detail"]["capture_capability_present_counts"],
             {"False": 2, "True": 15},
+        )
+        self.assertEqual(
+            gate["detail"]["ab_provenance_status_counts"],
+            {"not_applicable": 1},
+        )
+        self.assertEqual(
+            gate["detail"]["ab_provenance_proof_grade_status_counts"],
+            {"not_established_by_report": 1},
+        )
+        self.assertEqual(
+            gate["detail"]["ab_comparability_status_counts"],
+            {"not_applicable": 1},
+        )
+        self.assertEqual(
+            gate["detail"]["ab_coverage_status_counts"],
+            {"not_applicable": 1},
+        )
+        self.assertEqual(gate["detail"]["ab_coverage_total_rows"], 0)
+        self.assertEqual(gate["detail"]["ab_coverage_matched_rows"], 0)
+        self.assertEqual(
+            gate["detail"]["ab_repeatability_status_counts"],
+            {"not_applicable": 1},
+        )
+        self.assertEqual(
+            gate["detail"]["ab_repeatability_proof_grade_status_counts"],
+            {"not_established_by_report": 1},
+        )
+        self.assertEqual(
+            gate["detail"][
+                "ab_repeatability_required_matched_runs_for_hardware_proof"
+            ],
+            3,
+        )
+        self.assertEqual(
+            gate["detail"]["ab_provenance_samples"][0]["role"],
+            "comparison",
         )
         self.assertEqual(
             gate["detail"]["timeline_query_summary_status_counts"],

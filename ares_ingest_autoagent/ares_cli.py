@@ -245,6 +245,50 @@ def trace_report_summary_from_spec(spec: Mapping[str, Any]) -> dict[str, Any] | 
         "trace_mode_guardrail_overhead_counts": detail.get(
             "trace_mode_guardrail_overhead_counts"
         ),
+        "ab_provenance_count": detail.get("ab_provenance_count"),
+        "ab_provenance_status_counts": detail.get("ab_provenance_status_counts"),
+        "ab_provenance_source_state_counts": detail.get(
+            "ab_provenance_source_state_counts"
+        ),
+        "ab_provenance_artifact_hash_status_counts": detail.get(
+            "ab_provenance_artifact_hash_status_counts"
+        ),
+        "ab_provenance_proof_grade_status_counts": detail.get(
+            "ab_provenance_proof_grade_status_counts"
+        ),
+        "ab_comparability_count": detail.get("ab_comparability_count"),
+        "ab_comparability_status_counts": detail.get(
+            "ab_comparability_status_counts"
+        ),
+        "ab_coverage_count": detail.get("ab_coverage_count"),
+        "ab_coverage_status_counts": detail.get("ab_coverage_status_counts"),
+        "ab_coverage_total_rows": detail.get("ab_coverage_total_rows"),
+        "ab_coverage_matched_rows": detail.get("ab_coverage_matched_rows"),
+        "ab_coverage_baseline_only_rows": detail.get(
+            "ab_coverage_baseline_only_rows"
+        ),
+        "ab_coverage_candidate_only_rows": detail.get(
+            "ab_coverage_candidate_only_rows"
+        ),
+        "ab_repeatability_count": detail.get("ab_repeatability_count"),
+        "ab_repeatability_status_counts": detail.get(
+            "ab_repeatability_status_counts"
+        ),
+        "ab_repeatability_proof_grade_status_counts": detail.get(
+            "ab_repeatability_proof_grade_status_counts"
+        ),
+        "ab_repeatability_baseline_runs": detail.get(
+            "ab_repeatability_baseline_runs"
+        ),
+        "ab_repeatability_candidate_runs": detail.get(
+            "ab_repeatability_candidate_runs"
+        ),
+        "ab_repeatability_required_matched_runs_for_hardware_proof": detail.get(
+            "ab_repeatability_required_matched_runs_for_hardware_proof"
+        ),
+        "ab_repeatability_matched_rows": detail.get(
+            "ab_repeatability_matched_rows"
+        ),
         "report_json_section_count": detail.get("report_json_section_count"),
         "report_json_section_kind_counts": detail.get(
             "report_json_section_kind_counts"
@@ -610,6 +654,10 @@ def trace_report_summary_from_spec(spec: Mapping[str, Any]) -> dict[str, Any] | 
             "promotion_gate_summary_samples"
         ),
         "trace_mode_guardrail_samples": detail.get("trace_mode_guardrail_samples"),
+        "ab_provenance_samples": detail.get("ab_provenance_samples"),
+        "ab_comparability_samples": detail.get("ab_comparability_samples"),
+        "ab_coverage_samples": detail.get("ab_coverage_samples"),
+        "ab_repeatability_samples": detail.get("ab_repeatability_samples"),
         "section_names": detail.get("section_names"),
     }
     errors = gate.get("errors")
@@ -698,6 +746,50 @@ def render_trace_report_lines(summary: Mapping[str, Any]) -> list[str]:
             "`"
             + json.dumps(
                 summary["trace_mode_guardrail_overhead_counts"],
+                sort_keys=True,
+            )
+            + "`"
+        )
+    if summary.get("ab_provenance_status_counts"):
+        lines.append(
+            "- A/B provenance: "
+            "`"
+            + json.dumps(summary["ab_provenance_status_counts"], sort_keys=True)
+            + "`"
+        )
+    if summary.get("ab_provenance_artifact_hash_status_counts"):
+        lines.append(
+            "- A/B artifact hashes: "
+            "`"
+            + json.dumps(
+                summary["ab_provenance_artifact_hash_status_counts"],
+                sort_keys=True,
+            )
+            + "`"
+        )
+    if summary.get("ab_comparability_status_counts"):
+        lines.append(
+            "- A/B comparability: "
+            "`"
+            + json.dumps(
+                summary["ab_comparability_status_counts"],
+                sort_keys=True,
+            )
+            + "`"
+        )
+    if summary.get("ab_coverage_status_counts"):
+        lines.append(
+            "- A/B coverage: "
+            "`"
+            + json.dumps(summary["ab_coverage_status_counts"], sort_keys=True)
+            + "`"
+        )
+    if summary.get("ab_repeatability_status_counts"):
+        lines.append(
+            "- A/B repeatability: "
+            "`"
+            + json.dumps(
+                summary["ab_repeatability_status_counts"],
                 sort_keys=True,
             )
             + "`"
@@ -1434,6 +1526,109 @@ def render_trace_report_lines(summary: Mapping[str, Any]) -> list[str]:
             lines.append(line)
         if next_action:
             lines.append(f"  Next action: `{next_action}`")
+    for sample in summary.get("ab_provenance_samples", [])[:4]:
+        if not isinstance(sample, Mapping):
+            continue
+        role = sample.get("role")
+        status = sample.get("provenance_status")
+        source_state = sample.get("source_state")
+        artifact_hash_status = sample.get("artifact_hash_status")
+        hardware_cards = sample.get("hardware_cards")
+        proof_grade_status = sample.get("proof_grade_status")
+        basis = sample.get("basis")
+        label = role or status or "unknown"
+        parts = []
+        if status:
+            parts.append(f"status={status}")
+        if source_state:
+            parts.append(f"source_state={source_state}")
+        if artifact_hash_status:
+            parts.append(f"artifact_hashes={artifact_hash_status}")
+        if hardware_cards:
+            parts.append(f"hardware_cards={hardware_cards}")
+        if proof_grade_status:
+            parts.append(f"proof_grade={proof_grade_status}")
+        if basis:
+            parts.append(f"basis={basis}")
+        line = f"- A/B provenance: {label}"
+        if parts:
+            line += " " + " ".join(parts)
+        lines.append(line)
+    for sample in summary.get("ab_comparability_samples", [])[:3]:
+        if not isinstance(sample, Mapping):
+            continue
+        status = sample.get("status")
+        basis = sample.get("basis")
+        promotion_gate = sample.get("promotion_gate")
+        if status:
+            parts = []
+            if basis:
+                parts.append(f"basis={basis}")
+            if promotion_gate:
+                parts.append(f"gate={promotion_gate}")
+            line = f"- A/B comparability: {status}"
+            if parts:
+                line += " " + " ".join(parts)
+            lines.append(line)
+    for sample in summary.get("ab_coverage_samples", [])[:3]:
+        if not isinstance(sample, Mapping):
+            continue
+        status = sample.get("coverage_status")
+        align = sample.get("align")
+        matched_rows = sample.get("matched_rows")
+        baseline_only = sample.get("baseline_only_rows")
+        candidate_only = sample.get("candidate_only_rows")
+        warnings = sample.get("warnings")
+        basis = sample.get("basis")
+        if status:
+            parts = []
+            if align:
+                parts.append(f"align={align}")
+            if _trace_report_sample_value_present(matched_rows):
+                parts.append(f"matched={matched_rows}")
+            if _trace_report_sample_value_present(baseline_only):
+                parts.append(f"baseline_only={baseline_only}")
+            if _trace_report_sample_value_present(candidate_only):
+                parts.append(f"candidate_only={candidate_only}")
+            if warnings:
+                parts.append(f"warnings={warnings}")
+            if basis:
+                parts.append(f"basis={basis}")
+            line = f"- A/B coverage: {status}"
+            if parts:
+                line += " " + " ".join(parts)
+            lines.append(line)
+    for sample in summary.get("ab_repeatability_samples", [])[:3]:
+        if not isinstance(sample, Mapping):
+            continue
+        status = sample.get("status")
+        align = sample.get("align")
+        baseline_runs = sample.get("baseline_runs")
+        candidate_runs = sample.get("candidate_runs")
+        required_runs = sample.get("required_matched_runs_for_hardware_proof")
+        matched_rows = sample.get("matched_rows")
+        proof_grade_status = sample.get("proof_grade_status")
+        basis = sample.get("basis")
+        if status:
+            parts = []
+            if align:
+                parts.append(f"align={align}")
+            if _trace_report_sample_value_present(baseline_runs):
+                parts.append(f"baseline_runs={baseline_runs}")
+            if _trace_report_sample_value_present(candidate_runs):
+                parts.append(f"candidate_runs={candidate_runs}")
+            if _trace_report_sample_value_present(required_runs):
+                parts.append(f"required_runs={required_runs}")
+            if _trace_report_sample_value_present(matched_rows):
+                parts.append(f"matched={matched_rows}")
+            if proof_grade_status:
+                parts.append(f"proof_grade={proof_grade_status}")
+            if basis:
+                parts.append(f"basis={basis}")
+            line = f"- A/B repeatability: {status}"
+            if parts:
+                line += " " + " ".join(parts)
+            lines.append(line)
     for sample in summary.get("trace_event_artifact_samples", [])[:3]:
         if not isinstance(sample, Mapping):
             continue
@@ -2911,6 +3106,11 @@ def trace_report_prompt_section(spec: Mapping[str, Any]) -> list[str]:
         "`sections.artifact_identities`, `sections.artifact_identity_checks`,",
         "and `sections.capture_capabilities` to verify capture provenance,",
         "artifact hashes, and capability booleans before heavier evidence. Read",
+        "`sections.ab_provenance`, `sections.ab_comparability`,",
+        "`sections.ab_coverage`, and `sections.ab_repeatability` before",
+        "treating any baseline/candidate delta as comparison-grade evidence.",
+        "Those A/B sections remain diagnostic until provenance, coverage,",
+        "repeatability, correctness, and promotion gates are satisfied. Read",
         "`sections.trace_config_rows` to distinguish requested controls,",
         "recorded sidecars, and `missing_requested_sidecar_controls`, then use",
         "`sections.provider_payload_boundary_inventory_rows` to distinguish",
