@@ -3001,6 +3001,7 @@
         "introspection_requested": true,
         "json_section": "trace_config_rows",
         "max_payload_bytes": "4096",
+        "missing_requested_sidecar_controls": "",
         "next_action": "inspect_matching_introspection_report_sections",
         "payload_dir_present": true,
         "record_tokens_requested": true,
