@@ -24,6 +24,7 @@ from ares_ingest_autoagent.artifacts import (
 
 SHA_A = "a" * 64
 SHA_B = "b" * 64
+SHA_C = "c" * 64
 FIXTURE_DIR = Path(__file__).resolve().parent / "fixtures"
 
 
@@ -463,6 +464,28 @@ class AresIngestArtifactTest(unittest.TestCase):
                                     ),
                                 },
                                 {
+                                    "heading": "Backend Provider Boundaries",
+                                    "json_path": "sections.backend_provider_boundaries",
+                                    "json_section": "backend_provider_boundaries",
+                                    "section_kind": "backend_diagnostic",
+                                    "claim_boundary": (
+                                        "system_under_test_backend_provider_boundary"
+                                    ),
+                                },
+                                {
+                                    "heading": "Backend Fail-Closed Root Causes",
+                                    "json_path": (
+                                        "sections.backend_fail_closed_root_causes"
+                                    ),
+                                    "json_section": (
+                                        "backend_fail_closed_root_causes"
+                                    ),
+                                    "section_kind": "backend_diagnostic",
+                                    "claim_boundary": (
+                                        "system_under_test_backend_fail_closed_diagnostic"
+                                    ),
+                                },
+                                {
                                     "heading": "Debug Payload Artifact Summary Rows",
                                     "json_path": (
                                         "sections.debug_payload_artifact_summary_rows"
@@ -743,6 +766,87 @@ class AresIngestArtifactTest(unittest.TestCase):
                                     ),
                                 }
                             ],
+                            "backend_provider_boundaries": [
+                                {
+                                    "artifact_index": 0,
+                                    "row_index": 0,
+                                    "timestamp_ns": "1000",
+                                    "backend_id": "fpga",
+                                    "event_kind": "backend_selected",
+                                    "provider_stage": "session_open",
+                                    "boundary_status": "ok",
+                                    "root_cause_stage": "",
+                                    "root_cause": "",
+                                    "model_id": "trace-model",
+                                    "request_id": "",
+                                    "generation_id": "",
+                                    "targetplan_op_id": "",
+                                    "failure_reason": "",
+                                    "message": "backend selected",
+                                    "plan_artifact_status": "loaded",
+                                    "target_plan_artifact_status": "loaded",
+                                    "target_plan_validation_status": "accepted",
+                                    "runtime_binding_status": "static_bindings_ok",
+                                    "backend_descriptor_status": "supports_forward",
+                                    "hardware_gate_status": "not_requested",
+                                    "device_binding_status": "not_requested",
+                                    "weight_policy_status": "packed_int4_gptq",
+                                    "scheduler_targetplan_execution_step_bridge_status": "",
+                                },
+                                {
+                                    "artifact_index": 0,
+                                    "row_index": 1,
+                                    "timestamp_ns": "2000",
+                                    "backend_id": "fpga",
+                                    "event_kind": "forward_failed",
+                                    "provider_stage": "forward",
+                                    "boundary_status": "fail_closed",
+                                    "root_cause_stage": "targetplan_validation",
+                                    "root_cause": (
+                                        "target_plan_validation_status="
+                                        "rejected_scheduler_runtime_table_missing"
+                                    ),
+                                    "model_id": "trace-model",
+                                    "request_id": "boundary-req-0",
+                                    "generation_id": "boundary-gen-0",
+                                    "targetplan_op_id": "tp.boundary.0",
+                                    "failure_reason": (
+                                        "targetplan_validation_failed"
+                                    ),
+                                    "message": "fpga target plan rejected",
+                                    "plan_artifact_status": "loaded",
+                                    "target_plan_artifact_status": "loaded",
+                                    "target_plan_validation_status": (
+                                        "rejected_scheduler_runtime_table_missing"
+                                    ),
+                                    "runtime_binding_status": "static_bindings_ok",
+                                    "backend_descriptor_status": "supports_forward",
+                                    "hardware_gate_status": "not_requested",
+                                    "device_binding_status": "not_requested",
+                                    "weight_policy_status": "packed_int4_gptq",
+                                    "scheduler_targetplan_execution_step_bridge_status": "",
+                                },
+                            ],
+                            "backend_fail_closed_root_causes": [
+                                {
+                                    "backend_id": "fpga",
+                                    "provider_stage": "forward",
+                                    "root_cause_stage": "targetplan_validation",
+                                    "root_cause": (
+                                        "target_plan_validation_status="
+                                        "rejected_scheduler_runtime_table_missing"
+                                    ),
+                                    "event_kind": "forward_failed",
+                                    "failure_count": 1,
+                                    "example_model_id": "trace-model",
+                                    "example_request_id": "boundary-req-0",
+                                    "example_generation_id": "boundary-gen-0",
+                                    "example_targetplan_op_id": "tp.boundary.0",
+                                    "example_failure_reason": (
+                                        "targetplan_validation_failed"
+                                    ),
+                                }
+                            ],
                             "debug_payload_artifact_summary_rows": [
                                 {
                                     "artifact_kind": "attention_page_trace",
@@ -1006,6 +1110,36 @@ class AresIngestArtifactTest(unittest.TestCase):
                                     "sample_pos_inf_count": "0",
                                     "sample_neg_inf_count": "0",
                                     "sample_values": "[-0.125, 0.0, 0.25, 0.5]",
+                                }
+                            ],
+                            "device_result_digest_sidecar_rows": [
+                                {
+                                    "status": "ok",
+                                    "evidence_role": "system_under_test",
+                                    "backend_id": "fpga",
+                                    "request_id": "7009",
+                                    "generation_id": "rinzler-7009",
+                                    "token_index": "0",
+                                    "targetplan_op_id": "tp.device.result.0",
+                                    "targetplan_action": "device_result",
+                                    "layer": "2",
+                                    "intrinsic": "fpga.device_result_digest",
+                                    "tensor_payload_kind": "device_result_digest",
+                                    "tensor_name": "fpga_device_result",
+                                    "tensor_role": "device_result",
+                                    "element_type": "bf16",
+                                    "shape": "[4]",
+                                    "element_count": "4",
+                                    "digest_sha256": SHA_C,
+                                    "sample_start": "0",
+                                    "sample_stride": "1",
+                                    "sample_value_count": "2",
+                                    "sample_min": "1.25",
+                                    "sample_max": "2.5",
+                                    "sample_nan_count": "0",
+                                    "sample_pos_inf_count": "0",
+                                    "sample_neg_inf_count": "0",
+                                    "sample_values": "[1.25, 2.5]",
                                 }
                             ],
                             "scheduler_packet_lineage_sidecar_rows": [
@@ -1347,6 +1481,30 @@ class AresIngestArtifactTest(unittest.TestCase):
                 ["fpga/kv_payload_digests"],
             )
             self.assertEqual(
+                gate["detail"]["backend_provider_boundary_status_counts"],
+                {"fail_closed": 1, "ok": 1},
+            )
+            self.assertEqual(
+                gate["detail"]["backend_provider_boundary_stage_counts"],
+                {"forward": 1, "session_open": 1},
+            )
+            self.assertEqual(
+                gate["detail"]["backend_provider_boundary_root_stage_counts"],
+                {"targetplan_validation": 1},
+            )
+            self.assertEqual(
+                gate["detail"]["backend_fail_closed_root_cause_backend_counts"],
+                {"fpga": 1},
+            )
+            self.assertEqual(
+                gate["detail"]["backend_fail_closed_root_cause_stage_counts"],
+                {"forward": 1},
+            )
+            self.assertEqual(
+                gate["detail"]["backend_fail_closed_root_cause_root_stage_counts"],
+                {"targetplan_validation": 1},
+            )
+            self.assertEqual(
                 gate["detail"]["debug_payload_artifact_summary_status_counts"],
                 {"recorded": 1},
             )
@@ -1427,6 +1585,22 @@ class AresIngestArtifactTest(unittest.TestCase):
                 {"rmsnorm": 1},
             )
             self.assertEqual(
+                gate["detail"]["device_result_digest_sidecar_status_counts"],
+                {"ok": 1},
+            )
+            self.assertEqual(
+                gate["detail"]["device_result_digest_sidecar_role_counts"],
+                {"device_result": 1},
+            )
+            self.assertEqual(
+                gate["detail"]["device_result_digest_sidecar_action_counts"],
+                {"device_result": 1},
+            )
+            self.assertEqual(
+                gate["detail"]["device_result_digest_sidecar_intrinsic_counts"],
+                {"fpga.device_result_digest": 1},
+            )
+            self.assertEqual(
                 gate["detail"]["scheduler_packet_lineage_sidecar_status_counts"],
                 {"ok": 1},
             )
@@ -1474,10 +1648,11 @@ class AresIngestArtifactTest(unittest.TestCase):
                 gate["detail"]["attention_page_trace_sidecar_action_counts"],
                 {"attention": 1},
             )
-            self.assertEqual(gate["detail"]["report_json_section_count"], 20)
+            self.assertEqual(gate["detail"]["report_json_section_count"], 22)
             self.assertEqual(
                 gate["detail"]["report_json_section_kind_counts"],
                 {
+                    "backend_diagnostic": 2,
                     "capture_configuration": 1,
                     "debug_payload_diagnostic": 1,
                     "introspection": 1,
@@ -1577,6 +1752,36 @@ class AresIngestArtifactTest(unittest.TestCase):
                 "2",
             )
             self.assertEqual(
+                gate["detail"]["backend_provider_boundary_samples"][1][
+                    "boundary_status"
+                ],
+                "fail_closed",
+            )
+            self.assertEqual(
+                gate["detail"]["backend_provider_boundary_samples"][1][
+                    "root_cause_stage"
+                ],
+                "targetplan_validation",
+            )
+            self.assertEqual(
+                gate["detail"]["backend_provider_boundary_samples"][1][
+                    "targetplan_op_id"
+                ],
+                "tp.boundary.0",
+            )
+            self.assertEqual(
+                gate["detail"]["backend_fail_closed_root_cause_samples"][0][
+                    "root_cause"
+                ],
+                "target_plan_validation_status=rejected_scheduler_runtime_table_missing",
+            )
+            self.assertEqual(
+                gate["detail"]["backend_fail_closed_root_cause_samples"][0][
+                    "example_failure_reason"
+                ],
+                "targetplan_validation_failed",
+            )
+            self.assertEqual(
                 gate["detail"]["debug_payload_artifact_summary_samples"][0][
                     "artifact_kind"
                 ],
@@ -1658,6 +1863,30 @@ class AresIngestArtifactTest(unittest.TestCase):
             self.assertEqual(
                 gate["detail"]["activation_digest_sidecar_samples"][0]["intrinsic"],
                 "rmsnorm",
+            )
+            self.assertEqual(
+                gate["detail"]["device_result_digest_sidecar_samples"][0][
+                    "request_id"
+                ],
+                "7009",
+            )
+            self.assertEqual(
+                gate["detail"]["device_result_digest_sidecar_samples"][0][
+                    "tensor_name"
+                ],
+                "fpga_device_result",
+            )
+            self.assertEqual(
+                gate["detail"]["device_result_digest_sidecar_samples"][0][
+                    "digest_sha256"
+                ],
+                SHA_C,
+            )
+            self.assertEqual(
+                gate["detail"]["device_result_digest_sidecar_samples"][0][
+                    "sample_min"
+                ],
+                "1.25",
             )
             self.assertEqual(
                 gate["detail"]["scheduler_packet_lineage_sidecar_samples"][0][
@@ -1949,6 +2178,22 @@ class AresIngestArtifactTest(unittest.TestCase):
             {"rmsnorm": 1},
         )
         self.assertEqual(
+            gate["detail"]["device_result_digest_sidecar_status_counts"],
+            {"ok": 1},
+        )
+        self.assertEqual(
+            gate["detail"]["device_result_digest_sidecar_role_counts"],
+            {"device_result": 1},
+        )
+        self.assertEqual(
+            gate["detail"]["device_result_digest_sidecar_action_counts"],
+            {"device_result": 1},
+        )
+        self.assertEqual(
+            gate["detail"]["device_result_digest_sidecar_intrinsic_counts"],
+            {"fpga.device_result_digest": 1},
+        )
+        self.assertEqual(
             gate["detail"]["scheduler_packet_lineage_sidecar_status_counts"],
             {"ok": 1},
         )
@@ -2158,6 +2403,24 @@ class AresIngestArtifactTest(unittest.TestCase):
         self.assertEqual(
             gate["detail"]["activation_digest_sidecar_samples"][0]["intrinsic"],
             "rmsnorm",
+        )
+        self.assertEqual(
+            gate["detail"]["device_result_digest_sidecar_samples"][0]["request_id"],
+            "7009",
+        )
+        self.assertEqual(
+            gate["detail"]["device_result_digest_sidecar_samples"][0]["tensor_name"],
+            "fpga_device_result",
+        )
+        self.assertEqual(
+            gate["detail"]["device_result_digest_sidecar_samples"][0][
+                "digest_sha256"
+            ],
+            "e" * 64,
+        )
+        self.assertEqual(
+            gate["detail"]["device_result_digest_sidecar_samples"][0]["sample_max"],
+            "2.5",
         )
         self.assertEqual(
             gate["detail"]["scheduler_packet_lineage_sidecar_samples"][0][

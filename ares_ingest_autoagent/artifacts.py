@@ -72,6 +72,8 @@ TRACE_REPORT_REQUIRED_SECTIONS = (
 TRACE_REPORT_JSON_SECTION_SAMPLE_KEYS = (
     "trace_config_rows",
     "provider_payload_boundary_inventory_rows",
+    "backend_provider_boundaries",
+    "backend_fail_closed_root_causes",
     "debug_payload_artifact_summary_rows",
     "token_quality_summary_rows",
     "oracle_reference_summary_rows",
@@ -82,6 +84,7 @@ TRACE_REPORT_JSON_SECTION_SAMPLE_KEYS = (
     "kv_payload_digest_sidecar_rows",
     "logit_slice_sidecar_rows",
     "activation_digest_sidecar_rows",
+    "device_result_digest_sidecar_rows",
     "scheduler_packet_lineage_sidecar_rows",
     "scheduler_kv_shard_lifecycle_sidecar_rows",
     "scheduler_listener_sparse_logit_sidecar_rows",
@@ -1585,6 +1588,8 @@ def validate_trace_report_json(report: Any) -> ArtifactValidation:
     report_json_section_rows: list[dict[str, Any]] = []
     trace_config_rows: list[dict[str, Any]] = []
     provider_payload_boundary_rows: list[dict[str, Any]] = []
+    backend_provider_boundary_rows: list[dict[str, Any]] = []
+    backend_fail_closed_root_cause_rows: list[dict[str, Any]] = []
     debug_payload_artifact_summary_rows: list[dict[str, Any]] = []
     token_quality_summary_rows: list[dict[str, Any]] = []
     oracle_reference_summary_rows: list[dict[str, Any]] = []
@@ -1595,6 +1600,7 @@ def validate_trace_report_json(report: Any) -> ArtifactValidation:
     kv_payload_digest_sidecar_rows: list[dict[str, Any]] = []
     logit_slice_sidecar_rows: list[dict[str, Any]] = []
     activation_digest_sidecar_rows: list[dict[str, Any]] = []
+    device_result_digest_sidecar_rows: list[dict[str, Any]] = []
     scheduler_packet_lineage_sidecar_rows: list[dict[str, Any]] = []
     scheduler_kv_shard_lifecycle_sidecar_rows: list[dict[str, Any]] = []
     scheduler_listener_sparse_logit_sidecar_rows: list[dict[str, Any]] = []
@@ -1638,6 +1644,18 @@ def validate_trace_report_json(report: Any) -> ArtifactValidation:
             errors,
             sections,
             "provider_payload_boundary_inventory_rows",
+            required=False,
+        )
+        backend_provider_boundary_rows = _trace_report_section_rows(
+            errors,
+            sections,
+            "backend_provider_boundaries",
+            required=False,
+        )
+        backend_fail_closed_root_cause_rows = _trace_report_section_rows(
+            errors,
+            sections,
+            "backend_fail_closed_root_causes",
             required=False,
         )
         debug_payload_artifact_summary_rows = _trace_report_section_rows(
@@ -1698,6 +1716,12 @@ def validate_trace_report_json(report: Any) -> ArtifactValidation:
             errors,
             sections,
             "activation_digest_sidecar_rows",
+            required=False,
+        )
+        device_result_digest_sidecar_rows = _trace_report_section_rows(
+            errors,
+            sections,
+            "device_result_digest_sidecar_rows",
             required=False,
         )
         scheduler_packet_lineage_sidecar_rows = _trace_report_section_rows(
@@ -1841,6 +1865,40 @@ def validate_trace_report_json(report: Any) -> ArtifactValidation:
         "provider_payload_boundary_recorded_lanes": (
             _trace_report_provider_payload_lanes(provider_payload_recorded_rows)
         ),
+        "backend_provider_boundary_count": len(backend_provider_boundary_rows),
+        "backend_provider_boundary_status_counts": _trace_report_value_counts(
+            backend_provider_boundary_rows,
+            "boundary_status",
+        ),
+        "backend_provider_boundary_stage_counts": _trace_report_value_counts(
+            backend_provider_boundary_rows,
+            "provider_stage",
+        ),
+        "backend_provider_boundary_root_stage_counts": _trace_report_value_counts(
+            backend_provider_boundary_rows,
+            "root_cause_stage",
+        ),
+        "backend_fail_closed_root_cause_count": len(
+            backend_fail_closed_root_cause_rows
+        ),
+        "backend_fail_closed_root_cause_backend_counts": (
+            _trace_report_value_counts(
+                backend_fail_closed_root_cause_rows,
+                "backend_id",
+            )
+        ),
+        "backend_fail_closed_root_cause_stage_counts": (
+            _trace_report_value_counts(
+                backend_fail_closed_root_cause_rows,
+                "provider_stage",
+            )
+        ),
+        "backend_fail_closed_root_cause_root_stage_counts": (
+            _trace_report_value_counts(
+                backend_fail_closed_root_cause_rows,
+                "root_cause_stage",
+            )
+        ),
         "debug_payload_artifact_summary_count": len(
             debug_payload_artifact_summary_rows
         ),
@@ -1947,6 +2005,23 @@ def validate_trace_report_json(report: Any) -> ArtifactValidation:
         ),
         "activation_digest_sidecar_intrinsic_counts": _trace_report_value_counts(
             activation_digest_sidecar_rows,
+            "intrinsic",
+        ),
+        "device_result_digest_sidecar_count": len(device_result_digest_sidecar_rows),
+        "device_result_digest_sidecar_status_counts": _trace_report_value_counts(
+            device_result_digest_sidecar_rows,
+            "status",
+        ),
+        "device_result_digest_sidecar_role_counts": _trace_report_value_counts(
+            device_result_digest_sidecar_rows,
+            "tensor_role",
+        ),
+        "device_result_digest_sidecar_action_counts": _trace_report_value_counts(
+            device_result_digest_sidecar_rows,
+            "targetplan_action",
+        ),
+        "device_result_digest_sidecar_intrinsic_counts": _trace_report_value_counts(
+            device_result_digest_sidecar_rows,
             "intrinsic",
         ),
         "scheduler_packet_lineage_sidecar_count": len(
@@ -2144,6 +2219,51 @@ def validate_trace_report_json(report: Any) -> ArtifactValidation:
                 "payload_sensitivity",
                 "claim_boundary",
                 "next_action",
+            ),
+        ),
+        "backend_provider_boundary_samples": _trace_report_samples(
+            backend_provider_boundary_rows,
+            (
+                "artifact_index",
+                "row_index",
+                "timestamp_ns",
+                "backend_id",
+                "event_kind",
+                "provider_stage",
+                "boundary_status",
+                "root_cause_stage",
+                "root_cause",
+                "model_id",
+                "request_id",
+                "generation_id",
+                "targetplan_op_id",
+                "failure_reason",
+                "message",
+                "plan_artifact_status",
+                "target_plan_artifact_status",
+                "target_plan_validation_status",
+                "runtime_binding_status",
+                "backend_descriptor_status",
+                "hardware_gate_status",
+                "device_binding_status",
+                "weight_policy_status",
+                "scheduler_targetplan_execution_step_bridge_status",
+            ),
+        ),
+        "backend_fail_closed_root_cause_samples": _trace_report_samples(
+            backend_fail_closed_root_cause_rows,
+            (
+                "backend_id",
+                "provider_stage",
+                "root_cause_stage",
+                "root_cause",
+                "event_kind",
+                "failure_count",
+                "example_model_id",
+                "example_request_id",
+                "example_generation_id",
+                "example_targetplan_op_id",
+                "example_failure_reason",
             ),
         ),
         "debug_payload_artifact_summary_samples": _trace_report_samples(
@@ -2369,6 +2489,38 @@ def validate_trace_report_json(report: Any) -> ArtifactValidation:
         ),
         "activation_digest_sidecar_samples": _trace_report_samples(
             activation_digest_sidecar_rows,
+            (
+                "status",
+                "evidence_role",
+                "backend_id",
+                "request_id",
+                "generation_id",
+                "token_index",
+                "targetplan_op_id",
+                "targetplan_action",
+                "layer",
+                "intrinsic",
+                "tensor_payload_kind",
+                "tensor_name",
+                "tensor_role",
+                "element_type",
+                "shape",
+                "element_count",
+                "digest_sha256",
+                "sample_start",
+                "sample_stride",
+                "sample_value_count",
+                "sample_min",
+                "sample_max",
+                "sample_nan_count",
+                "sample_pos_inf_count",
+                "sample_neg_inf_count",
+                "sample_values",
+                "failure_reason",
+            ),
+        ),
+        "device_result_digest_sidecar_samples": _trace_report_samples(
+            device_result_digest_sidecar_rows,
             (
                 "status",
                 "evidence_role",

@@ -27,6 +27,7 @@ from ares_ingest_autoagent.ares_cli import (
 
 
 SHA_A = "a" * 64
+SHA_C = "c" * 64
 
 
 def sha256_file(path: Path) -> str:
@@ -189,6 +190,22 @@ def trace_report_payload() -> dict:
                     "json_section": "provider_payload_boundary_inventory_rows",
                     "section_kind": "introspection_inventory",
                     "claim_boundary": "payload_boundary_inventory_not_evidence",
+                },
+                {
+                    "heading": "Backend Provider Boundaries",
+                    "json_path": "sections.backend_provider_boundaries",
+                    "json_section": "backend_provider_boundaries",
+                    "section_kind": "backend_diagnostic",
+                    "claim_boundary": "system_under_test_backend_provider_boundary",
+                },
+                {
+                    "heading": "Backend Fail-Closed Root Causes",
+                    "json_path": "sections.backend_fail_closed_root_causes",
+                    "json_section": "backend_fail_closed_root_causes",
+                    "section_kind": "backend_diagnostic",
+                    "claim_boundary": (
+                        "system_under_test_backend_fail_closed_diagnostic"
+                    ),
                 },
                 {
                     "heading": "Debug Payload Artifact Summary Rows",
@@ -393,6 +410,83 @@ def trace_report_payload() -> dict:
                         "system_under_test_device_result_digest_diagnostic"
                     ),
                     "next_action": "wait_for_explicit_provider_payload_boundary",
+                }
+            ],
+            "backend_provider_boundaries": [
+                {
+                    "artifact_index": 0,
+                    "row_index": 0,
+                    "timestamp_ns": "1000",
+                    "backend_id": "fpga",
+                    "event_kind": "backend_selected",
+                    "provider_stage": "session_open",
+                    "boundary_status": "ok",
+                    "root_cause_stage": "",
+                    "root_cause": "",
+                    "model_id": "trace-model",
+                    "request_id": "",
+                    "generation_id": "",
+                    "targetplan_op_id": "",
+                    "failure_reason": "",
+                    "message": "backend selected",
+                    "plan_artifact_status": "loaded",
+                    "target_plan_artifact_status": "loaded",
+                    "target_plan_validation_status": "accepted",
+                    "runtime_binding_status": "static_bindings_ok",
+                    "backend_descriptor_status": "supports_forward",
+                    "hardware_gate_status": "not_requested",
+                    "device_binding_status": "not_requested",
+                    "weight_policy_status": "packed_int4_gptq",
+                    "scheduler_targetplan_execution_step_bridge_status": "",
+                },
+                {
+                    "artifact_index": 0,
+                    "row_index": 1,
+                    "timestamp_ns": "2000",
+                    "backend_id": "fpga",
+                    "event_kind": "forward_failed",
+                    "provider_stage": "forward",
+                    "boundary_status": "fail_closed",
+                    "root_cause_stage": "targetplan_validation",
+                    "root_cause": (
+                        "target_plan_validation_status="
+                        "rejected_scheduler_runtime_table_missing"
+                    ),
+                    "model_id": "trace-model",
+                    "request_id": "boundary-req-0",
+                    "generation_id": "boundary-gen-0",
+                    "targetplan_op_id": "tp.boundary.0",
+                    "failure_reason": "targetplan_validation_failed",
+                    "message": "fpga target plan rejected",
+                    "plan_artifact_status": "loaded",
+                    "target_plan_artifact_status": "loaded",
+                    "target_plan_validation_status": (
+                        "rejected_scheduler_runtime_table_missing"
+                    ),
+                    "runtime_binding_status": "static_bindings_ok",
+                    "backend_descriptor_status": "supports_forward",
+                    "hardware_gate_status": "not_requested",
+                    "device_binding_status": "not_requested",
+                    "weight_policy_status": "packed_int4_gptq",
+                    "scheduler_targetplan_execution_step_bridge_status": "",
+                },
+            ],
+            "backend_fail_closed_root_causes": [
+                {
+                    "backend_id": "fpga",
+                    "provider_stage": "forward",
+                    "root_cause_stage": "targetplan_validation",
+                    "root_cause": (
+                        "target_plan_validation_status="
+                        "rejected_scheduler_runtime_table_missing"
+                    ),
+                    "event_kind": "forward_failed",
+                    "failure_count": 1,
+                    "example_model_id": "trace-model",
+                    "example_request_id": "boundary-req-0",
+                    "example_generation_id": "boundary-gen-0",
+                    "example_targetplan_op_id": "tp.boundary.0",
+                    "example_failure_reason": "targetplan_validation_failed",
                 }
             ],
             "debug_payload_artifact_summary_rows": [
@@ -642,6 +736,36 @@ def trace_report_payload() -> dict:
                     "sample_pos_inf_count": "0",
                     "sample_neg_inf_count": "0",
                     "sample_values": "[-0.125, 0.0, 0.25, 0.5]",
+                }
+            ],
+            "device_result_digest_sidecar_rows": [
+                {
+                    "status": "ok",
+                    "evidence_role": "system_under_test",
+                    "backend_id": "fpga",
+                    "request_id": "7009",
+                    "generation_id": "rinzler-7009",
+                    "token_index": "0",
+                    "targetplan_op_id": "tp.device.result.0",
+                    "targetplan_action": "device_result",
+                    "layer": "2",
+                    "intrinsic": "fpga.device_result_digest",
+                    "tensor_payload_kind": "device_result_digest",
+                    "tensor_name": "fpga_device_result",
+                    "tensor_role": "device_result",
+                    "element_type": "bf16",
+                    "shape": "[4]",
+                    "element_count": "4",
+                    "digest_sha256": SHA_C,
+                    "sample_start": "0",
+                    "sample_stride": "1",
+                    "sample_value_count": "2",
+                    "sample_min": "1.25",
+                    "sample_max": "2.5",
+                    "sample_nan_count": "0",
+                    "sample_pos_inf_count": "0",
+                    "sample_neg_inf_count": "0",
+                    "sample_values": "[1.25, 2.5]",
                 }
             ],
             "scheduler_packet_lineage_sidecar_rows": [
@@ -1083,6 +1207,34 @@ class AresIngestCliTest(unittest.TestCase):
                 ["fpga/kv_payload_digests"],
             )
             self.assertEqual(
+                state["trace_report"]["backend_provider_boundary_status_counts"],
+                {"fail_closed": 1, "ok": 1},
+            )
+            self.assertEqual(
+                state["trace_report"]["backend_provider_boundary_stage_counts"],
+                {"forward": 1, "session_open": 1},
+            )
+            self.assertEqual(
+                state["trace_report"]["backend_provider_boundary_root_stage_counts"],
+                {"targetplan_validation": 1},
+            )
+            self.assertEqual(
+                state["trace_report"][
+                    "backend_fail_closed_root_cause_backend_counts"
+                ],
+                {"fpga": 1},
+            )
+            self.assertEqual(
+                state["trace_report"]["backend_fail_closed_root_cause_stage_counts"],
+                {"forward": 1},
+            )
+            self.assertEqual(
+                state["trace_report"][
+                    "backend_fail_closed_root_cause_root_stage_counts"
+                ],
+                {"targetplan_validation": 1},
+            )
+            self.assertEqual(
                 state["trace_report"]["debug_payload_artifact_summary_status_counts"],
                 {"recorded": 1},
             )
@@ -1163,6 +1315,24 @@ class AresIngestCliTest(unittest.TestCase):
                 {"rmsnorm": 1},
             )
             self.assertEqual(
+                state["trace_report"]["device_result_digest_sidecar_status_counts"],
+                {"ok": 1},
+            )
+            self.assertEqual(
+                state["trace_report"]["device_result_digest_sidecar_role_counts"],
+                {"device_result": 1},
+            )
+            self.assertEqual(
+                state["trace_report"]["device_result_digest_sidecar_action_counts"],
+                {"device_result": 1},
+            )
+            self.assertEqual(
+                state["trace_report"][
+                    "device_result_digest_sidecar_intrinsic_counts"
+                ],
+                {"fpga.device_result_digest": 1},
+            )
+            self.assertEqual(
                 state["trace_report"]["scheduler_packet_lineage_sidecar_status_counts"],
                 {"ok": 1},
             )
@@ -1233,10 +1403,11 @@ class AresIngestCliTest(unittest.TestCase):
                     "topk_rows": 1,
                 },
             )
-            self.assertEqual(state["trace_report"]["report_json_section_count"], 20)
+            self.assertEqual(state["trace_report"]["report_json_section_count"], 22)
             self.assertEqual(
                 state["trace_report"]["report_json_section_kind_counts"],
                 {
+                    "backend_diagnostic": 2,
                     "capture_configuration": 1,
                     "debug_payload_diagnostic": 1,
                     "introspection": 1,
@@ -1281,6 +1452,21 @@ class AresIngestCliTest(unittest.TestCase):
                 handoff,
             )
             self.assertIn("control=ARES_TRACE_RECORD_DEVICE_RESULTS=1", handoff)
+            self.assertIn("Backend provider boundaries", handoff)
+            self.assertIn("Backend provider boundary stages", handoff)
+            self.assertIn("Backend provider root stages", handoff)
+            self.assertIn("Backend fail-closed stages", handoff)
+            self.assertIn("Backend fail-closed root stages", handoff)
+            self.assertIn("Backend provider boundary: fpga", handoff)
+            self.assertIn("event=forward_failed", handoff)
+            self.assertIn("status=fail_closed", handoff)
+            self.assertIn("root_stage=targetplan_validation", handoff)
+            self.assertIn("op=tp.boundary.0", handoff)
+            self.assertIn("Backend fail-closed root cause: fpga", handoff)
+            self.assertIn(
+                "root=target_plan_validation_status=rejected_scheduler_runtime_table_missing",
+                handoff,
+            )
             self.assertIn(
                 "contract=fpga_scheduler_batch_dispatch_returns_completed_targetplan_listener_logits",
                 handoff,
@@ -1391,6 +1577,8 @@ class AresIngestCliTest(unittest.TestCase):
             self.assertIn("sections.report_json_section_inventory", prompt)
             self.assertIn("sections.trace_config_rows", prompt)
             self.assertIn("sections.provider_payload_boundary_inventory_rows", prompt)
+            self.assertIn("sections.backend_provider_boundaries", prompt)
+            self.assertIn("sections.backend_fail_closed_root_causes", prompt)
             self.assertIn("sections.debug_payload_artifact_summary_rows", prompt)
             self.assertIn("sections.planning_decision_sidecar_rows", prompt)
             self.assertIn("sections.token_quality_sidecar_rows", prompt)
@@ -1436,6 +1624,12 @@ class AresIngestCliTest(unittest.TestCase):
                 "producer=runtime_route_only_no_provider_producer",
                 prompt,
             )
+            self.assertIn("Backend provider boundaries", prompt)
+            self.assertIn("Backend provider boundary: fpga", prompt)
+            self.assertIn("event=forward_failed", prompt)
+            self.assertIn("status=fail_closed", prompt)
+            self.assertIn("root_stage=targetplan_validation", prompt)
+            self.assertIn("Backend fail-closed root cause: fpga", prompt)
             self.assertIn("policy=sha256_digest_plus_bounded_f32_sample", prompt)
             self.assertIn("sensitivity=scheduler_kv_save_values", prompt)
             self.assertIn("Debug payload artifact: attention_page_trace", prompt)
@@ -1456,6 +1650,15 @@ class AresIngestCliTest(unittest.TestCase):
             self.assertIn("action=final_logits", prompt)
             self.assertIn("Activation digest sidecar: request=7007", prompt)
             self.assertIn("intrinsic=rmsnorm", prompt)
+            self.assertIn("Device result digest sidecars", prompt)
+            self.assertIn("Device result digest roles", prompt)
+            self.assertIn("Device result digest actions", prompt)
+            self.assertIn("Device result digest intrinsics", prompt)
+            self.assertIn("Device result digest sidecar: request=7009", prompt)
+            self.assertIn("action=device_result", prompt)
+            self.assertIn("intrinsic=fpga.device_result_digest", prompt)
+            self.assertIn("tensor=fpga_device_result", prompt)
+            self.assertIn("sample_min=1.25", prompt)
             self.assertIn("Scheduler packet lineage: request=7002", prompt)
             self.assertIn("scheduler packet shape", prompt)
             self.assertIn("Scheduler K/V lifecycle: request=7002", prompt)

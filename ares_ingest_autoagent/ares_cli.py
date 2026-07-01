@@ -210,6 +210,30 @@ def trace_report_summary_from_spec(spec: Mapping[str, Any]) -> dict[str, Any] | 
         "provider_payload_boundary_recorded_lanes": detail.get(
             "provider_payload_boundary_recorded_lanes"
         ),
+        "backend_provider_boundary_count": detail.get(
+            "backend_provider_boundary_count"
+        ),
+        "backend_provider_boundary_status_counts": detail.get(
+            "backend_provider_boundary_status_counts"
+        ),
+        "backend_provider_boundary_stage_counts": detail.get(
+            "backend_provider_boundary_stage_counts"
+        ),
+        "backend_provider_boundary_root_stage_counts": detail.get(
+            "backend_provider_boundary_root_stage_counts"
+        ),
+        "backend_fail_closed_root_cause_count": detail.get(
+            "backend_fail_closed_root_cause_count"
+        ),
+        "backend_fail_closed_root_cause_backend_counts": detail.get(
+            "backend_fail_closed_root_cause_backend_counts"
+        ),
+        "backend_fail_closed_root_cause_stage_counts": detail.get(
+            "backend_fail_closed_root_cause_stage_counts"
+        ),
+        "backend_fail_closed_root_cause_root_stage_counts": detail.get(
+            "backend_fail_closed_root_cause_root_stage_counts"
+        ),
         "debug_payload_artifact_summary_count": detail.get(
             "debug_payload_artifact_summary_count"
         ),
@@ -300,6 +324,21 @@ def trace_report_summary_from_spec(spec: Mapping[str, Any]) -> dict[str, Any] | 
         "activation_digest_sidecar_intrinsic_counts": detail.get(
             "activation_digest_sidecar_intrinsic_counts"
         ),
+        "device_result_digest_sidecar_count": detail.get(
+            "device_result_digest_sidecar_count"
+        ),
+        "device_result_digest_sidecar_status_counts": detail.get(
+            "device_result_digest_sidecar_status_counts"
+        ),
+        "device_result_digest_sidecar_role_counts": detail.get(
+            "device_result_digest_sidecar_role_counts"
+        ),
+        "device_result_digest_sidecar_action_counts": detail.get(
+            "device_result_digest_sidecar_action_counts"
+        ),
+        "device_result_digest_sidecar_intrinsic_counts": detail.get(
+            "device_result_digest_sidecar_intrinsic_counts"
+        ),
         "scheduler_packet_lineage_sidecar_count": detail.get(
             "scheduler_packet_lineage_sidecar_count"
         ),
@@ -384,6 +423,12 @@ def trace_report_summary_from_spec(spec: Mapping[str, Any]) -> dict[str, Any] | 
         "provider_payload_boundary_recorded_samples": detail.get(
             "provider_payload_boundary_recorded_samples"
         ),
+        "backend_provider_boundary_samples": detail.get(
+            "backend_provider_boundary_samples"
+        ),
+        "backend_fail_closed_root_cause_samples": detail.get(
+            "backend_fail_closed_root_cause_samples"
+        ),
         "debug_payload_artifact_summary_samples": detail.get(
             "debug_payload_artifact_summary_samples"
         ),
@@ -403,6 +448,9 @@ def trace_report_summary_from_spec(spec: Mapping[str, Any]) -> dict[str, Any] | 
         "logit_slice_sidecar_samples": detail.get("logit_slice_sidecar_samples"),
         "activation_digest_sidecar_samples": detail.get(
             "activation_digest_sidecar_samples"
+        ),
+        "device_result_digest_sidecar_samples": detail.get(
+            "device_result_digest_sidecar_samples"
         ),
         "scheduler_packet_lineage_sidecar_samples": detail.get(
             "scheduler_packet_lineage_sidecar_samples"
@@ -508,6 +556,56 @@ def render_trace_report_lines(summary: Mapping[str, Any]) -> list[str]:
             "`"
             + json.dumps(
                 summary["provider_payload_boundary_recorded_lanes"],
+                sort_keys=True,
+            )
+            + "`"
+        )
+    if summary.get("backend_provider_boundary_status_counts"):
+        lines.append(
+            "- Backend provider boundaries: "
+            "`"
+            + json.dumps(
+                summary["backend_provider_boundary_status_counts"],
+                sort_keys=True,
+            )
+            + "`"
+        )
+    if summary.get("backend_provider_boundary_stage_counts"):
+        lines.append(
+            "- Backend provider boundary stages: "
+            "`"
+            + json.dumps(
+                summary["backend_provider_boundary_stage_counts"],
+                sort_keys=True,
+            )
+            + "`"
+        )
+    if summary.get("backend_provider_boundary_root_stage_counts"):
+        lines.append(
+            "- Backend provider root stages: "
+            "`"
+            + json.dumps(
+                summary["backend_provider_boundary_root_stage_counts"],
+                sort_keys=True,
+            )
+            + "`"
+        )
+    if summary.get("backend_fail_closed_root_cause_stage_counts"):
+        lines.append(
+            "- Backend fail-closed stages: "
+            "`"
+            + json.dumps(
+                summary["backend_fail_closed_root_cause_stage_counts"],
+                sort_keys=True,
+            )
+            + "`"
+        )
+    if summary.get("backend_fail_closed_root_cause_root_stage_counts"):
+        lines.append(
+            "- Backend fail-closed root stages: "
+            "`"
+            + json.dumps(
+                summary["backend_fail_closed_root_cause_root_stage_counts"],
                 sort_keys=True,
             )
             + "`"
@@ -688,6 +786,46 @@ def render_trace_report_lines(summary: Mapping[str, Any]) -> list[str]:
             "`"
             + json.dumps(
                 summary["activation_digest_sidecar_intrinsic_counts"],
+                sort_keys=True,
+            )
+            + "`"
+        )
+    if summary.get("device_result_digest_sidecar_status_counts"):
+        lines.append(
+            "- Device result digest sidecars: "
+            "`"
+            + json.dumps(
+                summary["device_result_digest_sidecar_status_counts"],
+                sort_keys=True,
+            )
+            + "`"
+        )
+    if summary.get("device_result_digest_sidecar_role_counts"):
+        lines.append(
+            "- Device result digest roles: "
+            "`"
+            + json.dumps(
+                summary["device_result_digest_sidecar_role_counts"],
+                sort_keys=True,
+            )
+            + "`"
+        )
+    if summary.get("device_result_digest_sidecar_action_counts"):
+        lines.append(
+            "- Device result digest actions: "
+            "`"
+            + json.dumps(
+                summary["device_result_digest_sidecar_action_counts"],
+                sort_keys=True,
+            )
+            + "`"
+        )
+    if summary.get("device_result_digest_sidecar_intrinsic_counts"):
+        lines.append(
+            "- Device result digest intrinsics: "
+            "`"
+            + json.dumps(
+                summary["device_result_digest_sidecar_intrinsic_counts"],
                 sort_keys=True,
             )
             + "`"
@@ -1024,6 +1162,98 @@ def render_trace_report_lines(summary: Mapping[str, Any]) -> list[str]:
             lines.append(line)
         if next_action:
             lines.append(f"  Next action: `{next_action}`")
+    for sample in summary.get("backend_provider_boundary_samples", [])[:3]:
+        if not isinstance(sample, Mapping):
+            continue
+        backend_id = sample.get("backend_id")
+        event_kind = sample.get("event_kind")
+        provider_stage = sample.get("provider_stage")
+        boundary_status = sample.get("boundary_status")
+        root_stage = sample.get("root_cause_stage")
+        root_cause = sample.get("root_cause")
+        request_id = sample.get("request_id")
+        generation_id = sample.get("generation_id")
+        targetplan_op_id = sample.get("targetplan_op_id")
+        failure_reason = sample.get("failure_reason")
+        message = sample.get("message")
+        target_plan_status = sample.get("target_plan_validation_status")
+        runtime_binding_status = sample.get("runtime_binding_status")
+        hardware_gate_status = sample.get("hardware_gate_status")
+        device_binding_status = sample.get("device_binding_status")
+        weight_policy_status = sample.get("weight_policy_status")
+        label = backend_id or event_kind or "unknown"
+        parts = []
+        if event_kind:
+            parts.append(f"event={event_kind}")
+        if provider_stage:
+            parts.append(f"stage={provider_stage}")
+        if boundary_status:
+            parts.append(f"status={boundary_status}")
+        if root_stage:
+            parts.append(f"root_stage={root_stage}")
+        if root_cause:
+            parts.append(f"root={root_cause}")
+        if _trace_report_sample_value_present(request_id):
+            parts.append(f"request={request_id}")
+        if _trace_report_sample_value_present(generation_id):
+            parts.append(f"generation={generation_id}")
+        if targetplan_op_id:
+            parts.append(f"op={targetplan_op_id}")
+        if target_plan_status:
+            parts.append(f"target_plan={target_plan_status}")
+        if runtime_binding_status:
+            parts.append(f"runtime_binding={runtime_binding_status}")
+        if hardware_gate_status:
+            parts.append(f"hardware_gate={hardware_gate_status}")
+        if device_binding_status:
+            parts.append(f"device_binding={device_binding_status}")
+        if weight_policy_status:
+            parts.append(f"weight_policy={weight_policy_status}")
+        if failure_reason:
+            parts.append(f"failure={failure_reason}")
+        if message:
+            parts.append(f"message={message}")
+        line = f"- Backend provider boundary: {label}"
+        if parts:
+            line += " " + " ".join(parts)
+        lines.append(line)
+    for sample in summary.get("backend_fail_closed_root_cause_samples", [])[:3]:
+        if not isinstance(sample, Mapping):
+            continue
+        backend_id = sample.get("backend_id")
+        provider_stage = sample.get("provider_stage")
+        root_stage = sample.get("root_cause_stage")
+        root_cause = sample.get("root_cause")
+        event_kind = sample.get("event_kind")
+        failure_count = sample.get("failure_count")
+        example_request_id = sample.get("example_request_id")
+        example_generation_id = sample.get("example_generation_id")
+        example_op_id = sample.get("example_targetplan_op_id")
+        example_failure = sample.get("example_failure_reason")
+        label = backend_id or root_stage or "unknown"
+        parts = []
+        if provider_stage:
+            parts.append(f"stage={provider_stage}")
+        if root_stage:
+            parts.append(f"root_stage={root_stage}")
+        if root_cause:
+            parts.append(f"root={root_cause}")
+        if event_kind:
+            parts.append(f"event={event_kind}")
+        if _trace_report_sample_value_present(failure_count):
+            parts.append(f"count={failure_count}")
+        if _trace_report_sample_value_present(example_request_id):
+            parts.append(f"request={example_request_id}")
+        if _trace_report_sample_value_present(example_generation_id):
+            parts.append(f"generation={example_generation_id}")
+        if example_op_id:
+            parts.append(f"op={example_op_id}")
+        if example_failure:
+            parts.append(f"failure={example_failure}")
+        line = f"- Backend fail-closed root cause: {label}"
+        if parts:
+            line += " " + " ".join(parts)
+        lines.append(line)
     for sample in summary.get("debug_payload_artifact_summary_samples", [])[:3]:
         if not isinstance(sample, Mapping):
             continue
@@ -1430,6 +1660,73 @@ def render_trace_report_lines(summary: Mapping[str, Any]) -> list[str]:
         if failure_reason:
             parts.append(f"failure={failure_reason}")
         line = f"- Activation digest sidecar: request={label}"
+        if parts:
+            line += " " + " ".join(parts)
+        lines.append(line)
+    for sample in summary.get("device_result_digest_sidecar_samples", [])[:3]:
+        if not isinstance(sample, Mapping):
+            continue
+        request_id = sample.get("request_id")
+        generation_id = sample.get("generation_id")
+        token_index = sample.get("token_index")
+        backend_id = sample.get("backend_id")
+        targetplan_op_id = sample.get("targetplan_op_id")
+        targetplan_action = sample.get("targetplan_action")
+        layer = sample.get("layer")
+        intrinsic = sample.get("intrinsic")
+        tensor_name = sample.get("tensor_name")
+        tensor_role = sample.get("tensor_role")
+        shape = sample.get("shape")
+        element_count = sample.get("element_count")
+        digest = sample.get("digest_sha256")
+        sample_count = sample.get("sample_value_count")
+        sample_min = sample.get("sample_min")
+        sample_max = sample.get("sample_max")
+        sample_nan_count = sample.get("sample_nan_count")
+        failure_reason = sample.get("failure_reason")
+        label = (
+            request_id
+            if _trace_report_sample_value_present(request_id)
+            else generation_id
+            if _trace_report_sample_value_present(generation_id)
+            else "unknown"
+        )
+        parts = []
+        if _trace_report_sample_value_present(generation_id):
+            parts.append(f"generation={generation_id}")
+        if _trace_report_sample_value_present(token_index):
+            parts.append(f"token_index={token_index}")
+        if backend_id:
+            parts.append(f"backend={backend_id}")
+        if targetplan_op_id:
+            parts.append(f"op={targetplan_op_id}")
+        if targetplan_action:
+            parts.append(f"action={targetplan_action}")
+        if _trace_report_sample_value_present(layer):
+            parts.append(f"layer={layer}")
+        if intrinsic:
+            parts.append(f"intrinsic={intrinsic}")
+        if tensor_role:
+            parts.append(f"role={tensor_role}")
+        if tensor_name:
+            parts.append(f"tensor={tensor_name}")
+        if shape:
+            parts.append(f"shape={shape}")
+        if _trace_report_sample_value_present(element_count):
+            parts.append(f"elements={element_count}")
+        if _trace_report_sample_value_present(sample_count):
+            parts.append(f"samples={sample_count}")
+        if _trace_report_sample_value_present(sample_min):
+            parts.append(f"sample_min={sample_min}")
+        if _trace_report_sample_value_present(sample_max):
+            parts.append(f"sample_max={sample_max}")
+        if _trace_report_sample_value_present(sample_nan_count):
+            parts.append(f"sample_nan={sample_nan_count}")
+        if digest:
+            parts.append(f"digest_sha256={digest}")
+        if failure_reason:
+            parts.append(f"failure={failure_reason}")
+        line = f"- Device result digest sidecar: request={label}"
         if parts:
             line += " " + " ".join(parts)
         lines.append(line)
@@ -1990,6 +2287,9 @@ def trace_report_prompt_section(spec: Mapping[str, Any]) -> list[str]:
         "`sections.provider_payload_boundary_inventory_rows` to distinguish",
         "available, recorded, blocked, route-only runtime-sidecar, and",
         "other-backend provider/runtime payload lanes, then read",
+        "`sections.backend_provider_boundaries` and",
+        "`sections.backend_fail_closed_root_causes` to inspect provider",
+        "validation stages and fail-closed root causes, then read",
         "`sections.debug_payload_artifact_summary_rows` to see payload",
         "sensitivity and timing-perturbation boundaries. Then read",
         "`sections.token_quality_summary_rows` and",
@@ -3016,7 +3316,7 @@ def gate_guidance(
             [
                 f"- Trace report JSON: `{resolve_run_path(str(value), cfg)}`",
                 "- Inspect `sections.answerability`, `sections.unsupported_claims`, and `sections.next_measurements` before ad hoc parsing.",
-                "- Read `sections.report_json_section_inventory` to discover available report sections, then read `sections.trace_config_rows` including `missing_requested_sidecar_controls`, `sections.provider_payload_boundary_inventory_rows` including recorded provider-callback rows and route-only runtime-sidecar rows, `sections.debug_payload_artifact_summary_rows`, `sections.token_quality_summary_rows`, `sections.oracle_reference_summary_rows`, `sections.introspection_capability_rows`, `sections.introspection_artifact_summary_rows`, and `sections.introspection_section_inventory` before choosing sidecar-specific report sections such as `sections.planning_decision_sidecar_rows`, `sections.token_quality_sidecar_rows`, `sections.topk_token_sidecar_rows`, `sections.tensor_payload_sidecar_rows`, `sections.kv_payload_digest_sidecar_rows`, `sections.logit_slice_sidecar_rows`, `sections.activation_digest_sidecar_rows`, `sections.scheduler_packet_lineage_sidecar_rows`, `sections.scheduler_listener_sparse_logit_sidecar_rows`, `sections.device_dma_lifecycle_sidecar_rows`, `sections.attention_page_trace_sidecar_rows`, and `sections.device_result_digest_sidecar_rows`.",
+                "- Read `sections.report_json_section_inventory` to discover available report sections, then read `sections.trace_config_rows` including `missing_requested_sidecar_controls`, `sections.provider_payload_boundary_inventory_rows` including recorded provider-callback rows and route-only runtime-sidecar rows, `sections.backend_provider_boundaries`, `sections.backend_fail_closed_root_causes`, `sections.debug_payload_artifact_summary_rows`, `sections.token_quality_summary_rows`, `sections.oracle_reference_summary_rows`, `sections.introspection_capability_rows`, `sections.introspection_artifact_summary_rows`, and `sections.introspection_section_inventory` before choosing sidecar-specific report sections such as `sections.planning_decision_sidecar_rows`, `sections.token_quality_sidecar_rows`, `sections.topk_token_sidecar_rows`, `sections.tensor_payload_sidecar_rows`, `sections.kv_payload_digest_sidecar_rows`, `sections.logit_slice_sidecar_rows`, `sections.activation_digest_sidecar_rows`, `sections.scheduler_packet_lineage_sidecar_rows`, `sections.scheduler_listener_sparse_logit_sidecar_rows`, `sections.device_dma_lifecycle_sidecar_rows`, `sections.attention_page_trace_sidecar_rows`, and `sections.device_result_digest_sidecar_rows`.",
             ]
         )
     if value := spec.get("command_wrapper_plan"):
