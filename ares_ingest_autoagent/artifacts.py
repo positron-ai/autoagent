@@ -89,6 +89,9 @@ TRACE_REPORT_REQUIRED_SECTIONS = (
     "next_measurements",
 )
 TRACE_REPORT_JSON_SECTION_SAMPLE_KEYS = (
+    "preflight",
+    "analysis_commands",
+    "report_grade",
     "capture",
     "run_provenance",
     "artifact_identities",
@@ -130,6 +133,7 @@ TRACE_REPORT_JSON_SECTION_SAMPLE_KEYS = (
     "ab_comparability",
     "ab_coverage",
     "ab_repeatability",
+    "report_json_section_inventory",
     "report_section_inventory",
     "preflight_findings",
     "evidence_classification",
@@ -2063,6 +2067,8 @@ def validate_trace_report_json(report: Any) -> ArtifactValidation:
         "preflight_fail_count": preflight_fail_count,
         "report_grade": first_grade.get("report_grade"),
         "proof_grade_status": first_grade.get("proof_grade_status"),
+        "report_grade_basis": first_grade.get("basis"),
+        "report_grade_promotion_gate": first_grade.get("promotion_gate"),
         "answerability_count": len(answerability_rows),
         "answerability_status_counts": dict(
             sorted(answerability_status_counts.items())
@@ -2664,6 +2670,11 @@ def validate_trace_report_json(report: Any) -> ArtifactValidation:
         "next_measurement_samples": _trace_report_samples(
             next_measurement_rows,
             ("priority", "next_measurement", "reason", "command_hint"),
+        ),
+        "answerability_samples": _trace_report_samples(
+            answerability_rows,
+            ("question", "status", "basis"),
+            limit=8,
         ),
         "analysis_command_samples": _trace_report_samples(
             analysis_command_rows,

@@ -2179,6 +2179,7 @@ class AresIngestCliTest(unittest.TestCase):
             ).read_text()
             self.assertIn("Trace report JSON:", prompt)
             self.assertIn("## Trace Report Summary", prompt)
+            self.assertIn("sections.report_grade", prompt)
             self.assertIn("sections.answerability", prompt)
             self.assertIn("Supported claim: trace preflight is answerable", prompt)
             self.assertIn("Correctness evidence: hf_cpu_oracle_tokens_logits", prompt)
@@ -2353,8 +2354,23 @@ class AresIngestCliTest(unittest.TestCase):
         )
 
         self.assertIsNotNone(summary)
+        self.assertEqual((summary or {}).get("section_count"), 52)
         lines = "\n".join(render_trace_report_lines(summary or {}))
 
+        expected_basis = (
+            "Trace grade basis: preflight passed; no complete "
+            "baseline/candidate comparison inputs"
+        )
+        self.assertIn(expected_basis, lines)
+        self.assertIn(
+            "Trace grade promotion gate: Capture comparable baseline/candidate artifacts",
+            lines,
+        )
+        self.assertIn("Report sections available: count=52", lines)
+        self.assertIn("analysis_commands", lines)
+        self.assertIn("Answerability detail: metadata artifact identity", lines)
+        self.assertIn("status=not_present", lines)
+        self.assertIn("basis=metadata.artifacts: 0 row(s)", lines)
         self.assertIn("Preflight finding: warn: metadata.device_counters", lines)
         self.assertIn(
             "Evidence classification: diagnostic: preflight passed",
@@ -2362,6 +2378,13 @@ class AresIngestCliTest(unittest.TestCase):
         )
         self.assertIn("Report section inventory: Run Summary", lines)
         self.assertIn("query=run-summary", lines)
+        self.assertIn("Report JSON section: sections.preflight", lines)
+        self.assertIn("Report JSON section: sections.analysis_commands", lines)
+        self.assertIn("Report JSON section: sections.report_grade", lines)
+        self.assertIn(
+            "Report JSON section: sections.report_json_section_inventory",
+            lines,
+        )
         self.assertIn("Report JSON section: sections.preflight_findings", lines)
         self.assertIn("Report JSON section: sections.evidence_classification", lines)
         self.assertIn("Report JSON section: sections.report_section_inventory", lines)

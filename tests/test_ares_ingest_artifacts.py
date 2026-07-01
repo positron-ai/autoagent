@@ -2586,11 +2586,42 @@ class AresIngestArtifactTest(unittest.TestCase):
         self.assertTrue(gate["passed"], gate.get("errors"))
         self.assertEqual(gate["artifact_validator"], "trace_report")
         self.assertEqual(gate["detail"]["report_grade"], "diagnostic")
+        self.assertIn(
+            "preflight passed; no complete baseline/candidate comparison inputs",
+            gate["detail"]["report_grade_basis"],
+        )
+        self.assertIn(
+            "Capture comparable baseline/candidate artifacts",
+            gate["detail"]["report_grade_promotion_gate"],
+        )
         self.assertEqual(gate["detail"]["preflight_status"], "pass")
         self.assertEqual(gate["detail"]["preflight_ok_count"], 41)
         self.assertEqual(gate["detail"]["preflight_warn_count"], 1)
         self.assertEqual(gate["detail"]["preflight_fail_count"], 0)
+        self.assertEqual(gate["detail"]["section_count"], 52)
+        self.assertIn("preflight", gate["detail"]["section_names"])
+        self.assertIn("report_grade", gate["detail"]["section_names"])
+        self.assertEqual(
+            gate["detail"]["answerability_samples"][0]["question"],
+            "metadata artifact identity",
+        )
+        self.assertEqual(
+            gate["detail"]["answerability_samples"][0]["status"],
+            "not_present",
+        )
+        self.assertIn(
+            "metadata.artifacts: 0 row(s)",
+            gate["detail"]["answerability_samples"][0]["basis"],
+        )
         self.assertEqual(gate["detail"]["report_json_section_count"], 52)
+        report_json_paths = {
+            sample["json_path"]
+            for sample in gate["detail"]["report_json_section_samples"]
+        }
+        self.assertIn("sections.preflight", report_json_paths)
+        self.assertIn("sections.analysis_commands", report_json_paths)
+        self.assertIn("sections.report_grade", report_json_paths)
+        self.assertIn("sections.report_json_section_inventory", report_json_paths)
         self.assertEqual(gate["detail"]["preflight_finding_count"], 1)
         self.assertEqual(
             gate["detail"]["preflight_finding_kind_counts"],
