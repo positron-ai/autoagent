@@ -452,8 +452,7 @@ class AresIngestArtifactTest(unittest.TestCase):
                                         "Provider Payload Boundary Inventory Rows"
                                     ),
                                     "json_path": (
-                                        "sections."
-                                        "provider_payload_boundary_inventory_rows"
+                                        "sections.provider_payload_boundary_inventory_rows"
                                     ),
                                     "json_section": (
                                         "provider_payload_boundary_inventory_rows"
@@ -495,8 +494,7 @@ class AresIngestArtifactTest(unittest.TestCase):
                                     "json_section": "oracle_reference_summary_rows",
                                     "section_kind": "sidecar",
                                     "claim_boundary": (
-                                        "external_oracle_reference_anchor_not_"
-                                        "sut_oracle_evidence"
+                                        "external_oracle_reference_anchor_not_sut_oracle_evidence"
                                     ),
                                 },
                                 {
@@ -507,8 +505,7 @@ class AresIngestArtifactTest(unittest.TestCase):
                                     "json_section": "planning_decision_sidecar_rows",
                                     "section_kind": "sidecar",
                                     "claim_boundary": (
-                                        "planning_decision_diagnostic_not_"
-                                        "model_evidence"
+                                        "planning_decision_diagnostic_not_model_evidence"
                                     ),
                                 },
                                 {
@@ -548,8 +545,7 @@ class AresIngestArtifactTest(unittest.TestCase):
                                     "json_section": "kv_payload_digest_sidecar_rows",
                                     "section_kind": "sidecar",
                                     "claim_boundary": (
-                                        "system_under_test_scheduler_kv_payload_"
-                                        "diagnostic"
+                                        "system_under_test_scheduler_kv_payload_diagnostic"
                                     ),
                                 },
                                 {
@@ -590,16 +586,14 @@ class AresIngestArtifactTest(unittest.TestCase):
                                         "Scheduler K/V Shard Lifecycle Sidecar Rows"
                                     ),
                                     "json_path": (
-                                        "sections."
-                                        "scheduler_kv_shard_lifecycle_sidecar_rows"
+                                        "sections.scheduler_kv_shard_lifecycle_sidecar_rows"
                                     ),
                                     "json_section": (
                                         "scheduler_kv_shard_lifecycle_sidecar_rows"
                                     ),
                                     "section_kind": "sidecar",
                                     "claim_boundary": (
-                                        "system_under_test_scheduler_kv_lifecycle_"
-                                        "diagnostic"
+                                        "system_under_test_scheduler_kv_lifecycle_diagnostic"
                                     ),
                                 },
                                 {
@@ -607,8 +601,7 @@ class AresIngestArtifactTest(unittest.TestCase):
                                         "Scheduler Listener Sparse Logit Sidecar Rows"
                                     ),
                                     "json_path": (
-                                        "sections.scheduler_listener_sparse_logit_"
-                                        "sidecar_rows"
+                                        "sections.scheduler_listener_sparse_logit_sidecar_rows"
                                     ),
                                     "json_section": (
                                         "scheduler_listener_sparse_logit_sidecar_rows"
@@ -641,8 +634,7 @@ class AresIngestArtifactTest(unittest.TestCase):
                                     ),
                                     "section_kind": "sidecar",
                                     "claim_boundary": (
-                                        "system_under_test_numeric_"
-                                        "localization_diagnostic"
+                                        "system_under_test_numeric_localization_diagnostic"
                                     ),
                                 },
                                 {
@@ -658,13 +650,32 @@ class AresIngestArtifactTest(unittest.TestCase):
                                     "config_status": "requested_and_recorded",
                                     "requested_sidecar_controls": "tensor_payloads",
                                     "recorded_sidecar_capabilities": "tensor_payloads",
+                                    "missing_requested_sidecar_controls": "",
                                     "introspection_level": "payload",
                                     "compile_feature_trace_introspection": True,
                                     "deep_introspection_effective": True,
                                     "next_action": (
                                         "inspect_matching_introspection_report_sections"
                                     ),
-                                }
+                                },
+                                {
+                                    "config_status": (
+                                        "requested_with_missing_sidecars"
+                                    ),
+                                    "requested_sidecar_controls": (
+                                        "tensor_payloads,device_result_digests"
+                                    ),
+                                    "recorded_sidecar_capabilities": (
+                                        "tensor_payloads"
+                                    ),
+                                    "missing_requested_sidecar_controls": (
+                                        "device_result_digests"
+                                    ),
+                                    "introspection_level": "deep",
+                                    "compile_feature_trace_introspection": True,
+                                    "deep_introspection_effective": True,
+                                    "next_action": ("enable_missing_sidecar_controls"),
+                                },
                             ],
                             "provider_payload_boundary_inventory_rows": [
                                 {
@@ -690,8 +701,7 @@ class AresIngestArtifactTest(unittest.TestCase):
                                     ),
                                     "payload_sensitivity": ("scheduler_kv_save_values"),
                                     "claim_boundary": (
-                                        "system_under_test_scheduler_kv_payload_"
-                                        "diagnostic"
+                                        "system_under_test_scheduler_kv_payload_diagnostic"
                                     ),
                                     "next_action": "inspect_report_section",
                                 }
@@ -715,8 +725,7 @@ class AresIngestArtifactTest(unittest.TestCase):
                                         "debug_payloads_can_perturb_timing"
                                     ),
                                     "claim_boundary": (
-                                        "system_under_test_numeric_"
-                                        "localization_diagnostic"
+                                        "system_under_test_numeric_localization_diagnostic"
                                     ),
                                 }
                             ],
@@ -744,8 +753,7 @@ class AresIngestArtifactTest(unittest.TestCase):
                                     "oracle_reference": "external_hf_cpu_reference",
                                     "oracle_artifact_sha256": SHA_A,
                                     "claim_boundary": (
-                                        "external_oracle_reference_present; "
-                                        "row_remains_system_under_test"
+                                        "external_oracle_reference_present; row_remains_system_under_test"
                                     ),
                                 }
                             ],
@@ -805,8 +813,7 @@ class AresIngestArtifactTest(unittest.TestCase):
                                     "planning_output_bytes": "4096",
                                     "targetplan_op_count": "4",
                                     "claim_boundary": (
-                                        "planning_decision_diagnostic_not_"
-                                        "model_evidence"
+                                        "planning_decision_diagnostic_not_model_evidence"
                                     ),
                                 }
                             ],
@@ -845,8 +852,7 @@ class AresIngestArtifactTest(unittest.TestCase):
                                     "top_k": "8",
                                     "oracle_reference": "external_hf_cpu_reference",
                                     "claim_boundary": (
-                                        "external_oracle_reference_present; "
-                                        "row_remains_system_under_test"
+                                        "external_oracle_reference_present; row_remains_system_under_test"
                                     ),
                                 }
                             ],
@@ -1271,7 +1277,14 @@ class AresIngestArtifactTest(unittest.TestCase):
             )
             self.assertEqual(
                 gate["detail"]["trace_config_status_counts"],
-                {"requested_and_recorded": 1},
+                {
+                    "requested_and_recorded": 1,
+                    "requested_with_missing_sidecars": 1,
+                },
+            )
+            self.assertEqual(
+                gate["detail"]["trace_config_missing_requested_sidecar_counts"],
+                {"device_result_digests": 1},
             )
             self.assertEqual(
                 gate["detail"]["provider_payload_boundary_status_counts"],
@@ -1424,6 +1437,12 @@ class AresIngestArtifactTest(unittest.TestCase):
             self.assertEqual(
                 gate["detail"]["trace_config_samples"][0]["requested_sidecar_controls"],
                 "tensor_payloads",
+            )
+            self.assertEqual(
+                gate["detail"]["trace_config_samples"][1][
+                    "missing_requested_sidecar_controls"
+                ],
+                "device_result_digests",
             )
             self.assertEqual(
                 gate["detail"]["provider_payload_boundary_samples"][0]["provider_id"],
@@ -1631,10 +1650,14 @@ class AresIngestArtifactTest(unittest.TestCase):
         self.assertEqual(gate["artifact_validator"], "trace_report")
         self.assertEqual(gate["detail"]["report_grade"], "diagnostic")
         self.assertEqual(gate["detail"]["preflight_status"], "pass")
-        self.assertEqual(gate["detail"]["report_json_section_count"], 51)
+        self.assertEqual(gate["detail"]["report_json_section_count"], 52)
         self.assertEqual(
             gate["detail"]["trace_config_status_counts"],
             {"requested_and_recorded": 1},
+        )
+        self.assertEqual(
+            gate["detail"]["trace_config_missing_requested_sidecar_counts"],
+            {},
         )
         self.assertEqual(
             gate["detail"]["provider_payload_boundary_status_counts"],
@@ -1650,16 +1673,16 @@ class AresIngestArtifactTest(unittest.TestCase):
             {
                 "capability_without_artifact": 1,
                 "compiled": 1,
-                "recorded": 10,
+                "recorded": 11,
             },
         )
         self.assertEqual(
             gate["detail"]["introspection_artifact_summary_status_counts"],
-            {"recorded_and_locally_present": 8},
+            {"recorded_and_locally_present": 9},
         )
         self.assertEqual(
             gate["detail"]["introspection_section_inventory_status_counts"],
-            {"available": 14, "capability_without_artifact": 1},
+            {"available": 15, "capability_without_artifact": 1},
         )
         self.assertEqual(
             gate["detail"]["introspection_section_inventory_capability_counts"],
@@ -1669,6 +1692,7 @@ class AresIngestArtifactTest(unittest.TestCase):
                 "debug_payloads": 1,
                 "deep_introspection": 1,
                 "device_dma_lifecycle": 1,
+                "device_result_digests": 1,
                 "kv_payload_digests": 1,
                 "logit_slices": 1,
                 "scheduler_packet_lineage": 3,
@@ -1826,12 +1850,20 @@ class AresIngestArtifactTest(unittest.TestCase):
         self.assertIn("sections.introspection_artifact_summary_rows", section_paths)
         self.assertIn("sections.introspection_section_inventory", section_paths)
         self.assertIn(
+            "device_result_digest_sidecar_rows",
+            gate["detail"]["section_names"],
+        )
+        self.assertIn(
             "provider_payload_boundary_inventory_rows",
             gate["detail"]["section_names"],
         )
         self.assertEqual(
             gate["detail"]["trace_config_samples"][0]["requested_sidecar_controls"],
-            "topk,logit_slices,tensor_payloads,activation_digests,kv_payload_digests",
+            "topk,logit_slices,tensor_payloads,activation_digests,kv_payload_digests,device_result_digests",
+        )
+        self.assertNotIn(
+            "missing_requested_sidecar_controls",
+            gate["detail"]["trace_config_samples"][0],
         )
         self.assertEqual(
             gate["detail"]["provider_payload_boundary_samples"][0]["capture_status"],

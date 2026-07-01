@@ -322,11 +322,24 @@ def trace_report_payload() -> dict:
                     "config_status": "requested_and_recorded",
                     "requested_sidecar_controls": "tensor_payloads",
                     "recorded_sidecar_capabilities": "tensor_payloads",
+                    "missing_requested_sidecar_controls": "",
                     "introspection_level": "payload",
                     "compile_feature_trace_introspection": True,
                     "deep_introspection_effective": True,
                     "next_action": "inspect_matching_introspection_report_sections",
-                }
+                },
+                {
+                    "config_status": "requested_with_missing_sidecars",
+                    "requested_sidecar_controls": (
+                        "tensor_payloads,device_result_digests"
+                    ),
+                    "recorded_sidecar_capabilities": "tensor_payloads",
+                    "missing_requested_sidecar_controls": "device_result_digests",
+                    "introspection_level": "deep",
+                    "compile_feature_trace_introspection": True,
+                    "deep_introspection_effective": True,
+                    "next_action": "enable_missing_sidecar_controls",
+                },
             ],
             "introspection_capability_rows": [
                 {
@@ -351,8 +364,7 @@ def trace_report_payload() -> dict:
                     "boundary_status": "available_from_scheduler_protocol_boundary",
                     "producer_status": "provider_callback_present",
                     "producer_contract": (
-                        "fpga_scheduler_batch_dispatch_returns_completed_"
-                        "targetplan_listener_logits"
+                        "fpga_scheduler_batch_dispatch_returns_completed_targetplan_listener_logits"
                     ),
                     "payload_record_policy": "sha256_digest_plus_bounded_f32_sample",
                     "payload_sensitivity": "scheduler_kv_save_values",
@@ -401,8 +413,7 @@ def trace_report_payload() -> dict:
                     "oracle_reference": "external_hf_cpu_reference",
                     "oracle_artifact_sha256": "a" * 64,
                     "claim_boundary": (
-                        "external_oracle_reference_present; "
-                        "row_remains_system_under_test"
+                        "external_oracle_reference_present; row_remains_system_under_test"
                     ),
                 }
             ],
@@ -493,8 +504,7 @@ def trace_report_payload() -> dict:
                     "top_k": "8",
                     "oracle_reference": "external_hf_cpu_reference",
                     "claim_boundary": (
-                        "external_oracle_reference_present; "
-                        "row_remains_system_under_test"
+                        "external_oracle_reference_present; row_remains_system_under_test"
                     ),
                 }
             ],
@@ -1017,7 +1027,14 @@ class AresIngestCliTest(unittest.TestCase):
             )
             self.assertEqual(
                 state["trace_report"]["trace_config_status_counts"],
-                {"requested_and_recorded": 1},
+                {
+                    "requested_and_recorded": 1,
+                    "requested_with_missing_sidecars": 1,
+                },
+            )
+            self.assertEqual(
+                state["trace_report"]["trace_config_missing_requested_sidecar_counts"],
+                {"device_result_digests": 1},
             )
             self.assertEqual(
                 state["trace_report"]["provider_payload_boundary_status_counts"],
@@ -1198,6 +1215,9 @@ class AresIngestCliTest(unittest.TestCase):
             self.assertIn("Report JSON section: sections.trace_config_rows", handoff)
             self.assertIn("Trace config: requested_and_recorded", handoff)
             self.assertIn("recorded=tensor_payloads", handoff)
+            self.assertIn("Missing requested sidecars", handoff)
+            self.assertIn("Trace config: requested_with_missing_sidecars", handoff)
+            self.assertIn("missing=device_result_digests", handoff)
             self.assertIn("Provider payload boundaries", handoff)
             self.assertIn("Provider payload boundary: fpga/kv_payload_digests", handoff)
             self.assertIn("provider_artifacts=2", handoff)
@@ -1331,10 +1351,13 @@ class AresIngestCliTest(unittest.TestCase):
             )
             self.assertIn("sections.device_dma_lifecycle_sidecar_rows", prompt)
             self.assertIn("sections.attention_page_trace_sidecar_rows", prompt)
+            self.assertIn("sections.device_result_digest_sidecar_rows", prompt)
+            self.assertIn("missing_requested_sidecar_controls", prompt)
             self.assertIn("sections.token_quality_summary_rows", prompt)
             self.assertIn("sections.oracle_reference_summary_rows", prompt)
             self.assertIn("sections.introspection_section_inventory", prompt)
             self.assertIn("Provider payload boundary: fpga/kv_payload_digests", prompt)
+            self.assertIn("missing=device_result_digests", prompt)
             self.assertIn("provider_artifacts=2", prompt)
             self.assertIn("same_kind_artifacts=2", prompt)
             self.assertIn("same_kind_backends=fpga", prompt)

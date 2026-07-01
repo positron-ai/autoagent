@@ -1804,6 +1804,12 @@ def validate_trace_report_json(report: Any) -> ArtifactValidation:
             trace_config_rows,
             "config_status",
         ),
+        "trace_config_missing_requested_sidecar_counts": (
+            _trace_report_comma_value_counts(
+                trace_config_rows,
+                "missing_requested_sidecar_controls",
+            )
+        ),
         "provider_payload_boundary_count": len(provider_payload_boundary_rows),
         "provider_payload_boundary_status_counts": _trace_report_value_counts(
             provider_payload_boundary_rows,
@@ -2038,6 +2044,7 @@ def validate_trace_report_json(report: Any) -> ArtifactValidation:
                 "config_status",
                 "requested_sidecar_controls",
                 "recorded_sidecar_capabilities",
+                "missing_requested_sidecar_controls",
                 "introspection_level",
                 "compile_feature_trace_introspection",
                 "deep_introspection_effective",
@@ -2809,6 +2816,22 @@ def _trace_report_value_counts(
         value = row.get(key)
         if isinstance(value, str) and value:
             counts[value] = counts.get(value, 0) + 1
+    return dict(sorted(counts.items()))
+
+
+def _trace_report_comma_value_counts(
+    rows: list[dict[str, Any]],
+    key: str,
+) -> dict[str, int]:
+    counts: dict[str, int] = {}
+    for row in rows:
+        value = row.get(key)
+        if not isinstance(value, str):
+            continue
+        for item in value.split(","):
+            item = item.strip()
+            if item:
+                counts[item] = counts.get(item, 0) + 1
     return dict(sorted(counts.items()))
 
 

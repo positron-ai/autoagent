@@ -189,6 +189,9 @@ def trace_report_summary_from_spec(spec: Mapping[str, Any]) -> dict[str, Any] | 
         ),
         "trace_config_count": detail.get("trace_config_count"),
         "trace_config_status_counts": detail.get("trace_config_status_counts"),
+        "trace_config_missing_requested_sidecar_counts": detail.get(
+            "trace_config_missing_requested_sidecar_counts"
+        ),
         "provider_payload_boundary_count": detail.get(
             "provider_payload_boundary_count"
         ),
@@ -450,6 +453,16 @@ def render_trace_report_lines(summary: Mapping[str, Any]) -> list[str]:
         lines.append(
             "- Trace config: "
             f"`{json.dumps(summary['trace_config_status_counts'], sort_keys=True)}`"
+        )
+    if summary.get("trace_config_missing_requested_sidecar_counts"):
+        lines.append(
+            "- Missing requested sidecars: "
+            "`"
+            + json.dumps(
+                summary["trace_config_missing_requested_sidecar_counts"],
+                sort_keys=True,
+            )
+            + "`"
         )
     if summary.get("provider_payload_boundary_status_counts"):
         lines.append(
@@ -795,6 +808,7 @@ def render_trace_report_lines(summary: Mapping[str, Any]) -> list[str]:
         status = sample.get("config_status")
         requested = sample.get("requested_sidecar_controls")
         recorded = sample.get("recorded_sidecar_capabilities")
+        missing = sample.get("missing_requested_sidecar_controls")
         level = sample.get("introspection_level")
         compile_feature = sample.get("compile_feature_trace_introspection")
         deep_effective = sample.get("deep_introspection_effective")
@@ -805,6 +819,8 @@ def render_trace_report_lines(summary: Mapping[str, Any]) -> list[str]:
                 parts.append(f"requested={requested}")
             if recorded:
                 parts.append(f"recorded={recorded}")
+            if missing:
+                parts.append(f"missing={missing}")
             if level:
                 parts.append(f"level={level}")
             if compile_feature:
@@ -1825,7 +1841,8 @@ def trace_report_prompt_section(spec: Mapping[str, Any]) -> list[str]:
         "and `sections.next_measurements` before ad hoc log parsing. Use",
         "`sections.report_json_section_inventory` to discover available JSON",
         "sections. Then read `sections.trace_config_rows` first to distinguish",
-        "requested controls from recorded sidecars, then use",
+        "requested controls, recorded sidecars, and",
+        "`missing_requested_sidecar_controls`, then use",
         "`sections.provider_payload_boundary_inventory_rows` to distinguish",
         "available, recorded, blocked, and other-backend provider/runtime",
         "payload lanes, then read",
@@ -1858,9 +1875,10 @@ def trace_report_prompt_section(spec: Mapping[str, Any]) -> list[str]:
         "scheduler packet shape, K/V shard lifecycle, and sparse-listener",
         "delivery diagnostics without treating scheduler metadata as",
         "hardware-counter evidence. Also read",
-        "`sections.device_dma_lifecycle_sidecar_rows` and",
-        "`sections.attention_page_trace_sidecar_rows` to inspect compact",
-        "device DMA/queue lifecycle and attention page diagnostics without",
+        "`sections.device_dma_lifecycle_sidecar_rows`,",
+        "`sections.attention_page_trace_sidecar_rows`, and",
+        "`sections.device_result_digest_sidecar_rows` to inspect compact",
+        "device DMA/queue lifecycle, attention page, and result digest diagnostics without",
         "treating debug payload rows as performance proof.",
         "If the current trace cannot answer the failing gate, run the named",
         "next-measurement query or capture command before editing production code.",
@@ -2854,7 +2872,7 @@ def gate_guidance(
             [
                 f"- Trace report JSON: `{resolve_run_path(str(value), cfg)}`",
                 "- Inspect `sections.answerability`, `sections.unsupported_claims`, and `sections.next_measurements` before ad hoc parsing.",
-                "- Read `sections.report_json_section_inventory` to discover available report sections, then read `sections.trace_config_rows`, `sections.provider_payload_boundary_inventory_rows`, `sections.debug_payload_artifact_summary_rows`, `sections.token_quality_summary_rows`, `sections.oracle_reference_summary_rows`, `sections.introspection_capability_rows`, `sections.introspection_artifact_summary_rows`, and `sections.introspection_section_inventory` before choosing sidecar-specific report sections such as `sections.planning_decision_sidecar_rows`, `sections.token_quality_sidecar_rows`, `sections.topk_token_sidecar_rows`, `sections.tensor_payload_sidecar_rows`, `sections.kv_payload_digest_sidecar_rows`, `sections.logit_slice_sidecar_rows`, `sections.activation_digest_sidecar_rows`, `sections.scheduler_packet_lineage_sidecar_rows`, `sections.scheduler_kv_shard_lifecycle_sidecar_rows`, `sections.scheduler_listener_sparse_logit_sidecar_rows`, `sections.device_dma_lifecycle_sidecar_rows`, and `sections.attention_page_trace_sidecar_rows`.",
+                "- Read `sections.report_json_section_inventory` to discover available report sections, then read `sections.trace_config_rows` including `missing_requested_sidecar_controls`, `sections.provider_payload_boundary_inventory_rows`, `sections.debug_payload_artifact_summary_rows`, `sections.token_quality_summary_rows`, `sections.oracle_reference_summary_rows`, `sections.introspection_capability_rows`, `sections.introspection_artifact_summary_rows`, and `sections.introspection_section_inventory` before choosing sidecar-specific report sections such as `sections.planning_decision_sidecar_rows`, `sections.token_quality_sidecar_rows`, `sections.topk_token_sidecar_rows`, `sections.tensor_payload_sidecar_rows`, `sections.kv_payload_digest_sidecar_rows`, `sections.logit_slice_sidecar_rows`, `sections.activation_digest_sidecar_rows`, `sections.scheduler_packet_lineage_sidecar_rows`, `sections.scheduler_kv_shard_lifecycle_sidecar_rows`, `sections.scheduler_listener_sparse_logit_sidecar_rows`, `sections.device_dma_lifecycle_sidecar_rows`, `sections.attention_page_trace_sidecar_rows`, and `sections.device_result_digest_sidecar_rows`.",
             ]
         )
     if value := spec.get("command_wrapper_plan"):
