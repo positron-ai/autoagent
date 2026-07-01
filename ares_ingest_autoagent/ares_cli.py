@@ -198,6 +198,12 @@ def trace_report_summary_from_spec(spec: Mapping[str, Any]) -> dict[str, Any] | 
         "provider_payload_boundary_status_counts": detail.get(
             "provider_payload_boundary_status_counts"
         ),
+        "provider_payload_boundary_route_only_count": detail.get(
+            "provider_payload_boundary_route_only_count"
+        ),
+        "provider_payload_boundary_route_only_lanes": detail.get(
+            "provider_payload_boundary_route_only_lanes"
+        ),
         "debug_payload_artifact_summary_count": detail.get(
             "debug_payload_artifact_summary_count"
         ),
@@ -366,6 +372,9 @@ def trace_report_summary_from_spec(spec: Mapping[str, Any]) -> dict[str, Any] | 
         "provider_payload_boundary_samples": detail.get(
             "provider_payload_boundary_samples"
         ),
+        "provider_payload_boundary_route_only_samples": detail.get(
+            "provider_payload_boundary_route_only_samples"
+        ),
         "debug_payload_artifact_summary_samples": detail.get(
             "debug_payload_artifact_summary_samples"
         ),
@@ -470,6 +479,16 @@ def render_trace_report_lines(summary: Mapping[str, Any]) -> list[str]:
             "`"
             + json.dumps(
                 summary["provider_payload_boundary_status_counts"],
+                sort_keys=True,
+            )
+            + "`"
+        )
+    if summary.get("provider_payload_boundary_route_only_lanes"):
+        lines.append(
+            "- Route-only provider payload lanes: "
+            "`"
+            + json.dumps(
+                summary["provider_payload_boundary_route_only_lanes"],
                 sort_keys=True,
             )
             + "`"
@@ -875,6 +894,59 @@ def render_trace_report_lines(summary: Mapping[str, Any]) -> list[str]:
             if boundary:
                 parts.append(f"boundary={boundary}")
             line = f"- Provider payload boundary: {provider_id}/{payload_lane}"
+            if any(parts):
+                line += " " + " ".join(part for part in parts if part)
+            lines.append(line)
+        if next_action:
+            lines.append(f"  Next action: `{next_action}`")
+    for sample in summary.get("provider_payload_boundary_route_only_samples", [])[:3]:
+        if not isinstance(sample, Mapping):
+            continue
+        provider_id = sample.get("provider_id")
+        payload_lane = sample.get("payload_lane")
+        status = sample.get("capture_status")
+        capture_capability = sample.get("capture_capability")
+        artifact_kind = sample.get("artifact_kind")
+        capture_control = sample.get("capture_control")
+        provider_artifact_count = sample.get(
+            "matching_provider_artifact_count"
+        ) or sample.get("artifact_count")
+        artifact_kind_count = sample.get("artifact_kind_recorded_count")
+        artifact_backend_ids = sample.get("artifact_kind_recorded_backend_ids")
+        report_section = sample.get("report_section")
+        producer_status = sample.get("producer_status")
+        producer_contract = sample.get("producer_contract")
+        payload_policy = sample.get("payload_record_policy")
+        payload_sensitivity = sample.get("payload_sensitivity")
+        boundary = sample.get("claim_boundary")
+        next_action = sample.get("next_action")
+        if provider_id and payload_lane:
+            parts = [f"status={status}" if status else ""]
+            if capture_capability:
+                parts.append(f"capability={capture_capability}")
+            if artifact_kind:
+                parts.append(f"artifact={artifact_kind}")
+            if capture_control:
+                parts.append(f"control={capture_control}")
+            if provider_artifact_count is not None:
+                parts.append(f"provider_artifacts={provider_artifact_count}")
+            if artifact_kind_count is not None:
+                parts.append(f"same_kind_artifacts={artifact_kind_count}")
+            if artifact_backend_ids:
+                parts.append(f"same_kind_backends={artifact_backend_ids}")
+            if report_section:
+                parts.append(f"section={report_section}")
+            if producer_status:
+                parts.append(f"producer={producer_status}")
+            if producer_contract:
+                parts.append(f"contract={producer_contract}")
+            if payload_policy:
+                parts.append(f"policy={payload_policy}")
+            if payload_sensitivity:
+                parts.append(f"sensitivity={payload_sensitivity}")
+            if boundary:
+                parts.append(f"boundary={boundary}")
+            line = f"- Route-only provider payload boundary: {provider_id}/{payload_lane}"
             if any(parts):
                 line += " " + " ".join(part for part in parts if part)
             lines.append(line)
@@ -1844,8 +1916,8 @@ def trace_report_prompt_section(spec: Mapping[str, Any]) -> list[str]:
         "requested controls, recorded sidecars, and",
         "`missing_requested_sidecar_controls`, then use",
         "`sections.provider_payload_boundary_inventory_rows` to distinguish",
-        "available, recorded, blocked, and other-backend provider/runtime",
-        "payload lanes, then read",
+        "available, recorded, blocked, route-only runtime-sidecar, and",
+        "other-backend provider/runtime payload lanes, then read",
         "`sections.debug_payload_artifact_summary_rows` to see payload",
         "sensitivity and timing-perturbation boundaries. Then read",
         "`sections.token_quality_summary_rows` and",
@@ -2872,7 +2944,7 @@ def gate_guidance(
             [
                 f"- Trace report JSON: `{resolve_run_path(str(value), cfg)}`",
                 "- Inspect `sections.answerability`, `sections.unsupported_claims`, and `sections.next_measurements` before ad hoc parsing.",
-                "- Read `sections.report_json_section_inventory` to discover available report sections, then read `sections.trace_config_rows` including `missing_requested_sidecar_controls`, `sections.provider_payload_boundary_inventory_rows`, `sections.debug_payload_artifact_summary_rows`, `sections.token_quality_summary_rows`, `sections.oracle_reference_summary_rows`, `sections.introspection_capability_rows`, `sections.introspection_artifact_summary_rows`, and `sections.introspection_section_inventory` before choosing sidecar-specific report sections such as `sections.planning_decision_sidecar_rows`, `sections.token_quality_sidecar_rows`, `sections.topk_token_sidecar_rows`, `sections.tensor_payload_sidecar_rows`, `sections.kv_payload_digest_sidecar_rows`, `sections.logit_slice_sidecar_rows`, `sections.activation_digest_sidecar_rows`, `sections.scheduler_packet_lineage_sidecar_rows`, `sections.scheduler_kv_shard_lifecycle_sidecar_rows`, `sections.scheduler_listener_sparse_logit_sidecar_rows`, `sections.device_dma_lifecycle_sidecar_rows`, `sections.attention_page_trace_sidecar_rows`, and `sections.device_result_digest_sidecar_rows`.",
+                "- Read `sections.report_json_section_inventory` to discover available report sections, then read `sections.trace_config_rows` including `missing_requested_sidecar_controls`, `sections.provider_payload_boundary_inventory_rows` including route-only runtime-sidecar rows, `sections.debug_payload_artifact_summary_rows`, `sections.token_quality_summary_rows`, `sections.oracle_reference_summary_rows`, `sections.introspection_capability_rows`, `sections.introspection_artifact_summary_rows`, and `sections.introspection_section_inventory` before choosing sidecar-specific report sections such as `sections.planning_decision_sidecar_rows`, `sections.token_quality_sidecar_rows`, `sections.topk_token_sidecar_rows`, `sections.tensor_payload_sidecar_rows`, `sections.kv_payload_digest_sidecar_rows`, `sections.logit_slice_sidecar_rows`, `sections.activation_digest_sidecar_rows`, `sections.scheduler_packet_lineage_sidecar_rows`, `sections.scheduler_kv_shard_lifecycle_sidecar_rows`, `sections.scheduler_listener_sparse_logit_sidecar_rows`, `sections.device_dma_lifecycle_sidecar_rows`, `sections.attention_page_trace_sidecar_rows`, and `sections.device_result_digest_sidecar_rows`.",
             ]
         )
     if value := spec.get("command_wrapper_plan"):

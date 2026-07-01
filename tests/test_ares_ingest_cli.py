@@ -370,6 +370,29 @@ def trace_report_payload() -> dict:
                     "payload_sensitivity": "scheduler_kv_save_values",
                     "claim_boundary": "system_under_test_scheduler_kv_payload_diagnostic",
                     "next_action": "inspect_report_section",
+                },
+                {
+                    "provider_id": "generic",
+                    "payload_lane": "device_result_digests",
+                    "capture_status": "route_available_no_provider_producer",
+                    "capture_capability": "device_result_digests",
+                    "artifact_kind": "device_result_digests",
+                    "capture_control": "ARES_TRACE_RECORD_DEVICE_RESULTS=1",
+                    "artifact_count": 0,
+                    "matching_provider_artifact_count": 0,
+                    "artifact_kind_recorded_count": 1,
+                    "artifact_kind_recorded_backend_count": 1,
+                    "artifact_kind_recorded_backend_ids": "fpga",
+                    "report_section": "device_result_digest_sidecar_rows",
+                    "boundary_status": "route_available_no_provider_producer_yet",
+                    "producer_status": "runtime_route_only_no_provider_producer",
+                    "producer_contract": "runtime_sidecar_route_only",
+                    "payload_record_policy": "sha256_digest_plus_bounded_f32_sample",
+                    "payload_sensitivity": "device_result_values",
+                    "claim_boundary": (
+                        "system_under_test_device_result_digest_diagnostic"
+                    ),
+                    "next_action": "wait_for_explicit_provider_payload_boundary",
                 }
             ],
             "debug_payload_artifact_summary_rows": [
@@ -1038,7 +1061,18 @@ class AresIngestCliTest(unittest.TestCase):
             )
             self.assertEqual(
                 state["trace_report"]["provider_payload_boundary_status_counts"],
-                {"recorded_artifact": 1},
+                {
+                    "recorded_artifact": 1,
+                    "route_available_no_provider_producer": 1,
+                },
+            )
+            self.assertEqual(
+                state["trace_report"]["provider_payload_boundary_route_only_count"],
+                1,
+            )
+            self.assertEqual(
+                state["trace_report"]["provider_payload_boundary_route_only_lanes"],
+                ["generic/device_result_digests"],
             )
             self.assertEqual(
                 state["trace_report"]["debug_payload_artifact_summary_status_counts"],
@@ -1220,16 +1254,31 @@ class AresIngestCliTest(unittest.TestCase):
             self.assertIn("missing=device_result_digests", handoff)
             self.assertIn("Provider payload boundaries", handoff)
             self.assertIn("Provider payload boundary: fpga/kv_payload_digests", handoff)
+            self.assertIn("Route-only provider payload lanes", handoff)
+            self.assertIn("generic/device_result_digests", handoff)
+            self.assertIn(
+                "Route-only provider payload boundary: generic/device_result_digests",
+                handoff,
+            )
             self.assertIn("provider_artifacts=2", handoff)
+            self.assertIn("provider_artifacts=0", handoff)
             self.assertIn("same_kind_artifacts=2", handoff)
+            self.assertIn("same_kind_artifacts=1", handoff)
             self.assertIn("same_kind_backends=fpga", handoff)
             self.assertIn("producer=provider_callback_present", handoff)
+            self.assertIn(
+                "producer=runtime_route_only_no_provider_producer",
+                handoff,
+            )
+            self.assertIn("control=ARES_TRACE_RECORD_DEVICE_RESULTS=1", handoff)
             self.assertIn(
                 "contract=fpga_scheduler_batch_dispatch_returns_completed_targetplan_listener_logits",
                 handoff,
             )
+            self.assertIn("contract=runtime_sidecar_route_only", handoff)
             self.assertIn("policy=sha256_digest_plus_bounded_f32_sample", handoff)
             self.assertIn("sensitivity=scheduler_kv_save_values", handoff)
+            self.assertIn("sensitivity=device_result_values", handoff)
             self.assertIn("Capture backend event JSONL", handoff)
             self.assertIn("Debug payload artifacts", handoff)
             self.assertIn("Debug payload artifact: attention_page_trace", handoff)
@@ -1357,11 +1406,21 @@ class AresIngestCliTest(unittest.TestCase):
             self.assertIn("sections.oracle_reference_summary_rows", prompt)
             self.assertIn("sections.introspection_section_inventory", prompt)
             self.assertIn("Provider payload boundary: fpga/kv_payload_digests", prompt)
+            self.assertIn(
+                "Route-only provider payload boundary: generic/device_result_digests",
+                prompt,
+            )
             self.assertIn("missing=device_result_digests", prompt)
             self.assertIn("provider_artifacts=2", prompt)
+            self.assertIn("provider_artifacts=0", prompt)
             self.assertIn("same_kind_artifacts=2", prompt)
+            self.assertIn("same_kind_artifacts=1", prompt)
             self.assertIn("same_kind_backends=fpga", prompt)
             self.assertIn("producer=provider_callback_present", prompt)
+            self.assertIn(
+                "producer=runtime_route_only_no_provider_producer",
+                prompt,
+            )
             self.assertIn("policy=sha256_digest_plus_bounded_f32_sample", prompt)
             self.assertIn("sensitivity=scheduler_kv_save_values", prompt)
             self.assertIn("Debug payload artifact: attention_page_trace", prompt)

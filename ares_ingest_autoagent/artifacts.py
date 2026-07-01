@@ -1770,6 +1770,13 @@ def validate_trace_report_json(report: Any) -> ArtifactValidation:
         answerability_rows,
         "status",
     )
+    provider_payload_route_only_rows = [
+        row
+        for row in provider_payload_boundary_rows
+        if row.get("producer_contract") == "runtime_sidecar_route_only"
+        or row.get("producer_status") == "runtime_route_only_no_provider_producer"
+        or row.get("capture_status") == "route_available_no_provider_producer"
+    ]
     report_json_section_sample_rows = [
         row
         for row in report_json_section_rows
@@ -1814,6 +1821,12 @@ def validate_trace_report_json(report: Any) -> ArtifactValidation:
         "provider_payload_boundary_status_counts": _trace_report_value_counts(
             provider_payload_boundary_rows,
             "capture_status",
+        ),
+        "provider_payload_boundary_route_only_count": len(
+            provider_payload_route_only_rows
+        ),
+        "provider_payload_boundary_route_only_lanes": (
+            _trace_report_provider_payload_lanes(provider_payload_route_only_rows)
         ),
         "debug_payload_artifact_summary_count": len(
             debug_payload_artifact_summary_rows
@@ -2057,6 +2070,30 @@ def validate_trace_report_json(report: Any) -> ArtifactValidation:
                 "provider_id",
                 "payload_lane",
                 "capture_status",
+                "artifact_count",
+                "matching_provider_artifact_count",
+                "artifact_kind_recorded_count",
+                "artifact_kind_recorded_backend_count",
+                "artifact_kind_recorded_backend_ids",
+                "report_section",
+                "boundary_status",
+                "producer_status",
+                "producer_contract",
+                "payload_record_policy",
+                "payload_sensitivity",
+                "claim_boundary",
+                "next_action",
+            ),
+        ),
+        "provider_payload_boundary_route_only_samples": _trace_report_samples(
+            provider_payload_route_only_rows,
+            (
+                "provider_id",
+                "payload_lane",
+                "capture_status",
+                "capture_capability",
+                "artifact_kind",
+                "capture_control",
                 "artifact_count",
                 "matching_provider_artifact_count",
                 "artifact_kind_recorded_count",
@@ -2853,6 +2890,21 @@ def _trace_report_samples(
         if sample:
             samples.append(sample)
     return samples
+
+
+def _trace_report_provider_payload_lanes(rows: list[dict[str, Any]]) -> list[str]:
+    lanes: set[str] = set()
+    for row in rows:
+        provider_id = row.get("provider_id")
+        payload_lane = row.get("payload_lane")
+        if (
+            isinstance(provider_id, str)
+            and provider_id.strip()
+            and isinstance(payload_lane, str)
+            and payload_lane.strip()
+        ):
+            lanes.add(f"{provider_id.strip()}/{payload_lane.strip()}")
+    return sorted(lanes)
 
 
 def _read_json_or_jsonl(path: Path) -> Any:

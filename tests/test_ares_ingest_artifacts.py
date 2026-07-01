@@ -704,6 +704,43 @@ class AresIngestArtifactTest(unittest.TestCase):
                                         "system_under_test_scheduler_kv_payload_diagnostic"
                                     ),
                                     "next_action": "inspect_report_section",
+                                },
+                                {
+                                    "provider_id": "generic",
+                                    "payload_lane": "device_result_digests",
+                                    "capture_status": (
+                                        "route_available_no_provider_producer"
+                                    ),
+                                    "capture_capability": "device_result_digests",
+                                    "artifact_kind": "device_result_digests",
+                                    "capture_control": (
+                                        "ARES_TRACE_RECORD_DEVICE_RESULTS=1"
+                                    ),
+                                    "artifact_count": 0,
+                                    "matching_provider_artifact_count": 0,
+                                    "artifact_kind_recorded_count": 1,
+                                    "artifact_kind_recorded_backend_count": 1,
+                                    "artifact_kind_recorded_backend_ids": "fpga",
+                                    "report_section": (
+                                        "device_result_digest_sidecar_rows"
+                                    ),
+                                    "boundary_status": (
+                                        "route_available_no_provider_producer_yet"
+                                    ),
+                                    "producer_status": (
+                                        "runtime_route_only_no_provider_producer"
+                                    ),
+                                    "producer_contract": "runtime_sidecar_route_only",
+                                    "payload_record_policy": (
+                                        "sha256_digest_plus_bounded_f32_sample"
+                                    ),
+                                    "payload_sensitivity": "device_result_values",
+                                    "claim_boundary": (
+                                        "system_under_test_device_result_digest_diagnostic"
+                                    ),
+                                    "next_action": (
+                                        "wait_for_explicit_provider_payload_boundary"
+                                    ),
                                 }
                             ],
                             "debug_payload_artifact_summary_rows": [
@@ -1288,7 +1325,18 @@ class AresIngestArtifactTest(unittest.TestCase):
             )
             self.assertEqual(
                 gate["detail"]["provider_payload_boundary_status_counts"],
-                {"recorded_artifact": 1},
+                {
+                    "recorded_artifact": 1,
+                    "route_available_no_provider_producer": 1,
+                },
+            )
+            self.assertEqual(
+                gate["detail"]["provider_payload_boundary_route_only_count"],
+                1,
+            )
+            self.assertEqual(
+                gate["detail"]["provider_payload_boundary_route_only_lanes"],
+                ["generic/device_result_digests"],
             )
             self.assertEqual(
                 gate["detail"]["debug_payload_artifact_summary_status_counts"],
@@ -1479,6 +1527,30 @@ class AresIngestArtifactTest(unittest.TestCase):
                 "scheduler_kv_save_values",
             )
             self.assertEqual(
+                gate["detail"]["provider_payload_boundary_route_only_samples"][0][
+                    "payload_lane"
+                ],
+                "device_result_digests",
+            )
+            self.assertEqual(
+                gate["detail"]["provider_payload_boundary_route_only_samples"][0][
+                    "producer_contract"
+                ],
+                "runtime_sidecar_route_only",
+            )
+            self.assertEqual(
+                gate["detail"]["provider_payload_boundary_route_only_samples"][0][
+                    "capture_control"
+                ],
+                "ARES_TRACE_RECORD_DEVICE_RESULTS=1",
+            )
+            self.assertEqual(
+                gate["detail"]["provider_payload_boundary_route_only_samples"][0][
+                    "matching_provider_artifact_count"
+                ],
+                "0",
+            )
+            self.assertEqual(
                 gate["detail"]["debug_payload_artifact_summary_samples"][0][
                     "artifact_kind"
                 ],
@@ -1667,6 +1739,42 @@ class AresIngestArtifactTest(unittest.TestCase):
                 "recorded_artifact": 4,
                 "route_available_no_provider_producer": 2,
             },
+        )
+        self.assertEqual(
+            gate["detail"]["provider_payload_boundary_route_only_count"],
+            2,
+        )
+        self.assertEqual(
+            gate["detail"]["provider_payload_boundary_route_only_lanes"],
+            ["generic/device_result_digests", "generic/tensor_payloads"],
+        )
+        route_only_samples = {
+            sample["payload_lane"]: sample
+            for sample in gate["detail"][
+                "provider_payload_boundary_route_only_samples"
+            ]
+        }
+        self.assertEqual(
+            route_only_samples["device_result_digests"]["producer_status"],
+            "runtime_route_only_no_provider_producer",
+        )
+        self.assertEqual(
+            route_only_samples["device_result_digests"]["producer_contract"],
+            "runtime_sidecar_route_only",
+        )
+        self.assertEqual(
+            route_only_samples["device_result_digests"]["capture_control"],
+            "ARES_TRACE_RECORD_DEVICE_RESULTS=1",
+        )
+        self.assertEqual(
+            route_only_samples["device_result_digests"][
+                "matching_provider_artifact_count"
+            ],
+            "0",
+        )
+        self.assertEqual(
+            route_only_samples["device_result_digests"]["report_section"],
+            "device_result_digest_sidecar_rows",
         )
         self.assertEqual(
             gate["detail"]["introspection_capability_status_counts"],
