@@ -154,6 +154,42 @@ def reward_fingerprint(reward: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def introspection_ladder_summary_from_spec(
+    spec: Mapping[str, Any],
+) -> dict[str, Any] | None:
+    gates = spec.get("validated_gates")
+    if not isinstance(gates, Mapping):
+        gates = spec.get("explicit_gates")
+    if not isinstance(gates, Mapping):
+        return None
+    gate = gates.get("introspection_ladder")
+    if not isinstance(gate, Mapping):
+        return None
+    detail = gate.get("detail")
+    if not isinstance(detail, Mapping):
+        detail = {}
+    return {
+        "path": gate.get("path"),
+        "sha256": gate.get("sha256") or detail.get("sha256"),
+        "passed": gate.get("passed"),
+        "artifact_validator": gate.get("artifact_validator"),
+        "schema": detail.get("schema"),
+        "evidence_class": detail.get("evidence_class"),
+        "status": detail.get("status"),
+        "first_failing_stage": detail.get("first_failing_stage"),
+        "next_owner": detail.get("next_owner"),
+        "stage_order": detail.get("stage_order"),
+        "comparison_count": detail.get("comparison_count"),
+        "run_count": detail.get("run_count"),
+        "graph_count": detail.get("graph_count"),
+        "comparisons": detail.get("comparisons"),
+        "first_failed_comparison": detail.get("first_failed_comparison"),
+        "first_mismatch": detail.get("first_mismatch"),
+        "trace_context": detail.get("trace_context"),
+        "errors": gate.get("errors"),
+    }
+
+
 def trace_report_summary_from_spec(spec: Mapping[str, Any]) -> dict[str, Any] | None:
     gates = spec.get("validated_gates")
     if not isinstance(gates, Mapping):
@@ -3174,28 +3210,36 @@ def generated_payload(payload: Any) -> Any:
     return payload
 
 
-def introspection_ladder_prompt_lines(spec: Mapping[str, Any]) -> list[str]:
-    validated_gates = spec.get("validated_gates")
-    if not isinstance(validated_gates, Mapping):
-        return []
-    gate = validated_gates.get("introspection_ladder")
-    if not isinstance(gate, Mapping):
-        return []
-    detail = gate.get("detail")
-    if not isinstance(detail, Mapping):
-        detail = {}
+def render_introspection_ladder_lines(summary: Mapping[str, Any]) -> list[str]:
     lines = ["- Validated introspection ladder:"]
-    if path := gate.get("path"):
+    if path := summary.get("path"):
         lines.append(f"  - report path: `{path}`")
-    if digest := gate.get("sha256"):
+    if digest := summary.get("sha256"):
         lines.append(f"  - report sha256: `{digest}`")
-    if evidence_class := detail.get("evidence_class"):
+    if evidence_class := summary.get("evidence_class"):
         lines.append(f"  - evidence class: `{evidence_class}`")
-    if first_stage := detail.get("first_failing_stage"):
+    if status := summary.get("status"):
+        lines.append(f"  - ladder status: `{status}`")
+    stage_order = summary.get("stage_order")
+    if isinstance(stage_order, list) and stage_order:
+        stages = " -> ".join(str(stage) for stage in stage_order[:8])
+        suffix = " -> ..." if len(stage_order) > 8 else ""
+        lines.append(f"  - stage order: `{stages}{suffix}`")
+    if first_stage := summary.get("first_failing_stage"):
         lines.append(f"  - first failing introspection stage: `{first_stage}`")
-    if next_owner := detail.get("next_owner"):
+    if next_owner := summary.get("next_owner"):
         lines.append(f"  - next owner: `{next_owner}`")
-    trace_context = detail.get("trace_context")
+    first_failed = summary.get("first_failed_comparison")
+    if isinstance(first_failed, Mapping):
+        comparison_line = _format_introspection_ladder_comparison(first_failed)
+        if comparison_line:
+            lines.append(f"  - first failed comparison: {comparison_line}")
+    first_mismatch = summary.get("first_mismatch")
+    if isinstance(first_mismatch, Mapping):
+        mismatch_line = _format_introspection_ladder_mismatch(first_mismatch)
+        if mismatch_line:
+            lines.append(f"  - first mismatch: {mismatch_line}")
+    trace_context = summary.get("trace_context")
     if isinstance(trace_context, Mapping):
         trace_labels = trace_context.get("trace_labels")
         if isinstance(trace_labels, list) and trace_labels:
@@ -3220,7 +3264,75 @@ def introspection_ladder_prompt_lines(spec: Mapping[str, Any]) -> list[str]:
                     rendered = ", ".join(f"`{path}`" for path in paths[:3])
                     suffix = " ..." if len(paths) > 3 else ""
                     lines.append(f"  - {label}: {rendered}{suffix}")
+    errors = summary.get("errors")
+    if isinstance(errors, list) and errors:
+        lines.append("- Validator errors: " + "; ".join(str(error) for error in errors))
     return lines
+
+
+def _format_introspection_ladder_comparison(comparison: Mapping[str, Any]) -> str:
+    from_stage = comparison.get("from_stage")
+    to_stage = comparison.get("to_stage")
+    if not from_stage or not to_stage:
+        return ""
+    parts = [f"`{from_stage}` -> `{to_stage}`"]
+    for field in ("status", "result"):
+        value = comparison.get(field)
+        if value:
+            parts.append(f"{field}=`{value}`")
+    if path := comparison.get("path"):
+        parts.append(f"path=`{path}`")
+    if digest := comparison.get("sha256"):
+        parts.append(f"sha256=`{digest}`")
+    return " ".join(parts)
+
+
+def _format_introspection_ladder_mismatch(mismatch: Mapping[str, Any]) -> str:
+    labels = {
+        "id": "id",
+        "producer_generator": "producer",
+        "value_id": "value",
+        "tensor": "tensor",
+        "metric": "metric",
+        "max_abs_error": "max_abs_error",
+        "max_rel_error": "max_rel_error",
+        "tvd": "tvd",
+        "top1_reference": "top1_reference",
+        "top1_candidate": "top1_candidate",
+        "token_index": "token_index",
+        "statement_index": "statement_index",
+        "statement_name": "statement_name",
+        "operation_id": "operation_id",
+        "trace_label": "trace_label",
+    }
+    parts = []
+    for field, label in labels.items():
+        value = mismatch.get(field)
+        if value is not None:
+            parts.append(f"{label}=`{value}`")
+    return " ".join(parts)
+
+
+def introspection_ladder_handoff_section(state: Mapping[str, Any] | None) -> str:
+    if not isinstance(state, Mapping):
+        return ""
+    summary = state.get("introspection_ladder")
+    if not isinstance(summary, Mapping):
+        return ""
+    lines = [
+        "## Introspection Ladder",
+        "",
+        *render_introspection_ladder_lines(summary),
+        "",
+    ]
+    return "\n".join(lines)
+
+
+def introspection_ladder_prompt_lines(spec: Mapping[str, Any]) -> list[str]:
+    summary = introspection_ladder_summary_from_spec(spec)
+    if not summary:
+        return []
+    return render_introspection_ladder_lines(summary)
 
 
 def write_handoff(
@@ -3269,6 +3381,7 @@ Latest refinement prompt: `{latest_prompt or "none"}`
 {skill_text}
 
 {trace_report_handoff_section(state)}
+{introspection_ladder_handoff_section(state)}
 ## Operator Steering
 
 {chr(10).join(steering_prompt_lines(cfg))}
@@ -3569,6 +3682,7 @@ def initialize_run(cfg: AresIngestConfig) -> dict[str, Any]:
         first_failed_gate=str(reward.get("first_failed_gate", "unknown")),
     )
     trace_report = trace_report_summary_from_spec(spec)
+    introspection_ladder = introspection_ladder_summary_from_spec(spec)
     state = {
         "status": "initialized_setup_only",
         "model": cfg.model_slug,
@@ -3592,6 +3706,8 @@ def initialize_run(cfg: AresIngestConfig) -> dict[str, Any]:
     }
     if trace_report:
         state["trace_report"] = trace_report
+    if introspection_ladder:
+        state["introspection_ladder"] = introspection_ladder
     write_json(cfg.state_path, state)
     write_handoff(cfg, reward, state=state)
     return state
@@ -4062,12 +4178,19 @@ def append_history(
     )
     state["reward"] = reward_fingerprint(reward)
     trace_report = None
+    introspection_ladder = None
     if cfg.model_spec_path.exists():
-        trace_report = trace_report_summary_from_spec(load_json(cfg.model_spec_path))
+        spec = load_json(cfg.model_spec_path)
+        trace_report = trace_report_summary_from_spec(spec)
+        introspection_ladder = introspection_ladder_summary_from_spec(spec)
     if trace_report:
         state["trace_report"] = trace_report
     else:
         state.pop("trace_report", None)
+    if introspection_ladder:
+        state["introspection_ladder"] = introspection_ladder
+    else:
+        state.pop("introspection_ladder", None)
     if prompt_path is not None:
         state["latest_refinement_prompt"] = str(prompt_path)
     history_entry = {
@@ -4080,6 +4203,8 @@ def append_history(
     }
     if trace_report:
         history_entry["trace_report"] = trace_report
+    if introspection_ladder:
+        history_entry["introspection_ladder"] = introspection_ladder
     state["history"].append(history_entry)
     write_json(cfg.state_path, state)
     write_handoff(cfg, reward, state=state)
@@ -4120,13 +4245,16 @@ def write_failure_state(cfg: AresIngestConfig, error: BaseException) -> None:
     )
     if cfg.model_spec_path.exists():
         try:
-            trace_report = trace_report_summary_from_spec(
-                load_json(cfg.model_spec_path)
-            )
+            spec = load_json(cfg.model_spec_path)
+            trace_report = trace_report_summary_from_spec(spec)
+            introspection_ladder = introspection_ladder_summary_from_spec(spec)
         except AresIngestError:
             trace_report = None
+            introspection_ladder = None
         if trace_report:
             state["trace_report"] = trace_report
+        if introspection_ladder:
+            state["introspection_ladder"] = introspection_ladder
     state["updated_at"] = datetime.now(timezone.utc).isoformat()
     write_json(cfg.state_path, state)
     if reward_payload is not None:

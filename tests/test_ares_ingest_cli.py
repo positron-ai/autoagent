@@ -11,6 +11,7 @@ from ares_ingest_autoagent.ares_cli import (
     CLAUDE_REFINER_COMMAND,
     DEFAULT_REFINER_COMMAND,
     AresIngestError,
+    append_history,
     append_steering_note,
     append_steering_resource,
     build_parser,
@@ -22,6 +23,7 @@ from ares_ingest_autoagent.ares_cli import (
     selected_workflow_skills,
     slugify,
     write_handoff,
+    write_failure_state,
     write_refinement_prompt,
 )
 
@@ -99,7 +101,12 @@ def write_introspection_ladder(root: Path) -> Path:
                         "status": "failed",
                         "result": "diverged",
                         "path": compare["path"],
-                        "first_mismatch": {"id": "logits"},
+                        "first_mismatch": {
+                            "id": "logits",
+                            "producer_generator": "linear_0",
+                            "max_abs_error": 0.25,
+                            "trace_label": "targetplan.stmt.00001.matmul",
+                        },
                     }
                 ],
                 "first_failing_stage": "source_hf_hypergraph",
@@ -2113,6 +2120,23 @@ class AresIngestCliTest(unittest.TestCase):
             gate = spec["validated_gates"]["introspection_ladder"]
             self.assertTrue(gate["passed"], gate.get("errors"))
             self.assertEqual(gate["artifact_validator"], "introspection_ladder")
+            self.assertEqual(
+                gate["detail"]["first_failed_comparison"]["from_stage"],
+                "hf_cpu_oracle",
+            )
+            self.assertEqual(
+                gate["detail"]["first_failed_comparison"]["to_stage"],
+                "source_hf_hypergraph",
+            )
+            self.assertEqual(gate["detail"]["first_mismatch"]["id"], "logits")
+            self.assertEqual(
+                gate["detail"]["first_mismatch"]["producer_generator"],
+                "linear_0",
+            )
+            self.assertEqual(
+                gate["detail"]["first_mismatch"]["max_abs_error"],
+                0.25,
+            )
             self.assertEqual(reward["first_failed_gate"], "hf_cpu_oracle")
             self.assertTrue(reward["gates"]["introspection_ladder"]["passed"])
             prompt = write_refinement_prompt(
@@ -2124,10 +2148,154 @@ class AresIngestCliTest(unittest.TestCase):
             self.assertIn("Validated introspection ladder", prompt)
             self.assertIn("first failing introspection stage", prompt)
             self.assertIn("source_hf_hypergraph", prompt)
+            self.assertIn("first failed comparison", prompt)
+            self.assertIn("`hf_cpu_oracle` -> `source_hf_hypergraph`", prompt)
+            self.assertIn("first mismatch", prompt)
+            self.assertIn("producer=`linear_0`", prompt)
+            self.assertIn("max_abs_error=`0.25`", prompt)
             self.assertIn(gate["sha256"], prompt)
             self.assertIn("targetplan.stmt.00001.matmul", prompt)
             self.assertIn("backend-events.jsonl", prompt)
             self.assertIn("run.trace-meta.json", prompt)
+
+    def test_introspection_ladder_is_recorded_in_state_handoff_and_history(
+        self,
+    ) -> None:
+        with TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            run_dir = root / "run"
+            run_dir.mkdir()
+            cfg = config_from_args(
+                build_parser().parse_args(
+                    [
+                        "--ares-repo",
+                        str(root),
+                        "--run-dir",
+                        str(run_dir),
+                        "--setup-only",
+                        "Provider/Model",
+                    ]
+                )
+            )
+            write_introspection_ladder(run_dir)
+            cfg.model_spec_path.write_text(
+                json.dumps(
+                    {
+                        "model": "Provider/Model",
+                        "required_gates": ["model_spec", "hf_cpu_oracle"],
+                        "explicit_gates": {
+                            "model_spec": {"passed": True, "score": 1.0}
+                        },
+                        "introspection_ladder": "ladder.json",
+                    }
+                )
+            )
+
+            state = initialize_run(cfg)
+
+            ladder = state["introspection_ladder"]
+            self.assertEqual(ladder["path"], str((run_dir / "ladder.json").resolve()))
+            self.assertTrue(ladder["passed"])
+            self.assertEqual(ladder["artifact_validator"], "introspection_ladder")
+            self.assertEqual(ladder["evidence_class"], "semantic_localization")
+            self.assertEqual(ladder["first_failing_stage"], "source_hf_hypergraph")
+            self.assertEqual(ladder["next_owner"], "ares-python")
+            self.assertEqual(
+                ladder["first_failed_comparison"]["from_stage"],
+                "hf_cpu_oracle",
+            )
+            self.assertEqual(
+                ladder["first_failed_comparison"]["to_stage"],
+                "source_hf_hypergraph",
+            )
+            self.assertEqual(
+                ladder["first_failed_comparison"]["path"],
+                "source.compare.json",
+            )
+            self.assertEqual(ladder["first_mismatch"]["id"], "logits")
+            self.assertEqual(
+                ladder["first_mismatch"]["producer_generator"],
+                "linear_0",
+            )
+            self.assertEqual(
+                ladder["trace_context"]["trace_labels"],
+                ["targetplan.stmt.00001.matmul"],
+            )
+            handoff = (run_dir / "handoff.md").read_text()
+            self.assertIn("## Introspection Ladder", handoff)
+            self.assertIn("semantic_localization", handoff)
+            self.assertIn("source.compare.json", handoff)
+            self.assertIn("first failed comparison", handoff)
+            self.assertIn("`hf_cpu_oracle` -> `source_hf_hypergraph`", handoff)
+            self.assertIn("producer=`linear_0`", handoff)
+            self.assertIn("max_abs_error=`0.25`", handoff)
+
+            append_history(
+                state,
+                cfg=cfg,
+                iteration=1,
+                reward=json.loads((run_dir / "reward.json").read_text()),
+                status="refiner_ran",
+            )
+
+            saved = json.loads(cfg.state_path.read_text())
+            self.assertEqual(
+                saved["history"][0]["introspection_ladder"]["first_mismatch"][
+                    "max_abs_error"
+                ],
+                0.25,
+            )
+
+    def test_failure_state_preserves_validated_introspection_ladder(self) -> None:
+        with TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            run_dir = root / "run"
+            run_dir.mkdir()
+            cfg = config_from_args(
+                build_parser().parse_args(
+                    [
+                        "--ares-repo",
+                        str(root),
+                        "--run-dir",
+                        str(run_dir),
+                        "Provider/Model",
+                    ]
+                )
+            )
+            write_introspection_ladder(run_dir)
+            cfg.model_spec_path.write_text(
+                json.dumps(
+                    {
+                        "model": "Provider/Model",
+                        "required_gates": ["model_spec", "hf_cpu_oracle"],
+                        "explicit_gates": {
+                            "model_spec": {"passed": True, "score": 1.0}
+                        },
+                        "introspection_ladder": "ladder.json",
+                    }
+                )
+            )
+            evaluate_run(cfg)
+
+            write_failure_state(cfg, AresIngestError("forced failure"))
+
+            saved = json.loads(cfg.state_path.read_text())
+            self.assertEqual(saved["status"], "failed")
+            self.assertEqual(
+                saved["introspection_ladder"]["first_failed_comparison"][
+                    "to_stage"
+                ],
+                "source_hf_hypergraph",
+            )
+            self.assertEqual(
+                saved["introspection_ladder"]["first_mismatch"][
+                    "producer_generator"
+                ],
+                "linear_0",
+            )
+            handoff = (run_dir / "handoff.md").read_text()
+            self.assertIn("## Introspection Ladder", handoff)
+            self.assertIn("first mismatch", handoff)
 
     def test_logit_drift_selects_introspection_skill_context(self) -> None:
         with TemporaryDirectory() as tmp:

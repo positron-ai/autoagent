@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 import re
 from dataclasses import dataclass
 from pathlib import Path
@@ -60,6 +61,24 @@ INTROSPECTION_TRACE_ARTIFACT_FIELDS = (
     "stage_event_summaries",
     "perfetto_summaries",
     "trace_metadata",
+)
+INTROSPECTION_COMPARISON_DETAIL_LIMIT = 8
+INTROSPECTION_FIRST_MISMATCH_SCALAR_FIELDS = (
+    "id",
+    "producer_generator",
+    "value_id",
+    "tensor",
+    "metric",
+    "max_abs_error",
+    "max_rel_error",
+    "tvd",
+    "top1_reference",
+    "top1_candidate",
+    "token_index",
+    "statement_index",
+    "statement_name",
+    "operation_id",
+    "trace_label",
 )
 TRACE_REPORT_REQUIRED_SECTIONS = (
     "preflight",
@@ -1272,6 +1291,10 @@ def validate_introspection_ladder_report(
         if isinstance(trace_context, Mapping)
         else {}
     )
+    comparison_details = _introspection_ladder_comparison_details(comparisons)
+    first_failed_comparison = _introspection_first_failed_comparison_detail(
+        comparisons
+    )
     detail = {
         "schema": payload.get("schema"),
         "evidence_class": payload.get("evidence_class"),
@@ -1283,7 +1306,12 @@ def validate_introspection_ladder_report(
         "run_count": len(runs) if isinstance(runs, list) else 0,
         "graph_count": len(graphs) if isinstance(graphs, list) else 0,
         "trace_context": trace_context_detail,
+        "comparisons": comparison_details,
     }
+    if first_failed_comparison is not None:
+        detail["first_failed_comparison"] = first_failed_comparison
+        if isinstance(first_failed_comparison.get("first_mismatch"), Mapping):
+            detail["first_mismatch"] = first_failed_comparison["first_mismatch"]
     return _validation(not errors, errors, detail)
 
 
@@ -3061,6 +3089,73 @@ def _introspection_trace_context_detail(value: Mapping[str, Any]) -> dict[str, A
         if normalized_refs:
             detail[field] = normalized_refs
     return detail
+
+
+def _introspection_ladder_comparison_details(value: Any) -> list[dict[str, Any]]:
+    if not isinstance(value, list):
+        return []
+    return [
+        detail
+        for detail in (
+            _introspection_ladder_comparison_detail(comparison)
+            for comparison in value[:INTROSPECTION_COMPARISON_DETAIL_LIMIT]
+        )
+        if detail
+    ]
+
+
+def _introspection_first_failed_comparison_detail(value: Any) -> dict[str, Any] | None:
+    if not isinstance(value, list):
+        return None
+    for comparison in value:
+        if not isinstance(comparison, Mapping):
+            continue
+        if (
+            comparison.get("status") == "failed"
+            or comparison.get("result") == "diverged"
+        ):
+            return _introspection_ladder_comparison_detail(comparison)
+    return None
+
+
+def _introspection_ladder_comparison_detail(value: Any) -> dict[str, Any]:
+    if not isinstance(value, Mapping):
+        return {}
+    detail: dict[str, Any] = {}
+    for field in ("from_stage", "to_stage", "status", "result", "path"):
+        item = value.get(field)
+        if isinstance(item, str) and item:
+            detail[field] = item
+    digest = _normalize_introspection_sha256(value.get("sha256"))
+    if digest is not None:
+        detail["sha256"] = f"sha256:{digest}"
+    mismatch = value.get("first_mismatch")
+    if isinstance(mismatch, Mapping):
+        mismatch_detail = _introspection_first_mismatch_detail(mismatch)
+        if mismatch_detail:
+            detail["first_mismatch"] = mismatch_detail
+    return detail
+
+
+def _introspection_first_mismatch_detail(value: Mapping[str, Any]) -> dict[str, Any]:
+    detail: dict[str, Any] = {}
+    for field in INTROSPECTION_FIRST_MISMATCH_SCALAR_FIELDS:
+        item = value.get(field)
+        if _is_json_scalar(item):
+            detail[field] = item
+    return detail
+
+
+def _is_json_scalar(value: Any) -> bool:
+    if isinstance(value, str):
+        return bool(value)
+    if isinstance(value, bool):
+        return True
+    if isinstance(value, int):
+        return True
+    if isinstance(value, float):
+        return math.isfinite(value)
+    return False
 
 
 def _validate_introspection_comparison_ref(

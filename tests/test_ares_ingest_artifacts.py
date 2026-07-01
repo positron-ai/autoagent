@@ -2872,6 +2872,27 @@ class AresIngestArtifactTest(unittest.TestCase):
                 "source_hf_hypergraph",
             )
             self.assertEqual(
+                gate["detail"]["comparisons"][0]["from_stage"],
+                "hf_cpu_oracle",
+            )
+            self.assertEqual(
+                gate["detail"]["comparisons"][0]["first_mismatch"]["id"],
+                "logits",
+            )
+            self.assertEqual(
+                gate["detail"]["first_failed_comparison"]["to_stage"],
+                "source_hf_hypergraph",
+            )
+            self.assertEqual(gate["detail"]["first_mismatch"]["id"], "logits")
+            self.assertEqual(
+                gate["detail"]["first_mismatch"]["producer_generator"],
+                "linear_0",
+            )
+            self.assertEqual(
+                gate["detail"]["first_mismatch"]["max_abs_error"],
+                0.25,
+            )
+            self.assertEqual(
                 gate["detail"]["trace_context"]["trace_labels"],
                 ["targetplan.stmt.00001.matmul"],
             )
