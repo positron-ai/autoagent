@@ -1665,7 +1665,7 @@ class AresIngestArtifactTest(unittest.TestCase):
                 "blocked_no_supported_boundary": 1,
                 "capability_without_matching_provider_artifact": 5,
                 "recorded_artifact": 4,
-                "route_available_no_provider_producer": 1,
+                "route_available_no_provider_producer": 2,
             },
         )
         self.assertEqual(
