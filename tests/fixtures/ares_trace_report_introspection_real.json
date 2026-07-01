@@ -3006,7 +3006,7 @@
         "record_tokens_requested": true,
         "recorded_sidecar_capabilities": "token_quality,topk_rows,logit_slices,tensor_payloads,activation_digests,kv_payload_digests,device_result_digests,scheduler_packet_lineage,device_dma_lifecycle,attention_page_trace",
         "requested_categories": "run,artifact,request,scheduler,generation,forward,targetplan,device,streaming,frontend,planning,debug_detail",
-        "requested_sidecar_controls": "topk,logit_slices,tensor_payloads,activation_digests,kv_payload_digests",
+        "requested_sidecar_controls": "topk,logit_slices,tensor_payloads,activation_digests,kv_payload_digests,device_result_digests",
         "sample_rate": "1",
         "sched_requested": false,
         "token_window": "0:1"
