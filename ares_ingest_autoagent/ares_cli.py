@@ -2340,11 +2340,15 @@ def render_trace_report_lines(summary: Mapping[str, Any]) -> list[str]:
         tensor_role = sample.get("tensor_role")
         targetplan_op_id = sample.get("targetplan_op_id")
         targetplan_action = sample.get("targetplan_action")
+        statement_index = sample.get("target_plan_statement_index")
+        statement_kind = sample.get("target_plan_statement_kind")
+        statement_name = sample.get("target_plan_statement_name")
         layer = sample.get("layer")
         shape = sample.get("shape")
         element_count = sample.get("element_count")
         digest = sample.get("digest_sha256")
         sample_count = sample.get("sample_value_count")
+        sample_finite_count = sample.get("sample_finite_count")
         sample_nan_count = sample.get("sample_nan_count")
         failure_reason = sample.get("failure_reason")
         label = (
@@ -2369,6 +2373,12 @@ def render_trace_report_lines(summary: Mapping[str, Any]) -> list[str]:
             parts.append(f"op={targetplan_op_id}")
         if targetplan_action:
             parts.append(f"action={targetplan_action}")
+        if _trace_report_sample_value_present(statement_index):
+            parts.append(f"stmt_index={statement_index}")
+        if statement_kind:
+            parts.append(f"stmt_kind={statement_kind}")
+        if statement_name:
+            parts.append(f"stmt_name={statement_name}")
         if _trace_report_sample_value_present(layer):
             parts.append(f"layer={layer}")
         if tensor_name:
@@ -2379,6 +2389,8 @@ def render_trace_report_lines(summary: Mapping[str, Any]) -> list[str]:
             parts.append(f"elements={element_count}")
         if _trace_report_sample_value_present(sample_count):
             parts.append(f"samples={sample_count}")
+        if _trace_report_sample_value_present(sample_finite_count):
+            parts.append(f"sample_finite={sample_finite_count}")
         if _trace_report_sample_value_present(sample_nan_count):
             parts.append(f"sample_nan={sample_nan_count}")
         if digest:
@@ -2398,11 +2410,16 @@ def render_trace_report_lines(summary: Mapping[str, Any]) -> list[str]:
         backend_id = sample.get("backend_id")
         tensor_name = sample.get("tensor_name")
         tensor_role = sample.get("tensor_role")
+        targetplan_op_id = sample.get("targetplan_op_id")
         targetplan_action = sample.get("targetplan_action")
+        statement_index = sample.get("target_plan_statement_index")
+        statement_kind = sample.get("target_plan_statement_kind")
+        statement_name = sample.get("target_plan_statement_name")
         layer = sample.get("layer")
         element_count = sample.get("element_count")
         digest = sample.get("digest_sha256")
         sample_count = sample.get("sample_value_count")
+        sample_finite_count = sample.get("sample_finite_count")
         sample_min = sample.get("sample_min")
         sample_max = sample.get("sample_max")
         label = (
@@ -2421,8 +2438,16 @@ def render_trace_report_lines(summary: Mapping[str, Any]) -> list[str]:
             parts.append(f"backend={backend_id}")
         if tensor_role:
             parts.append(f"role={tensor_role}")
+        if targetplan_op_id:
+            parts.append(f"op={targetplan_op_id}")
         if targetplan_action:
             parts.append(f"action={targetplan_action}")
+        if _trace_report_sample_value_present(statement_index):
+            parts.append(f"stmt_index={statement_index}")
+        if statement_kind:
+            parts.append(f"stmt_kind={statement_kind}")
+        if statement_name:
+            parts.append(f"stmt_name={statement_name}")
         if _trace_report_sample_value_present(layer):
             parts.append(f"layer={layer}")
         if tensor_name:
@@ -2431,6 +2456,8 @@ def render_trace_report_lines(summary: Mapping[str, Any]) -> list[str]:
             parts.append(f"elements={element_count}")
         if _trace_report_sample_value_present(sample_count):
             parts.append(f"samples={sample_count}")
+        if _trace_report_sample_value_present(sample_finite_count):
+            parts.append(f"sample_finite={sample_finite_count}")
         if _trace_report_sample_value_present(sample_min):
             parts.append(f"sample_min={sample_min}")
         if _trace_report_sample_value_present(sample_max):
@@ -2450,6 +2477,9 @@ def render_trace_report_lines(summary: Mapping[str, Any]) -> list[str]:
         backend_id = sample.get("backend_id")
         targetplan_op_id = sample.get("targetplan_op_id")
         targetplan_action = sample.get("targetplan_action")
+        statement_index = sample.get("target_plan_statement_index")
+        statement_kind = sample.get("target_plan_statement_kind")
+        statement_name = sample.get("target_plan_statement_name")
         layer = sample.get("layer")
         intrinsic = sample.get("intrinsic")
         tensor_name = sample.get("tensor_name")
@@ -2457,6 +2487,7 @@ def render_trace_report_lines(summary: Mapping[str, Any]) -> list[str]:
         element_count = sample.get("element_count")
         digest = sample.get("digest_sha256")
         sample_count = sample.get("sample_value_count")
+        sample_finite_count = sample.get("sample_finite_count")
         sample_nan_count = sample.get("sample_nan_count")
         failure_reason = sample.get("failure_reason")
         label = (
@@ -2477,6 +2508,12 @@ def render_trace_report_lines(summary: Mapping[str, Any]) -> list[str]:
             parts.append(f"op={targetplan_op_id}")
         if targetplan_action:
             parts.append(f"action={targetplan_action}")
+        if _trace_report_sample_value_present(statement_index):
+            parts.append(f"stmt_index={statement_index}")
+        if statement_kind:
+            parts.append(f"stmt_kind={statement_kind}")
+        if statement_name:
+            parts.append(f"stmt_name={statement_name}")
         if _trace_report_sample_value_present(layer):
             parts.append(f"layer={layer}")
         if intrinsic:
@@ -2489,6 +2526,8 @@ def render_trace_report_lines(summary: Mapping[str, Any]) -> list[str]:
             parts.append(f"elements={element_count}")
         if _trace_report_sample_value_present(sample_count):
             parts.append(f"samples={sample_count}")
+        if _trace_report_sample_value_present(sample_finite_count):
+            parts.append(f"sample_finite={sample_finite_count}")
         if _trace_report_sample_value_present(sample_nan_count):
             parts.append(f"sample_nan={sample_nan_count}")
         if digest:
@@ -2508,6 +2547,9 @@ def render_trace_report_lines(summary: Mapping[str, Any]) -> list[str]:
         backend_id = sample.get("backend_id")
         targetplan_op_id = sample.get("targetplan_op_id")
         targetplan_action = sample.get("targetplan_action")
+        statement_index = sample.get("target_plan_statement_index")
+        statement_kind = sample.get("target_plan_statement_kind")
+        statement_name = sample.get("target_plan_statement_name")
         layer = sample.get("layer")
         intrinsic = sample.get("intrinsic")
         tensor_name = sample.get("tensor_name")
@@ -2515,6 +2557,7 @@ def render_trace_report_lines(summary: Mapping[str, Any]) -> list[str]:
         element_count = sample.get("element_count")
         digest = sample.get("digest_sha256")
         sample_count = sample.get("sample_value_count")
+        sample_finite_count = sample.get("sample_finite_count")
         sample_min = sample.get("sample_min")
         sample_max = sample.get("sample_max")
         failure_reason = sample.get("failure_reason")
@@ -2536,6 +2579,12 @@ def render_trace_report_lines(summary: Mapping[str, Any]) -> list[str]:
             parts.append(f"op={targetplan_op_id}")
         if targetplan_action:
             parts.append(f"action={targetplan_action}")
+        if _trace_report_sample_value_present(statement_index):
+            parts.append(f"stmt_index={statement_index}")
+        if statement_kind:
+            parts.append(f"stmt_kind={statement_kind}")
+        if statement_name:
+            parts.append(f"stmt_name={statement_name}")
         if _trace_report_sample_value_present(layer):
             parts.append(f"layer={layer}")
         if intrinsic:
@@ -2548,6 +2597,8 @@ def render_trace_report_lines(summary: Mapping[str, Any]) -> list[str]:
             parts.append(f"elements={element_count}")
         if _trace_report_sample_value_present(sample_count):
             parts.append(f"samples={sample_count}")
+        if _trace_report_sample_value_present(sample_finite_count):
+            parts.append(f"sample_finite={sample_finite_count}")
         if _trace_report_sample_value_present(sample_min):
             parts.append(f"sample_min={sample_min}")
         if _trace_report_sample_value_present(sample_max):
@@ -2569,6 +2620,9 @@ def render_trace_report_lines(summary: Mapping[str, Any]) -> list[str]:
         backend_id = sample.get("backend_id")
         targetplan_op_id = sample.get("targetplan_op_id")
         targetplan_action = sample.get("targetplan_action")
+        statement_index = sample.get("target_plan_statement_index")
+        statement_kind = sample.get("target_plan_statement_kind")
+        statement_name = sample.get("target_plan_statement_name")
         layer = sample.get("layer")
         intrinsic = sample.get("intrinsic")
         tensor_name = sample.get("tensor_name")
@@ -2577,6 +2631,7 @@ def render_trace_report_lines(summary: Mapping[str, Any]) -> list[str]:
         element_count = sample.get("element_count")
         digest = sample.get("digest_sha256")
         sample_count = sample.get("sample_value_count")
+        sample_finite_count = sample.get("sample_finite_count")
         sample_min = sample.get("sample_min")
         sample_max = sample.get("sample_max")
         sample_nan_count = sample.get("sample_nan_count")
@@ -2599,6 +2654,12 @@ def render_trace_report_lines(summary: Mapping[str, Any]) -> list[str]:
             parts.append(f"op={targetplan_op_id}")
         if targetplan_action:
             parts.append(f"action={targetplan_action}")
+        if _trace_report_sample_value_present(statement_index):
+            parts.append(f"stmt_index={statement_index}")
+        if statement_kind:
+            parts.append(f"stmt_kind={statement_kind}")
+        if statement_name:
+            parts.append(f"stmt_name={statement_name}")
         if _trace_report_sample_value_present(layer):
             parts.append(f"layer={layer}")
         if intrinsic:
@@ -2613,6 +2674,8 @@ def render_trace_report_lines(summary: Mapping[str, Any]) -> list[str]:
             parts.append(f"elements={element_count}")
         if _trace_report_sample_value_present(sample_count):
             parts.append(f"samples={sample_count}")
+        if _trace_report_sample_value_present(sample_finite_count):
+            parts.append(f"sample_finite={sample_finite_count}")
         if _trace_report_sample_value_present(sample_min):
             parts.append(f"sample_min={sample_min}")
         if _trace_report_sample_value_present(sample_max):

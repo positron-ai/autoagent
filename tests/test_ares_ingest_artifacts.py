@@ -1011,8 +1011,8 @@ class AresIngestArtifactTest(unittest.TestCase):
                                     ),
                                     "producer_status": "provider_callback_present",
                                     "producer_contract": (
-                                        "fpga_scheduler_batch_dispatch_returns_"
-                                        "completed_targetplan_listener_logits"
+                                        "fpga_scheduler_batch_dispatch_emits_"
+                                        "scheduler_kv_save_payload_digests"
                                     ),
                                     "payload_record_policy": (
                                         "sha256_digest_plus_bounded_f32_sample"
@@ -1356,6 +1356,9 @@ class AresIngestArtifactTest(unittest.TestCase):
                                     "token_index": 0,
                                     "targetplan_op_id": "tp.generic.0",
                                     "targetplan_action": "provider_payload",
+                                    "target_plan_statement_index": "44",
+                                    "target_plan_statement_kind": "span",
+                                    "target_plan_statement_name": "provider_payload",
                                     "layer": "31",
                                     "tensor_payload_kind": "tensor_payload",
                                     "tensor_name": "provider_payload",
@@ -1365,6 +1368,7 @@ class AresIngestArtifactTest(unittest.TestCase):
                                     "element_count": "2",
                                     "digest_sha256": SHA_A,
                                     "sample_value_count": "2",
+                                    "sample_finite_count": "2",
                                     "sample_min": "9.0",
                                     "sample_max": "10.0",
                                     "sample_nan_count": "0",
@@ -1381,7 +1385,11 @@ class AresIngestArtifactTest(unittest.TestCase):
                                     "request_id": "7006",
                                     "generation_id": "rinzler-7006",
                                     "token_index": 0,
+                                    "targetplan_op_id": "",
                                     "targetplan_action": "kv_cache",
+                                    "target_plan_statement_index": "21",
+                                    "target_plan_statement_kind": "kv_cache",
+                                    "target_plan_statement_name": "kv_save_layer_0_key",
                                     "layer": "0",
                                     "tensor_payload_kind": "kv_payload_digest",
                                     "tensor_name": "scheduler_kv_save.layer_0.buf_1.k",
@@ -1391,6 +1399,7 @@ class AresIngestArtifactTest(unittest.TestCase):
                                     "element_count": "16",
                                     "digest_sha256": SHA_B,
                                     "sample_value_count": "4",
+                                    "sample_finite_count": "4",
                                     "sample_min": "0.125",
                                     "sample_max": "0.5",
                                     "sample_nan_count": "0",
@@ -1409,6 +1418,9 @@ class AresIngestArtifactTest(unittest.TestCase):
                                     "token_index": "0",
                                     "targetplan_op_id": "tp.logits.0",
                                     "targetplan_action": "final_logits",
+                                    "target_plan_statement_index": "99",
+                                    "target_plan_statement_kind": "span",
+                                    "target_plan_statement_name": "ares_logits",
                                     "layer": "31",
                                     "intrinsic": "topk",
                                     "tensor_payload_kind": "logit_slice",
@@ -1421,6 +1433,7 @@ class AresIngestArtifactTest(unittest.TestCase):
                                     "sample_start": "7",
                                     "sample_stride": "1",
                                     "sample_value_count": "4",
+                                    "sample_finite_count": "2",
                                     "sample_min": "-0.25",
                                     "sample_max": "0.5",
                                     "sample_nan_count": "1",
@@ -1441,6 +1454,9 @@ class AresIngestArtifactTest(unittest.TestCase):
                                     "token_index": "0",
                                     "targetplan_op_id": "tp.activation.0",
                                     "targetplan_action": "activation",
+                                    "target_plan_statement_index": "42",
+                                    "target_plan_statement_kind": "rmsnorm",
+                                    "target_plan_statement_name": "layer_0_activation",
                                     "layer": "0",
                                     "intrinsic": "rmsnorm",
                                     "tensor_payload_kind": "activation_digest",
@@ -1453,6 +1469,7 @@ class AresIngestArtifactTest(unittest.TestCase):
                                     "sample_start": "0",
                                     "sample_stride": "8",
                                     "sample_value_count": "4",
+                                    "sample_finite_count": "4",
                                     "sample_min": "-0.125",
                                     "sample_max": "0.5",
                                     "sample_nan_count": "0",
@@ -1469,20 +1486,24 @@ class AresIngestArtifactTest(unittest.TestCase):
                                     "request_id": "7009",
                                     "generation_id": "rinzler-7009",
                                     "token_index": "0",
-                                    "targetplan_op_id": "tp.device.result.0",
-                                    "targetplan_action": "device_result",
-                                    "layer": "2",
-                                    "intrinsic": "fpga.device_result_digest",
+                                    "targetplan_op_id": "stmt.00004.matmul",
+                                    "targetplan_action": "matmul",
+                                    "target_plan_statement_index": "4",
+                                    "target_plan_statement_kind": "matmul",
+                                    "target_plan_statement_name": "wcls",
+                                    "layer": "",
+                                    "intrinsic": "fpga.matmul",
                                     "tensor_payload_kind": "device_result_digest",
-                                    "tensor_name": "fpga_device_result",
-                                    "tensor_role": "device_result",
-                                    "element_type": "bf16",
+                                    "tensor_name": "fpga_scheduler_forward_batch_result",
+                                    "tensor_role": "scheduler_device_result",
+                                    "element_type": "f32",
                                     "shape": "[4]",
                                     "element_count": "4",
                                     "digest_sha256": SHA_C,
                                     "sample_start": "0",
                                     "sample_stride": "1",
                                     "sample_value_count": "2",
+                                    "sample_finite_count": "2",
                                     "sample_min": "1.25",
                                     "sample_max": "2.5",
                                     "sample_nan_count": "0",
@@ -2215,15 +2236,15 @@ class AresIngestArtifactTest(unittest.TestCase):
             )
             self.assertEqual(
                 gate["detail"]["device_result_digest_sidecar_role_counts"],
-                {"device_result": 1},
+                {"scheduler_device_result": 1},
             )
             self.assertEqual(
                 gate["detail"]["device_result_digest_sidecar_action_counts"],
-                {"device_result": 1},
+                {"matmul": 1},
             )
             self.assertEqual(
                 gate["detail"]["device_result_digest_sidecar_intrinsic_counts"],
-                {"fpga.device_result_digest": 1},
+                {"fpga.matmul": 1},
             )
             self.assertEqual(
                 gate["detail"]["scheduler_packet_lineage_sidecar_status_counts"],
@@ -2369,7 +2390,7 @@ class AresIngestArtifactTest(unittest.TestCase):
                 gate["detail"]["provider_payload_boundary_recorded_samples"][0][
                     "producer_contract"
                 ],
-                "fpga_scheduler_batch_dispatch_returns_completed_targetplan_listener_logits",
+                "fpga_scheduler_batch_dispatch_emits_scheduler_kv_save_payload_digests",
             )
             self.assertEqual(
                 gate["detail"]["provider_payload_boundary_recorded_samples"][0][
@@ -2493,12 +2514,52 @@ class AresIngestArtifactTest(unittest.TestCase):
                 "provider_device_payload",
             )
             self.assertEqual(
+                gate["detail"]["tensor_payload_sidecar_samples"][0][
+                    "target_plan_statement_name"
+                ],
+                "provider_payload",
+            )
+            self.assertEqual(
+                gate["detail"]["tensor_payload_sidecar_samples"][0][
+                    "sample_finite_count"
+                ],
+                "2",
+            )
+            self.assertEqual(
                 gate["detail"]["kv_payload_digest_sidecar_samples"][0]["tensor_role"],
                 "kv_key",
             )
             self.assertEqual(
+                gate["detail"]["kv_payload_digest_sidecar_samples"][0][
+                    "target_plan_statement_kind"
+                ],
+                "kv_cache",
+            )
+            self.assertEqual(
+                gate["detail"]["kv_payload_digest_sidecar_samples"][0][
+                    "target_plan_statement_name"
+                ],
+                "kv_save_layer_0_key",
+            )
+            self.assertEqual(
                 gate["detail"]["kv_payload_digest_sidecar_samples"][0]["digest_sha256"],
                 SHA_B,
+            )
+            self.assertEqual(
+                gate["detail"]["kv_payload_digest_sidecar_samples"][0][
+                    "sample_finite_count"
+                ],
+                "4",
+            )
+            self.assertEqual(
+                gate["detail"]["logit_slice_sidecar_samples"][0][
+                    "target_plan_statement_name"
+                ],
+                "ares_logits",
+            )
+            self.assertEqual(
+                gate["detail"]["logit_slice_sidecar_samples"][0]["sample_finite_count"],
+                "2",
             )
             self.assertEqual(
                 gate["detail"]["logit_slice_sidecar_samples"][0]["sample_nan_count"],
@@ -2509,6 +2570,18 @@ class AresIngestArtifactTest(unittest.TestCase):
                 "rmsnorm",
             )
             self.assertEqual(
+                gate["detail"]["activation_digest_sidecar_samples"][0][
+                    "target_plan_statement_name"
+                ],
+                "layer_0_activation",
+            )
+            self.assertEqual(
+                gate["detail"]["activation_digest_sidecar_samples"][0][
+                    "sample_finite_count"
+                ],
+                "4",
+            )
+            self.assertEqual(
                 gate["detail"]["device_result_digest_sidecar_samples"][0]["request_id"],
                 "7009",
             )
@@ -2516,13 +2589,31 @@ class AresIngestArtifactTest(unittest.TestCase):
                 gate["detail"]["device_result_digest_sidecar_samples"][0][
                     "tensor_name"
                 ],
-                "fpga_device_result",
+                "fpga_scheduler_forward_batch_result",
+            )
+            self.assertEqual(
+                gate["detail"]["device_result_digest_sidecar_samples"][0][
+                    "target_plan_statement_kind"
+                ],
+                "matmul",
+            )
+            self.assertEqual(
+                gate["detail"]["device_result_digest_sidecar_samples"][0][
+                    "target_plan_statement_name"
+                ],
+                "wcls",
             )
             self.assertEqual(
                 gate["detail"]["device_result_digest_sidecar_samples"][0][
                     "digest_sha256"
                 ],
                 SHA_C,
+            )
+            self.assertEqual(
+                gate["detail"]["device_result_digest_sidecar_samples"][0][
+                    "sample_finite_count"
+                ],
+                "2",
             )
             self.assertEqual(
                 gate["detail"]["device_result_digest_sidecar_samples"][0]["sample_min"],
@@ -2770,7 +2861,7 @@ class AresIngestArtifactTest(unittest.TestCase):
         )
         self.assertEqual(
             gate["detail"]["introspection_artifact_byte_count_total"],
-            10686,
+            10753,
         )
         self.assertEqual(
             gate["detail"]["introspection_artifact_samples"][0]["kind"],
@@ -3057,15 +3148,15 @@ class AresIngestArtifactTest(unittest.TestCase):
         )
         self.assertEqual(
             gate["detail"]["device_result_digest_sidecar_role_counts"],
-            {"device_result": 1},
+            {"scheduler_device_result": 1},
         )
         self.assertEqual(
             gate["detail"]["device_result_digest_sidecar_action_counts"],
-            {"device_result": 1},
+            {"matmul": 1},
         )
         self.assertEqual(
             gate["detail"]["device_result_digest_sidecar_intrinsic_counts"],
-            {"fpga.device_result_digest": 1},
+            {"fpga.matmul": 1},
         )
         self.assertEqual(
             gate["detail"]["scheduler_packet_lineage_sidecar_status_counts"],
@@ -3267,8 +3358,18 @@ class AresIngestArtifactTest(unittest.TestCase):
             "kv_key",
         )
         self.assertEqual(
+            gate["detail"]["kv_payload_digest_sidecar_samples"][0][
+                "sample_finite_count"
+            ],
+            "4",
+        )
+        self.assertEqual(
             gate["detail"]["logit_slice_sidecar_samples"][0]["targetplan_action"],
             "final_logits",
+        )
+        self.assertEqual(
+            gate["detail"]["logit_slice_sidecar_samples"][0]["sample_finite_count"],
+            "2",
         )
         self.assertEqual(
             gate["detail"]["logit_slice_sidecar_samples"][0]["sample_nan_count"],
@@ -3283,16 +3384,40 @@ class AresIngestArtifactTest(unittest.TestCase):
             "rmsnorm",
         )
         self.assertEqual(
+            gate["detail"]["activation_digest_sidecar_samples"][0][
+                "sample_finite_count"
+            ],
+            "4",
+        )
+        self.assertEqual(
             gate["detail"]["device_result_digest_sidecar_samples"][0]["request_id"],
             "7009",
         )
         self.assertEqual(
             gate["detail"]["device_result_digest_sidecar_samples"][0]["tensor_name"],
-            "fpga_device_result",
+            "fpga_scheduler_forward_batch_result",
+        )
+        self.assertEqual(
+            gate["detail"]["device_result_digest_sidecar_samples"][0][
+                "target_plan_statement_index"
+            ],
+            "4",
+        )
+        self.assertEqual(
+            gate["detail"]["device_result_digest_sidecar_samples"][0][
+                "target_plan_statement_name"
+            ],
+            "wcls",
         )
         self.assertEqual(
             gate["detail"]["device_result_digest_sidecar_samples"][0]["digest_sha256"],
             "e" * 64,
+        )
+        self.assertEqual(
+            gate["detail"]["device_result_digest_sidecar_samples"][0][
+                "sample_finite_count"
+            ],
+            "2",
         )
         self.assertEqual(
             gate["detail"]["device_result_digest_sidecar_samples"][0]["sample_max"],

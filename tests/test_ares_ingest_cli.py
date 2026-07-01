@@ -668,7 +668,7 @@ def trace_report_payload() -> dict:
                     "boundary_status": "available_from_scheduler_protocol_boundary",
                     "producer_status": "provider_callback_present",
                     "producer_contract": (
-                        "fpga_scheduler_batch_dispatch_returns_completed_targetplan_listener_logits"
+                        "fpga_scheduler_batch_dispatch_emits_scheduler_kv_save_payload_digests"
                     ),
                     "payload_record_policy": "sha256_digest_plus_bounded_f32_sample",
                     "payload_sensitivity": "scheduler_kv_save_values",
@@ -972,6 +972,9 @@ def trace_report_payload() -> dict:
                     "token_index": 0,
                     "targetplan_op_id": "tp.generic.0",
                     "targetplan_action": "provider_payload",
+                    "target_plan_statement_index": "44",
+                    "target_plan_statement_kind": "span",
+                    "target_plan_statement_name": "provider_payload",
                     "layer": "31",
                     "tensor_payload_kind": "tensor_payload",
                     "tensor_name": "provider_payload",
@@ -981,6 +984,7 @@ def trace_report_payload() -> dict:
                     "element_count": "2",
                     "digest_sha256": "a" * 64,
                     "sample_value_count": "2",
+                    "sample_finite_count": "2",
                     "sample_min": "9.0",
                     "sample_max": "10.0",
                     "sample_nan_count": "0",
@@ -997,7 +1001,11 @@ def trace_report_payload() -> dict:
                     "request_id": "7006",
                     "generation_id": "rinzler-7006",
                     "token_index": 0,
+                    "targetplan_op_id": "",
                     "targetplan_action": "kv_cache",
+                    "target_plan_statement_index": "21",
+                    "target_plan_statement_kind": "kv_cache",
+                    "target_plan_statement_name": "kv_save_layer_0_key",
                     "layer": "0",
                     "tensor_payload_kind": "kv_payload_digest",
                     "tensor_name": "scheduler_kv_save.layer_0.buf_1.k",
@@ -1007,6 +1015,7 @@ def trace_report_payload() -> dict:
                     "element_count": "16",
                     "digest_sha256": "b" * 64,
                     "sample_value_count": "4",
+                    "sample_finite_count": "4",
                     "sample_min": "0.125",
                     "sample_max": "0.5",
                     "sample_nan_count": "0",
@@ -1025,6 +1034,9 @@ def trace_report_payload() -> dict:
                     "token_index": "0",
                     "targetplan_op_id": "tp.logits.0",
                     "targetplan_action": "final_logits",
+                    "target_plan_statement_index": "99",
+                    "target_plan_statement_kind": "span",
+                    "target_plan_statement_name": "ares_logits",
                     "layer": "31",
                     "intrinsic": "topk",
                     "tensor_payload_kind": "logit_slice",
@@ -1037,6 +1049,7 @@ def trace_report_payload() -> dict:
                     "sample_start": "7",
                     "sample_stride": "1",
                     "sample_value_count": "4",
+                    "sample_finite_count": "2",
                     "sample_min": "-0.25",
                     "sample_max": "0.5",
                     "sample_nan_count": "1",
@@ -1055,6 +1068,9 @@ def trace_report_payload() -> dict:
                     "token_index": "0",
                     "targetplan_op_id": "tp.activation.0",
                     "targetplan_action": "activation",
+                    "target_plan_statement_index": "42",
+                    "target_plan_statement_kind": "rmsnorm",
+                    "target_plan_statement_name": "layer_0_activation",
                     "layer": "0",
                     "intrinsic": "rmsnorm",
                     "tensor_payload_kind": "activation_digest",
@@ -1067,6 +1083,7 @@ def trace_report_payload() -> dict:
                     "sample_start": "0",
                     "sample_stride": "8",
                     "sample_value_count": "4",
+                    "sample_finite_count": "4",
                     "sample_min": "-0.125",
                     "sample_max": "0.5",
                     "sample_nan_count": "0",
@@ -1083,20 +1100,24 @@ def trace_report_payload() -> dict:
                     "request_id": "7009",
                     "generation_id": "rinzler-7009",
                     "token_index": "0",
-                    "targetplan_op_id": "tp.device.result.0",
-                    "targetplan_action": "device_result",
-                    "layer": "2",
-                    "intrinsic": "fpga.device_result_digest",
+                    "targetplan_op_id": "stmt.00004.matmul",
+                    "targetplan_action": "matmul",
+                    "target_plan_statement_index": "4",
+                    "target_plan_statement_kind": "matmul",
+                    "target_plan_statement_name": "wcls",
+                    "layer": "",
+                    "intrinsic": "fpga.matmul",
                     "tensor_payload_kind": "device_result_digest",
-                    "tensor_name": "fpga_device_result",
-                    "tensor_role": "device_result",
-                    "element_type": "bf16",
+                    "tensor_name": "fpga_scheduler_forward_batch_result",
+                    "tensor_role": "scheduler_device_result",
+                    "element_type": "f32",
                     "shape": "[4]",
                     "element_count": "4",
                     "digest_sha256": SHA_C,
                     "sample_start": "0",
                     "sample_stride": "1",
                     "sample_value_count": "2",
+                    "sample_finite_count": "2",
                     "sample_min": "1.25",
                     "sample_max": "2.5",
                     "sample_nan_count": "0",
@@ -1890,15 +1911,15 @@ class AresIngestCliTest(unittest.TestCase):
             )
             self.assertEqual(
                 state["trace_report"]["device_result_digest_sidecar_role_counts"],
-                {"device_result": 1},
+                {"scheduler_device_result": 1},
             )
             self.assertEqual(
                 state["trace_report"]["device_result_digest_sidecar_action_counts"],
-                {"device_result": 1},
+                {"matmul": 1},
             )
             self.assertEqual(
                 state["trace_report"]["device_result_digest_sidecar_intrinsic_counts"],
-                {"fpga.device_result_digest": 1},
+                {"fpga.matmul": 1},
             )
             self.assertEqual(
                 state["trace_report"]["scheduler_packet_lineage_sidecar_status_counts"],
@@ -2100,7 +2121,7 @@ class AresIngestCliTest(unittest.TestCase):
                 handoff,
             )
             self.assertIn(
-                "contract=fpga_scheduler_batch_dispatch_returns_completed_targetplan_listener_logits",
+                "contract=fpga_scheduler_batch_dispatch_emits_scheduler_kv_save_payload_digests",
                 handoff,
             )
             self.assertIn("contract=runtime_sidecar_route_only", handoff)
@@ -2120,10 +2141,16 @@ class AresIngestCliTest(unittest.TestCase):
             self.assertIn("Tensor payload sidecar: request=7005", handoff)
             self.assertIn("kind=tensor_payload", handoff)
             self.assertIn("role=provider_device_payload", handoff)
+            self.assertIn("stmt_name=provider_payload", handoff)
+            self.assertIn("sample_finite=2", handoff)
             self.assertIn("sample_nan=0", handoff)
             self.assertIn("K/V payload digest roles", handoff)
             self.assertIn("K/V payload digest sidecar: request=7006", handoff)
             self.assertIn("role=kv_key", handoff)
+            self.assertIn("stmt_index=21", handoff)
+            self.assertIn("stmt_kind=kv_cache", handoff)
+            self.assertIn("stmt_name=kv_save_layer_0_key", handoff)
+            self.assertIn("sample_finite=4", handoff)
             self.assertIn("sample_min=0.125", handoff)
             self.assertIn("Scheduler packet executors", handoff)
             self.assertIn("Scheduler packet lineage: request=7002", handoff)
@@ -2177,10 +2204,16 @@ class AresIngestCliTest(unittest.TestCase):
             self.assertIn("Logit slice sidecars", handoff)
             self.assertIn("Logit slice sidecar: request=7005", handoff)
             self.assertIn("action=final_logits", handoff)
+            self.assertIn("stmt_index=99", handoff)
+            self.assertIn("stmt_name=ares_logits", handoff)
+            self.assertIn("sample_finite=2", handoff)
             self.assertIn("sample_nan=1", handoff)
             self.assertIn("Activation digest sidecars", handoff)
             self.assertIn("Activation digest sidecar: request=7007", handoff)
             self.assertIn("intrinsic=rmsnorm", handoff)
+            self.assertIn("stmt_index=42", handoff)
+            self.assertIn("stmt_kind=rmsnorm", handoff)
+            self.assertIn("stmt_name=layer_0_activation", handoff)
             self.assertIn("Introspection capability: token_quality", handoff)
             self.assertIn("Introspection sections", handoff)
             self.assertIn(
@@ -2341,21 +2374,34 @@ class AresIngestCliTest(unittest.TestCase):
             self.assertIn("candidate_status=selected_token", prompt)
             self.assertIn("Tensor payload sidecar: request=7005", prompt)
             self.assertIn("kind=tensor_payload", prompt)
+            self.assertIn("stmt_name=provider_payload", prompt)
             self.assertIn("digest_sha256=", prompt)
             self.assertIn("K/V payload digest sidecar: request=7006", prompt)
+            self.assertIn("stmt_index=21", prompt)
+            self.assertIn("stmt_kind=kv_cache", prompt)
+            self.assertIn("stmt_name=kv_save_layer_0_key", prompt)
             self.assertIn("scheduler K/V digest rows", prompt)
             self.assertIn("Logit slice sidecar: request=7005", prompt)
             self.assertIn("action=final_logits", prompt)
+            self.assertIn("stmt_index=99", prompt)
+            self.assertIn("stmt_name=ares_logits", prompt)
             self.assertIn("Activation digest sidecar: request=7007", prompt)
             self.assertIn("intrinsic=rmsnorm", prompt)
+            self.assertIn("stmt_index=42", prompt)
+            self.assertIn("stmt_kind=rmsnorm", prompt)
+            self.assertIn("stmt_name=layer_0_activation", prompt)
             self.assertIn("Device result digest sidecars", prompt)
             self.assertIn("Device result digest roles", prompt)
             self.assertIn("Device result digest actions", prompt)
             self.assertIn("Device result digest intrinsics", prompt)
             self.assertIn("Device result digest sidecar: request=7009", prompt)
-            self.assertIn("action=device_result", prompt)
-            self.assertIn("intrinsic=fpga.device_result_digest", prompt)
-            self.assertIn("tensor=fpga_device_result", prompt)
+            self.assertIn("action=matmul", prompt)
+            self.assertIn("stmt_index=4", prompt)
+            self.assertIn("stmt_kind=matmul", prompt)
+            self.assertIn("stmt_name=wcls", prompt)
+            self.assertIn("sample_finite=2", prompt)
+            self.assertIn("intrinsic=fpga.matmul", prompt)
+            self.assertIn("tensor=fpga_scheduler_forward_batch_result", prompt)
             self.assertIn("sample_min=1.25", prompt)
             self.assertIn("Scheduler packet lineage: request=7002", prompt)
             self.assertIn("scheduler packet shape", prompt)
