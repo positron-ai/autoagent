@@ -1,6 +1,6 @@
 {
   "claim_boundaries": [
-    "Synthetic introspection sidecar fixture; token-quality, scheduler packet-lineage, device DMA lifecycle, attention page trace, tensor payload logit-slice rows, generic tensor payload rows, tensor payload activation-digest rows, and tensor payload K/V digest rows are system-under-test diagnostics, not model correctness or performance evidence.",
+    "Synthetic introspection sidecar fixture; token-quality, scheduler packet-lineage, device DMA lifecycle, attention page trace, tensor payload logit-slice rows, generic tensor payload rows, tensor payload activation-digest rows, tensor payload K/V digest rows, and device result digest rows are system-under-test diagnostics, not model correctness or performance evidence.",
     "Debug-heavy payload sidecars can perturb timing and require separate production-performance recapture.",
     "Do not read absent counters as zero.",
     "Do not infer device utilization from wall-clock spans alone.",
@@ -457,7 +457,7 @@
         "status": "not_answerable"
       },
       {
-        "basis": "metadata.capture_capabilities.deep_introspection=true; introspection_artifacts: 8 artifact(s)",
+        "basis": "metadata.capture_capabilities.deep_introspection=true; introspection_artifacts: 9 artifact(s)",
         "question": "deep introspection sidecars",
         "status": "answerable"
       }
@@ -548,6 +548,10 @@
       },
       {
         "capability": "device_dma_lifecycle",
+        "present": "True"
+      },
+      {
+        "capability": "device_result_digests",
         "present": "True"
       },
       {
@@ -688,6 +692,40 @@
         "status": "ok",
         "targetplan_action": "device_load",
         "targetplan_op_id": "tp.device.load_weights.0"
+      }
+    ],
+    "device_result_digest_sidecar_rows": [
+      {
+        "artifact_index": 8,
+        "backend_id": "fpga",
+        "digest_sha256": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+        "element_count": "4",
+        "element_type": "bf16",
+        "evidence_role": "system_under_test",
+        "failure_reason": "",
+        "generation_id": "rinzler-7009",
+        "intrinsic": "fpga.device_result_digest",
+        "layer": "2",
+        "request_id": "7009",
+        "row_index": 0,
+        "row_kind": "tensor_payload_summary",
+        "sample_max": "2.5",
+        "sample_min": "1.25",
+        "sample_nan_count": "0",
+        "sample_neg_inf_count": "0",
+        "sample_pos_inf_count": "0",
+        "sample_start": "0",
+        "sample_stride": "1",
+        "sample_value_count": "2",
+        "sample_values": "[1.25, 2.5]",
+        "shape": "[4]",
+        "status": "ok",
+        "targetplan_action": "device_result",
+        "targetplan_op_id": "tp.device.result.0",
+        "tensor_name": "fpga_device_result",
+        "tensor_payload_kind": "device_result_digest",
+        "tensor_role": "device_result",
+        "token_index": "0"
       }
     ],
     "evidence_artifact_checks": [
@@ -853,6 +891,25 @@
         "row_count_total": 2,
         "sensitivities": "local-only",
         "summary_status": "recorded_and_locally_present"
+      },
+      {
+        "artifact_count": 1,
+        "artifact_indices": "8",
+        "artifact_kind": "device_result_digests",
+        "byte_count_total": 1044,
+        "capture_capabilities": "debug_payloads,device_result_digests",
+        "claim_boundaries": "debug_payloads_can_perturb_timing,system_under_test_device_result_digest_diagnostic",
+        "compile_features": "trace-introspection",
+        "json_section": "introspection_artifact_summary_rows",
+        "local_missing_count": 0,
+        "local_missing_path_count": 0,
+        "local_present_count": 1,
+        "metadata_statuses": "recorded",
+        "next_action": "inspect_stable_report_sections",
+        "report_sections": "debug_payload_artifact_summary_rows,device_result_digest_sidecar_rows",
+        "row_count_total": 1,
+        "sensitivities": "local-only",
+        "summary_status": "recorded_and_locally_present"
       }
     ],
     "introspection_artifacts": [
@@ -967,6 +1024,20 @@
         "sha256": "ba6833c9b53ea46fa129c765a6ce4ac09b9e0c98d120f65db07b7419282b2aa8",
         "status": "recorded",
         "token_window": "kv-payload-digest:7006"
+      },
+      {
+        "artifact_kind": "tensor_payload_jsonl",
+        "byte_count": "1044",
+        "compile_features": "trace-introspection",
+        "index": 8,
+        "kind": "device_result_digests",
+        "path": "introspection_device_result_digest_sidecar.jsonl",
+        "row_count": "1",
+        "sampling_policy": "selected device result digests and bounded samples; no full device payload dumps by default",
+        "sensitivity": "local-only",
+        "sha256": "4f6b5be11069d39230db7a76e2036eee426fc582a7f211969ba0963e7edb96b4",
+        "status": "recorded",
+        "token_window": "device-result-digest:7009"
       }
     ],
     "introspection_capability_rows": [
@@ -986,10 +1057,10 @@
         "capability_status": "recorded",
         "capture_capability": "debug_payloads",
         "claim_boundary": "debug_payloads_can_perturb_timing",
-        "expected_artifact_kinds": "attention_page_trace,logit_slices,activation_digests,kv_payload_digests",
+        "expected_artifact_kinds": "attention_page_trace,logit_slices,activation_digests,kv_payload_digests,device_result_digests",
         "json_section": "introspection_capability_rows",
-        "matching_artifact_count": 4,
-        "matching_artifact_counts": "attention_page_trace:1,logit_slices:1,activation_digests:1,kv_payload_digests:1",
+        "matching_artifact_count": 5,
+        "matching_artifact_counts": "attention_page_trace:1,logit_slices:1,activation_digests:1,kv_payload_digests:1,device_result_digests:1",
         "next_action": "inspect_introspection_artifacts_and_stable_report_sections"
       },
       {
@@ -1056,6 +1127,17 @@
         "json_section": "introspection_capability_rows",
         "matching_artifact_count": 1,
         "matching_artifact_counts": "kv_payload_digests:1",
+        "next_action": "inspect_introspection_artifacts_and_stable_report_sections"
+      },
+      {
+        "capability_present": true,
+        "capability_status": "recorded",
+        "capture_capability": "device_result_digests",
+        "claim_boundary": "system_under_test_device_result_digest_diagnostic",
+        "expected_artifact_kinds": "device_result_digests",
+        "json_section": "introspection_capability_rows",
+        "matching_artifact_count": 1,
+        "matching_artifact_counts": "device_result_digests:1",
         "next_action": "inspect_introspection_artifacts_and_stable_report_sections"
       },
       {
@@ -1205,8 +1287,8 @@
         "section_status": "available"
       },
       {
-        "artifact_count": 4,
-        "artifact_kind": "attention_page_trace,logit_slices,activation_digests,kv_payload_digests",
+        "artifact_count": 5,
+        "artifact_kind": "attention_page_trace,logit_slices,activation_digests,kv_payload_digests,device_result_digests",
         "capability_present": true,
         "capture_capability": "debug_payloads",
         "claim_boundary": "debug_payloads_can_perturb_timing",
@@ -1252,6 +1334,16 @@
         "claim_boundary": "system_under_test_scheduler_kv_payload_diagnostic",
         "heading": "K/V Payload Digest Sidecar Rows",
         "json_section": "kv_payload_digest_sidecar_rows",
+        "section_status": "available"
+      },
+      {
+        "artifact_count": 1,
+        "artifact_kind": "device_result_digests",
+        "capability_present": true,
+        "capture_capability": "device_result_digests",
+        "claim_boundary": "system_under_test_device_result_digest_diagnostic",
+        "heading": "Device Result Digest Sidecar Rows",
+        "json_section": "device_result_digest_sidecar_rows",
         "section_status": "available"
       }
     ],
@@ -1379,7 +1471,7 @@
     "preflight": [
       {
         "fail": 0,
-        "ok": 38,
+        "ok": 41,
         "status": "pass",
         "warn": 1
       }
@@ -2161,6 +2253,14 @@
         "section_kind": "sidecar"
       },
       {
+        "claim_boundary": "system_under_test_device_result_digest_diagnostic",
+        "heading": "Device Result Digest Sidecar Rows",
+        "json_path": "sections.device_result_digest_sidecar_rows",
+        "json_section": "device_result_digest_sidecar_rows",
+        "requires_timeline_trace": false,
+        "section_kind": "sidecar"
+      },
+      {
         "claim_boundary": "system_under_test_diagnostic",
         "heading": "Backend Event Rows",
         "json_path": "sections.backend_event_rows",
@@ -2767,7 +2867,7 @@
     ],
     "supported_claims": [
       {
-        "basis": "metadata.capture_capabilities.deep_introspection=true; introspection_artifacts: 8 artifact(s)",
+        "basis": "metadata.capture_capabilities.deep_introspection=true; introspection_artifacts: 9 artifact(s)",
         "claim": "deep introspection sidecars is answerable from the supplied artifacts.",
         "evidence_grade": "diagnostic"
       }
@@ -2904,7 +3004,7 @@
         "next_action": "inspect_matching_introspection_report_sections",
         "payload_dir_present": true,
         "record_tokens_requested": true,
-        "recorded_sidecar_capabilities": "token_quality,topk_rows,logit_slices,tensor_payloads,activation_digests,kv_payload_digests,scheduler_packet_lineage,device_dma_lifecycle,attention_page_trace",
+        "recorded_sidecar_capabilities": "token_quality,topk_rows,logit_slices,tensor_payloads,activation_digests,kv_payload_digests,device_result_digests,scheduler_packet_lineage,device_dma_lifecycle,attention_page_trace",
         "requested_categories": "run,artifact,request,scheduler,generation,forward,targetplan,device,streaming,frontend,planning,debug_detail",
         "requested_sidecar_controls": "topk,logit_slices,tensor_payloads,activation_digests,kv_payload_digests",
         "sample_rate": "1",
@@ -3277,7 +3377,7 @@
       },
       {
         "basis": "metadata.known_limitations",
-        "claim": "metadata limitation: Synthetic introspection sidecar fixture; token-quality, scheduler packet-lineage, device DMA lifecycle, attention page trace, tensor payload logit-slice rows, generic tensor payload rows, tensor payload activation-digest rows, and tensor payload K/V digest rows are system-under-test diagnostics, not model correctness or performance evidence.",
+        "claim": "metadata limitation: Synthetic introspection sidecar fixture; token-quality, scheduler packet-lineage, device DMA lifecycle, attention page trace, tensor payload logit-slice rows, generic tensor payload rows, tensor payload activation-digest rows, tensor payload K/V digest rows, and device result digest rows are system-under-test diagnostics, not model correctness or performance evidence.",
         "reason": "known_limitation"
       },
       {
