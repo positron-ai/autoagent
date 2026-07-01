@@ -3833,6 +3833,11 @@ def _validate_trace_report_triage_rows(
     errors: list[str],
     rows: list[dict[str, Any]],
 ) -> None:
+    if not rows:
+        errors.append(
+            "trace report sections.report_triage must contain at least one row"
+        )
+        return
     for index, row in enumerate(rows):
         context = f"trace report sections.report_triage[{index}]"
         _require_fields(errors, row, TRACE_REPORT_TRIAGE_REQUIRED_FIELDS, context)

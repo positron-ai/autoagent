@@ -3443,6 +3443,23 @@ class AresIngestArtifactTest(unittest.TestCase):
                 joined,
             )
 
+    def test_trace_report_gate_rejects_empty_report_triage(self) -> None:
+        fixture_path = FIXTURE_DIR / "ares_trace_report_introspection_real.json"
+        payload = json.loads(fixture_path.read_text())
+        payload["sections"]["report_triage"] = []
+
+        with TemporaryDirectory() as tmp:
+            path = Path(tmp) / "trace-report.json"
+            path.write_text(json.dumps(payload))
+
+            gate = trace_report_gate(path)
+
+            self.assertFalse(gate["passed"])
+            self.assertIn(
+                "trace report sections.report_triage must contain at least one row",
+                " ".join(gate["errors"]),
+            )
+
     def test_trace_report_gate_rejects_malformed_report_triage(self) -> None:
         fixture_path = FIXTURE_DIR / "ares_trace_report_introspection_real.json"
         payload = json.loads(fixture_path.read_text())
