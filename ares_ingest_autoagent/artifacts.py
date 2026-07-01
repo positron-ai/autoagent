@@ -1777,6 +1777,13 @@ def validate_trace_report_json(report: Any) -> ArtifactValidation:
         or row.get("producer_status") == "runtime_route_only_no_provider_producer"
         or row.get("capture_status") == "route_available_no_provider_producer"
     ]
+    provider_payload_recorded_rows = [
+        row
+        for row in provider_payload_boundary_rows
+        if row.get("capture_status") == "recorded_artifact"
+        or _trace_report_int(row.get("matching_provider_artifact_count")) > 0
+        or _trace_report_int(row.get("artifact_count")) > 0
+    ]
     report_json_section_sample_rows = [
         row
         for row in report_json_section_rows
@@ -1827,6 +1834,12 @@ def validate_trace_report_json(report: Any) -> ArtifactValidation:
         ),
         "provider_payload_boundary_route_only_lanes": (
             _trace_report_provider_payload_lanes(provider_payload_route_only_rows)
+        ),
+        "provider_payload_boundary_recorded_count": len(
+            provider_payload_recorded_rows
+        ),
+        "provider_payload_boundary_recorded_lanes": (
+            _trace_report_provider_payload_lanes(provider_payload_recorded_rows)
         ),
         "debug_payload_artifact_summary_count": len(
             debug_payload_artifact_summary_rows
@@ -2087,6 +2100,30 @@ def validate_trace_report_json(report: Any) -> ArtifactValidation:
         ),
         "provider_payload_boundary_route_only_samples": _trace_report_samples(
             provider_payload_route_only_rows,
+            (
+                "provider_id",
+                "payload_lane",
+                "capture_status",
+                "capture_capability",
+                "artifact_kind",
+                "capture_control",
+                "artifact_count",
+                "matching_provider_artifact_count",
+                "artifact_kind_recorded_count",
+                "artifact_kind_recorded_backend_count",
+                "artifact_kind_recorded_backend_ids",
+                "report_section",
+                "boundary_status",
+                "producer_status",
+                "producer_contract",
+                "payload_record_policy",
+                "payload_sensitivity",
+                "claim_boundary",
+                "next_action",
+            ),
+        ),
+        "provider_payload_boundary_recorded_samples": _trace_report_samples(
+            provider_payload_recorded_rows,
             (
                 "provider_id",
                 "payload_lane",
@@ -2870,6 +2907,17 @@ def _trace_report_comma_value_counts(
             if item:
                 counts[item] = counts.get(item, 0) + 1
     return dict(sorted(counts.items()))
+
+
+def _trace_report_int(value: Any) -> int:
+    if isinstance(value, int):
+        return value
+    if isinstance(value, str):
+        try:
+            return int(value)
+        except ValueError:
+            return 0
+    return 0
 
 
 def _trace_report_samples(

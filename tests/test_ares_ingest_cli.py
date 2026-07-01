@@ -1075,6 +1075,14 @@ class AresIngestCliTest(unittest.TestCase):
                 ["generic/device_result_digests"],
             )
             self.assertEqual(
+                state["trace_report"]["provider_payload_boundary_recorded_count"],
+                1,
+            )
+            self.assertEqual(
+                state["trace_report"]["provider_payload_boundary_recorded_lanes"],
+                ["fpga/kv_payload_digests"],
+            )
+            self.assertEqual(
                 state["trace_report"]["debug_payload_artifact_summary_status_counts"],
                 {"recorded": 1},
             )
@@ -1254,6 +1262,8 @@ class AresIngestCliTest(unittest.TestCase):
             self.assertIn("missing=device_result_digests", handoff)
             self.assertIn("Provider payload boundaries", handoff)
             self.assertIn("Provider payload boundary: fpga/kv_payload_digests", handoff)
+            self.assertIn("Recorded provider payload lanes", handoff)
+            self.assertIn("Recorded provider payload boundary: fpga/kv_payload_digests", handoff)
             self.assertIn("Route-only provider payload lanes", handoff)
             self.assertIn("generic/device_result_digests", handoff)
             self.assertIn(
@@ -1407,9 +1417,14 @@ class AresIngestCliTest(unittest.TestCase):
             self.assertIn("sections.introspection_section_inventory", prompt)
             self.assertIn("Provider payload boundary: fpga/kv_payload_digests", prompt)
             self.assertIn(
+                "Recorded provider payload boundary: fpga/kv_payload_digests",
+                prompt,
+            )
+            self.assertIn(
                 "Route-only provider payload boundary: generic/device_result_digests",
                 prompt,
             )
+            self.assertIn("recorded provider-callback rows", prompt)
             self.assertIn("missing=device_result_digests", prompt)
             self.assertIn("provider_artifacts=2", prompt)
             self.assertIn("provider_artifacts=0", prompt)

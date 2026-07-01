@@ -1339,6 +1339,14 @@ class AresIngestArtifactTest(unittest.TestCase):
                 ["generic/device_result_digests"],
             )
             self.assertEqual(
+                gate["detail"]["provider_payload_boundary_recorded_count"],
+                1,
+            )
+            self.assertEqual(
+                gate["detail"]["provider_payload_boundary_recorded_lanes"],
+                ["fpga/kv_payload_digests"],
+            )
+            self.assertEqual(
                 gate["detail"]["debug_payload_artifact_summary_status_counts"],
                 {"recorded": 1},
             )
@@ -1551,6 +1559,24 @@ class AresIngestArtifactTest(unittest.TestCase):
                 "0",
             )
             self.assertEqual(
+                gate["detail"]["provider_payload_boundary_recorded_samples"][0][
+                    "payload_lane"
+                ],
+                "kv_payload_digests",
+            )
+            self.assertEqual(
+                gate["detail"]["provider_payload_boundary_recorded_samples"][0][
+                    "producer_contract"
+                ],
+                "fpga_scheduler_batch_dispatch_returns_completed_targetplan_listener_logits",
+            )
+            self.assertEqual(
+                gate["detail"]["provider_payload_boundary_recorded_samples"][0][
+                    "matching_provider_artifact_count"
+                ],
+                "2",
+            )
+            self.assertEqual(
                 gate["detail"]["debug_payload_artifact_summary_samples"][0][
                     "artifact_kind"
                 ],
@@ -1736,7 +1762,7 @@ class AresIngestArtifactTest(unittest.TestCase):
             {
                 "blocked_no_supported_boundary": 1,
                 "capability_without_matching_provider_artifact": 5,
-                "recorded_artifact": 4,
+                "recorded_artifact": 5,
                 "route_available_no_provider_producer": 2,
             },
         )
@@ -1747,6 +1773,20 @@ class AresIngestArtifactTest(unittest.TestCase):
         self.assertEqual(
             gate["detail"]["provider_payload_boundary_route_only_lanes"],
             ["generic/device_result_digests", "generic/tensor_payloads"],
+        )
+        self.assertEqual(
+            gate["detail"]["provider_payload_boundary_recorded_count"],
+            5,
+        )
+        self.assertEqual(
+            gate["detail"]["provider_payload_boundary_recorded_lanes"],
+            [
+                "fpga/attention_page_trace",
+                "fpga/device_dma_lifecycle",
+                "fpga/device_result_digests",
+                "fpga/kv_payload_digests",
+                "fpga/logit_slices",
+            ],
         )
         route_only_samples = {
             sample["payload_lane"]: sample
@@ -1774,6 +1814,32 @@ class AresIngestArtifactTest(unittest.TestCase):
         )
         self.assertEqual(
             route_only_samples["device_result_digests"]["report_section"],
+            "device_result_digest_sidecar_rows",
+        )
+        recorded_samples = {
+            sample["payload_lane"]: sample
+            for sample in gate["detail"]["provider_payload_boundary_recorded_samples"]
+        }
+        self.assertEqual(
+            recorded_samples["device_result_digests"]["producer_status"],
+            "provider_callback_present",
+        )
+        self.assertEqual(
+            recorded_samples["device_result_digests"]["producer_contract"],
+            "fpga_scheduler_batch_dispatch_emits_device_result_digest",
+        )
+        self.assertEqual(
+            recorded_samples["device_result_digests"]["capture_control"],
+            "ARES_TRACE_RECORD_DEVICE_RESULTS=1",
+        )
+        self.assertEqual(
+            recorded_samples["device_result_digests"][
+                "matching_provider_artifact_count"
+            ],
+            "1",
+        )
+        self.assertEqual(
+            recorded_samples["device_result_digests"]["report_section"],
             "device_result_digest_sidecar_rows",
         )
         self.assertEqual(
