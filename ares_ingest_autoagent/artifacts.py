@@ -92,6 +92,7 @@ TRACE_REPORT_JSON_SECTION_SAMPLE_KEYS = (
     "preflight",
     "analysis_commands",
     "report_grade",
+    "report_triage",
     "capture",
     "run_provenance",
     "artifact_identities",
@@ -1311,9 +1312,7 @@ def validate_introspection_ladder_report(
         else {}
     )
     comparison_details = _introspection_ladder_comparison_details(comparisons)
-    first_failed_comparison = _introspection_first_failed_comparison_detail(
-        comparisons
-    )
+    first_failed_comparison = _introspection_first_failed_comparison_detail(comparisons)
     detail = {
         "schema": payload.get("schema"),
         "evidence_class": payload.get("evidence_class"),
@@ -1634,6 +1633,7 @@ def validate_trace_report_json(report: Any) -> ArtifactValidation:
 
     section_names: list[str] = []
     report_grade_rows: list[dict[str, Any]] = []
+    report_triage_rows: list[dict[str, Any]] = []
     preflight_rows: list[dict[str, Any]] = []
     analysis_command_rows: list[dict[str, Any]] = []
     answerability_rows: list[dict[str, Any]] = []
@@ -1695,6 +1695,12 @@ def validate_trace_report_json(report: Any) -> ArtifactValidation:
             errors, sections, "analysis_commands"
         )
         report_grade_rows = _trace_report_section_rows(errors, sections, "report_grade")
+        report_triage_rows = _trace_report_section_rows(
+            errors,
+            sections,
+            "report_triage",
+            required=False,
+        )
         answerability_rows = _trace_report_section_rows(
             errors, sections, "answerability"
         )
@@ -2069,6 +2075,26 @@ def validate_trace_report_json(report: Any) -> ArtifactValidation:
         "proof_grade_status": first_grade.get("proof_grade_status"),
         "report_grade_basis": first_grade.get("basis"),
         "report_grade_promotion_gate": first_grade.get("promotion_gate"),
+        "report_triage_count": len(report_triage_rows),
+        "report_triage_status_counts": _trace_report_value_counts(
+            report_triage_rows,
+            "triage_status",
+        ),
+        "report_triage_samples": _trace_report_samples(
+            report_triage_rows,
+            (
+                "triage_status",
+                "report_grade",
+                "first_blocked_gate",
+                "first_blocked_gate_status",
+                "first_next_measurement_priority",
+                "first_next_measurement",
+                "first_useful_section",
+                "first_action",
+                "claim_boundary",
+            ),
+            limit=4,
+        ),
         "answerability_count": len(answerability_rows),
         "answerability_status_counts": dict(
             sorted(answerability_status_counts.items())
@@ -2139,9 +2165,7 @@ def validate_trace_report_json(report: Any) -> ArtifactValidation:
             ab_coverage_rows,
             "coverage_status",
         ),
-        "ab_coverage_total_rows": _trace_report_int(
-            ab_coverage_row.get("total_rows")
-        ),
+        "ab_coverage_total_rows": _trace_report_int(ab_coverage_row.get("total_rows")),
         "ab_coverage_matched_rows": _trace_report_int(
             ab_coverage_row.get("matched_rows")
         ),
@@ -2168,9 +2192,7 @@ def validate_trace_report_json(report: Any) -> ArtifactValidation:
         ),
         "ab_repeatability_required_matched_runs_for_hardware_proof": (
             _trace_report_int(
-                ab_repeatability_row.get(
-                    "required_matched_runs_for_hardware_proof"
-                )
+                ab_repeatability_row.get("required_matched_runs_for_hardware_proof")
             )
         ),
         "ab_repeatability_matched_rows": _trace_report_int(
@@ -2253,9 +2275,7 @@ def validate_trace_report_json(report: Any) -> ArtifactValidation:
         "provider_payload_boundary_route_only_lanes": (
             _trace_report_provider_payload_lanes(provider_payload_route_only_rows)
         ),
-        "provider_payload_boundary_recorded_count": len(
-            provider_payload_recorded_rows
-        ),
+        "provider_payload_boundary_recorded_count": len(provider_payload_recorded_rows),
         "provider_payload_boundary_recorded_lanes": (
             _trace_report_provider_payload_lanes(provider_payload_recorded_rows)
         ),

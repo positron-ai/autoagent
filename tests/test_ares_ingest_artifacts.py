@@ -398,6 +398,39 @@ class AresIngestArtifactTest(unittest.TestCase):
                                     "proof_grade_status": "not_established_by_report",
                                 }
                             ],
+                            "report_triage": [
+                                {
+                                    "triage_status": "needs_measurement",
+                                    "report_grade": "diagnostic",
+                                    "proof_grade_status": ("not_established_by_report"),
+                                    "first_blocked_gate": "hf_cpu_oracle",
+                                    "first_blocked_gate_status": "blocked",
+                                    "first_blocked_gate_basis": (
+                                        "HF CPU oracle not recorded"
+                                    ),
+                                    "first_next_measurement_priority": (
+                                        "backend_jsonl"
+                                    ),
+                                    "first_next_measurement_reason": (
+                                        "backend JSONL evidence not present"
+                                    ),
+                                    "first_next_measurement": "Capture backend JSONL",
+                                    "first_next_measurement_command_hint": (
+                                        "set ARES_BACKEND_EVENT_ARTIFACT_DIR"
+                                    ),
+                                    "first_answerable_question": "",
+                                    "first_unsupported_claim": (
+                                        "backend JSONL evidence is unsupported"
+                                    ),
+                                    "first_useful_section": (
+                                        "sections.next_measurements"
+                                    ),
+                                    "first_action": "Capture backend JSONL",
+                                    "claim_boundary": (
+                                        "diagnostic_routing_not_evidence"
+                                    ),
+                                }
+                            ],
                             "supported_claims": [
                                 {
                                     "claim": "trace preflight is answerable",
@@ -476,9 +509,7 @@ class AresIngestArtifactTest(unittest.TestCase):
                                     "hardware_card_count": 1,
                                     "hardware_cards": "0000:01:00.0",
                                     "provenance_status": "clean_provenance",
-                                    "proof_grade_status": (
-                                        "not_established_by_report"
-                                    ),
+                                    "proof_grade_status": ("not_established_by_report"),
                                     "basis": (
                                         "baseline binary, clean source state, "
                                         "artifact hashes, and hardware identity are recorded"
@@ -496,9 +527,7 @@ class AresIngestArtifactTest(unittest.TestCase):
                                     "hardware_card_count": 1,
                                     "hardware_cards": "0000:01:00.0",
                                     "provenance_status": "clean_provenance",
-                                    "proof_grade_status": (
-                                        "not_established_by_report"
-                                    ),
+                                    "proof_grade_status": ("not_established_by_report"),
                                     "basis": (
                                         "candidate binary, clean source state, "
                                         "artifact hashes, and hardware identity are recorded"
@@ -516,9 +545,7 @@ class AresIngestArtifactTest(unittest.TestCase):
                                     "hardware_card_count": "",
                                     "hardware_cards": "matched",
                                     "provenance_status": "clean_provenance",
-                                    "proof_grade_status": (
-                                        "not_established_by_report"
-                                    ),
+                                    "proof_grade_status": ("not_established_by_report"),
                                     "basis": (
                                         "baseline/candidate binary, clean source "
                                         "state, artifact hashes, and hardware "
@@ -564,12 +591,9 @@ class AresIngestArtifactTest(unittest.TestCase):
                                     "candidate_runs": 1,
                                     "required_matched_runs_for_hardware_proof": 3,
                                     "matched_rows": 4,
-                                    "proof_grade_status": (
-                                        "not_established_by_report"
-                                    ),
+                                    "proof_grade_status": ("not_established_by_report"),
                                     "basis": (
-                                        "hardware A/B proof requires at least "
-                                        "three matched runs"
+                                        "hardware A/B proof requires at least three matched runs"
                                     ),
                                 }
                             ],
@@ -644,6 +668,15 @@ class AresIngestArtifactTest(unittest.TestCase):
                                     ),
                                 },
                                 {
+                                    "heading": "Report Triage",
+                                    "json_path": "sections.report_triage",
+                                    "json_section": "report_triage",
+                                    "section_kind": "measurement_guidance",
+                                    "claim_boundary": (
+                                        "diagnostic_routing_not_evidence"
+                                    ),
+                                },
+                                {
                                     "heading": "A/B Provenance",
                                     "json_path": "sections.ab_provenance",
                                     "json_section": "ab_provenance",
@@ -687,9 +720,7 @@ class AresIngestArtifactTest(unittest.TestCase):
                                     "json_path": "sections.introspection_artifacts",
                                     "json_section": "introspection_artifacts",
                                     "section_kind": "introspection",
-                                    "claim_boundary": (
-                                        "system_under_test_diagnostic"
-                                    ),
+                                    "claim_boundary": ("system_under_test_diagnostic"),
                                 },
                                 {
                                     "heading": "Introspection Section Inventory",
@@ -743,9 +774,7 @@ class AresIngestArtifactTest(unittest.TestCase):
                                     "json_path": (
                                         "sections.backend_fail_closed_root_causes"
                                     ),
-                                    "json_section": (
-                                        "backend_fail_closed_root_causes"
-                                    ),
+                                    "json_section": ("backend_fail_closed_root_causes"),
                                     "section_kind": "backend_diagnostic",
                                     "claim_boundary": (
                                         "system_under_test_backend_fail_closed_diagnostic"
@@ -1030,7 +1059,7 @@ class AresIngestArtifactTest(unittest.TestCase):
                                     "next_action": (
                                         "wait_for_explicit_provider_payload_boundary"
                                     ),
-                                }
+                                },
                             ],
                             "trace_event_artifacts": [
                                 {
@@ -1132,9 +1161,7 @@ class AresIngestArtifactTest(unittest.TestCase):
                                     "request_id": "boundary-req-0",
                                     "generation_id": "boundary-gen-0",
                                     "targetplan_op_id": "tp.boundary.0",
-                                    "failure_reason": (
-                                        "targetplan_validation_failed"
-                                    ),
+                                    "failure_reason": ("targetplan_validation_failed"),
                                     "message": "fpga target plan rejected",
                                     "plan_artifact_status": "loaded",
                                     "target_plan_artifact_status": "loaded",
@@ -1719,12 +1746,10 @@ class AresIngestArtifactTest(unittest.TestCase):
                                     "native_sql": True,
                                     "status": "rendered",
                                     "portable_command": (
-                                        "bin/ares-trace-query --query "
-                                        "join-key-coverage"
+                                        "bin/ares-trace-query --query join-key-coverage"
                                     ),
                                     "native_sql_command": (
-                                        "bin/ares-trace-sql --query "
-                                        "join-key-coverage"
+                                        "bin/ares-trace-sql --query join-key-coverage"
                                     ),
                                 }
                             ],
@@ -1740,8 +1765,7 @@ class AresIngestArtifactTest(unittest.TestCase):
                                     "byte_count": "120",
                                     "token_window": "0:3",
                                     "sampling_policy": (
-                                        "selected token rows; top-k rows only "
-                                        "when requested"
+                                        "selected token rows; top-k rows only when requested"
                                     ),
                                     "sensitivity": "local-only",
                                     "compile_features": (
@@ -1797,6 +1821,18 @@ class AresIngestArtifactTest(unittest.TestCase):
             self.assertTrue(gate["passed"])
             self.assertEqual(gate["artifact_validator"], "trace_report")
             self.assertEqual(gate["detail"]["report_grade"], "diagnostic")
+            self.assertEqual(
+                gate["detail"]["report_triage_status_counts"],
+                {"needs_measurement": 1},
+            )
+            self.assertEqual(
+                gate["detail"]["report_triage_samples"][0]["first_useful_section"],
+                "sections.next_measurements",
+            )
+            self.assertEqual(
+                gate["detail"]["report_triage_samples"][0]["claim_boundary"],
+                "diagnostic_routing_not_evidence",
+            )
             self.assertEqual(gate["detail"]["preflight_status"], "pass")
             self.assertEqual(gate["detail"]["supported_claim_count"], 1)
             self.assertEqual(gate["detail"]["unsupported_claim_count"], 1)
@@ -2078,9 +2114,7 @@ class AresIngestArtifactTest(unittest.TestCase):
                 "targetplan-op",
             )
             self.assertEqual(
-                gate["detail"]["ab_repeatability_samples"][0][
-                    "proof_grade_status"
-                ],
+                gate["detail"]["ab_repeatability_samples"][0]["proof_grade_status"],
                 "not_established_by_report",
             )
             self.assertEqual(
@@ -2239,7 +2273,7 @@ class AresIngestArtifactTest(unittest.TestCase):
                 gate["detail"]["attention_page_trace_sidecar_action_counts"],
                 {"attention": 1},
             )
-            self.assertEqual(gate["detail"]["report_json_section_count"], 29)
+            self.assertEqual(gate["detail"]["report_json_section_count"], 30)
             self.assertEqual(
                 gate["detail"]["report_json_section_kind_counts"],
                 {
@@ -2249,7 +2283,7 @@ class AresIngestArtifactTest(unittest.TestCase):
                     "debug_payload_diagnostic": 1,
                     "introspection": 2,
                     "introspection_inventory": 2,
-                    "measurement_guidance": 1,
+                    "measurement_guidance": 2,
                     "sidecar": 14,
                 },
             )
@@ -2475,9 +2509,7 @@ class AresIngestArtifactTest(unittest.TestCase):
                 "rmsnorm",
             )
             self.assertEqual(
-                gate["detail"]["device_result_digest_sidecar_samples"][0][
-                    "request_id"
-                ],
+                gate["detail"]["device_result_digest_sidecar_samples"][0]["request_id"],
                 "7009",
             )
             self.assertEqual(
@@ -2493,9 +2525,7 @@ class AresIngestArtifactTest(unittest.TestCase):
                 SHA_C,
             )
             self.assertEqual(
-                gate["detail"]["device_result_digest_sidecar_samples"][0][
-                    "sample_min"
-                ],
+                gate["detail"]["device_result_digest_sidecar_samples"][0]["sample_min"],
                 "1.25",
             )
             self.assertEqual(
@@ -2598,9 +2628,24 @@ class AresIngestArtifactTest(unittest.TestCase):
         self.assertEqual(gate["detail"]["preflight_ok_count"], 41)
         self.assertEqual(gate["detail"]["preflight_warn_count"], 1)
         self.assertEqual(gate["detail"]["preflight_fail_count"], 0)
-        self.assertEqual(gate["detail"]["section_count"], 52)
+        self.assertEqual(gate["detail"]["section_count"], 53)
         self.assertIn("preflight", gate["detail"]["section_names"])
         self.assertIn("report_grade", gate["detail"]["section_names"])
+        self.assertIn("report_triage", gate["detail"]["section_names"])
+        self.assertEqual(
+            gate["detail"]["report_triage_status_counts"],
+            {"needs_measurement": 1},
+        )
+        self.assertEqual(
+            gate["detail"]["report_triage_samples"][0][
+                "first_next_measurement_priority"
+            ],
+            "timeline_capture",
+        )
+        self.assertEqual(
+            gate["detail"]["report_triage_samples"][0]["first_useful_section"],
+            "sections.next_measurements",
+        )
         self.assertEqual(
             gate["detail"]["answerability_samples"][0]["question"],
             "metadata artifact identity",
@@ -2613,7 +2658,7 @@ class AresIngestArtifactTest(unittest.TestCase):
             "metadata.artifacts: 0 row(s)",
             gate["detail"]["answerability_samples"][0]["basis"],
         )
-        self.assertEqual(gate["detail"]["report_json_section_count"], 52)
+        self.assertEqual(gate["detail"]["report_json_section_count"], 53)
         report_json_paths = {
             sample["json_path"]
             for sample in gate["detail"]["report_json_section_samples"]
@@ -2621,6 +2666,7 @@ class AresIngestArtifactTest(unittest.TestCase):
         self.assertIn("sections.preflight", report_json_paths)
         self.assertIn("sections.analysis_commands", report_json_paths)
         self.assertIn("sections.report_grade", report_json_paths)
+        self.assertIn("sections.report_triage", report_json_paths)
         self.assertIn("sections.report_json_section_inventory", report_json_paths)
         self.assertEqual(gate["detail"]["preflight_finding_count"], 1)
         self.assertEqual(
@@ -2747,9 +2793,7 @@ class AresIngestArtifactTest(unittest.TestCase):
             "local-only",
         )
         self.assertEqual(
-            gate["detail"]["introspection_artifact_samples"][0][
-                "compile_features"
-            ],
+            gate["detail"]["introspection_artifact_samples"][0]["compile_features"],
             "trace-introspection",
         )
         self.assertEqual(
@@ -2779,9 +2823,7 @@ class AresIngestArtifactTest(unittest.TestCase):
             {"not_established_by_report": 1},
         )
         self.assertEqual(
-            gate["detail"][
-                "ab_repeatability_required_matched_runs_for_hardware_proof"
-            ],
+            gate["detail"]["ab_repeatability_required_matched_runs_for_hardware_proof"],
             3,
         )
         self.assertEqual(
@@ -2853,9 +2895,7 @@ class AresIngestArtifactTest(unittest.TestCase):
         )
         route_only_samples = {
             sample["payload_lane"]: sample
-            for sample in gate["detail"][
-                "provider_payload_boundary_route_only_samples"
-            ]
+            for sample in gate["detail"]["provider_payload_boundary_route_only_samples"]
         }
         self.assertEqual(
             route_only_samples["device_result_digests"]["producer_status"],
@@ -3251,9 +3291,7 @@ class AresIngestArtifactTest(unittest.TestCase):
             "fpga_device_result",
         )
         self.assertEqual(
-            gate["detail"]["device_result_digest_sidecar_samples"][0][
-                "digest_sha256"
-            ],
+            gate["detail"]["device_result_digest_sidecar_samples"][0]["digest_sha256"],
             "e" * 64,
         )
         self.assertEqual(
@@ -3429,18 +3467,15 @@ class AresIngestArtifactTest(unittest.TestCase):
             self.assertFalse(gate["passed"])
             joined = " ".join(gate["errors"])
             self.assertIn(
-                "trace report sections.preflight[0].ok "
-                "must be a non-negative integer",
+                "trace report sections.preflight[0].ok must be a non-negative integer",
                 joined,
             )
             self.assertIn(
-                "trace report sections.preflight[0].warn "
-                "must be a non-negative integer",
+                "trace report sections.preflight[0].warn must be a non-negative integer",
                 joined,
             )
             self.assertIn(
-                "trace report sections.preflight[0].fail "
-                "must be a non-negative integer",
+                "trace report sections.preflight[0].fail must be a non-negative integer",
                 joined,
             )
 

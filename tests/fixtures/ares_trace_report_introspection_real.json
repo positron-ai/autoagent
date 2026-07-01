@@ -2049,6 +2049,14 @@
         "section_kind": "promotion_gate"
       },
       {
+        "claim_boundary": "diagnostic_routing_not_evidence",
+        "heading": "Report Triage",
+        "json_path": "sections.report_triage",
+        "json_section": "report_triage",
+        "requires_timeline_trace": false,
+        "section_kind": "measurement_guidance"
+      },
+      {
         "claim_boundary": "comparison_guardrail",
         "heading": "Trace Mode Guardrails",
         "json_path": "sections.trace_mode_guardrails",
@@ -2807,6 +2815,25 @@
         "native_sql_command": "",
         "portable_command": "",
         "query": "rinzler-lifecycle"
+      }
+    ],
+    "report_triage": [
+      {
+        "claim_boundary": "diagnostic_routing_not_evidence",
+        "first_action": "Capture a Chrome/Perfetto timeline before asking timeline latency questions.",
+        "first_answerable_question": "deep introspection sidecars",
+        "first_blocked_gate": "report_grade",
+        "first_blocked_gate_basis": "preflight passed; no complete baseline/candidate comparison inputs",
+        "first_blocked_gate_status": "diagnostic",
+        "first_next_measurement": "Capture a Chrome/Perfetto timeline before asking timeline latency questions.",
+        "first_next_measurement_command_hint": "bin/ares-trace-report --metadata tools/ares-trace/fixtures/introspection_artifacts.trace-meta.json --trace <trace.chrome.json>",
+        "first_next_measurement_priority": "timeline_capture",
+        "first_next_measurement_reason": "no timeline trace supplied",
+        "first_unsupported_claim": "metadata artifact identity is not supported by this report.",
+        "first_useful_section": "sections.next_measurements",
+        "proof_grade_status": "not_established_by_report",
+        "report_grade": "diagnostic",
+        "triage_status": "needs_measurement"
       }
     ],
     "run_provenance": [

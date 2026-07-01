@@ -221,6 +221,9 @@ def trace_report_summary_from_spec(spec: Mapping[str, Any]) -> dict[str, Any] | 
         "proof_grade_status": detail.get("proof_grade_status"),
         "report_grade_basis": detail.get("report_grade_basis"),
         "report_grade_promotion_gate": detail.get("report_grade_promotion_gate"),
+        "report_triage_count": detail.get("report_triage_count"),
+        "report_triage_status_counts": detail.get("report_triage_status_counts"),
+        "report_triage_samples": detail.get("report_triage_samples"),
         "answerability_count": detail.get("answerability_count"),
         "answerability_status_counts": detail.get("answerability_status_counts"),
         "supported_claim_count": detail.get("supported_claim_count"),
@@ -263,55 +266,39 @@ def trace_report_summary_from_spec(spec: Mapping[str, Any]) -> dict[str, Any] | 
             "ab_provenance_proof_grade_status_counts"
         ),
         "ab_comparability_count": detail.get("ab_comparability_count"),
-        "ab_comparability_status_counts": detail.get(
-            "ab_comparability_status_counts"
-        ),
+        "ab_comparability_status_counts": detail.get("ab_comparability_status_counts"),
         "ab_coverage_count": detail.get("ab_coverage_count"),
         "ab_coverage_status_counts": detail.get("ab_coverage_status_counts"),
         "ab_coverage_total_rows": detail.get("ab_coverage_total_rows"),
         "ab_coverage_matched_rows": detail.get("ab_coverage_matched_rows"),
-        "ab_coverage_baseline_only_rows": detail.get(
-            "ab_coverage_baseline_only_rows"
-        ),
+        "ab_coverage_baseline_only_rows": detail.get("ab_coverage_baseline_only_rows"),
         "ab_coverage_candidate_only_rows": detail.get(
             "ab_coverage_candidate_only_rows"
         ),
         "ab_repeatability_count": detail.get("ab_repeatability_count"),
-        "ab_repeatability_status_counts": detail.get(
-            "ab_repeatability_status_counts"
-        ),
+        "ab_repeatability_status_counts": detail.get("ab_repeatability_status_counts"),
         "ab_repeatability_proof_grade_status_counts": detail.get(
             "ab_repeatability_proof_grade_status_counts"
         ),
-        "ab_repeatability_baseline_runs": detail.get(
-            "ab_repeatability_baseline_runs"
-        ),
+        "ab_repeatability_baseline_runs": detail.get("ab_repeatability_baseline_runs"),
         "ab_repeatability_candidate_runs": detail.get(
             "ab_repeatability_candidate_runs"
         ),
         "ab_repeatability_required_matched_runs_for_hardware_proof": detail.get(
             "ab_repeatability_required_matched_runs_for_hardware_proof"
         ),
-        "ab_repeatability_matched_rows": detail.get(
-            "ab_repeatability_matched_rows"
-        ),
+        "ab_repeatability_matched_rows": detail.get("ab_repeatability_matched_rows"),
         "report_json_section_count": detail.get("report_json_section_count"),
         "report_json_section_kind_counts": detail.get(
             "report_json_section_kind_counts"
         ),
-        "report_section_inventory_count": detail.get(
-            "report_section_inventory_count"
-        ),
+        "report_section_inventory_count": detail.get("report_section_inventory_count"),
         "report_section_inventory_native_sql_counts": detail.get(
             "report_section_inventory_native_sql_counts"
         ),
         "preflight_finding_count": detail.get("preflight_finding_count"),
-        "preflight_finding_kind_counts": detail.get(
-            "preflight_finding_kind_counts"
-        ),
-        "evidence_classification_count": detail.get(
-            "evidence_classification_count"
-        ),
+        "preflight_finding_kind_counts": detail.get("preflight_finding_kind_counts"),
+        "evidence_classification_count": detail.get("evidence_classification_count"),
         "evidence_classification_kind_counts": detail.get(
             "evidence_classification_kind_counts"
         ),
@@ -637,9 +624,7 @@ def trace_report_summary_from_spec(spec: Mapping[str, Any]) -> dict[str, Any] | 
         "provider_payload_boundary_recorded_samples": detail.get(
             "provider_payload_boundary_recorded_samples"
         ),
-        "backend_event_artifact_samples": detail.get(
-            "backend_event_artifact_samples"
-        ),
+        "backend_event_artifact_samples": detail.get("backend_event_artifact_samples"),
         "backend_event_samples": detail.get("backend_event_samples"),
         "backend_provider_boundary_samples": detail.get(
             "backend_provider_boundary_samples"
@@ -688,26 +673,20 @@ def trace_report_summary_from_spec(spec: Mapping[str, Any]) -> dict[str, Any] | 
         "introspection_capability_samples": detail.get(
             "introspection_capability_samples"
         ),
-        "introspection_artifact_samples": detail.get(
-            "introspection_artifact_samples"
-        ),
+        "introspection_artifact_samples": detail.get("introspection_artifact_samples"),
         "introspection_artifact_summary_samples": detail.get(
             "introspection_artifact_summary_samples"
         ),
         "introspection_section_inventory_samples": detail.get(
             "introspection_section_inventory_samples"
         ),
-        "timeline_query_summary_samples": detail.get(
-            "timeline_query_summary_samples"
-        ),
+        "timeline_query_summary_samples": detail.get("timeline_query_summary_samples"),
         "supported_claim_samples": detail.get("supported_claim_samples"),
         "correctness_evidence_samples": detail.get("correctness_evidence_samples"),
         "evidence_artifact_check_samples": detail.get(
             "evidence_artifact_check_samples"
         ),
-        "promotion_gate_summary_samples": detail.get(
-            "promotion_gate_summary_samples"
-        ),
+        "promotion_gate_summary_samples": detail.get("promotion_gate_summary_samples"),
         "trace_mode_guardrail_samples": detail.get("trace_mode_guardrail_samples"),
         "ab_provenance_samples": detail.get("ab_provenance_samples"),
         "ab_comparability_samples": detail.get("ab_comparability_samples"),
@@ -746,6 +725,32 @@ def render_trace_report_lines(summary: Mapping[str, Any]) -> list[str]:
         lines.append(
             f"- Trace grade promotion gate: {summary['report_grade_promotion_gate']}"
         )
+    if summary.get("report_triage_status_counts"):
+        lines.append(
+            "- Report triage: "
+            f"`{json.dumps(summary['report_triage_status_counts'], sort_keys=True)}`"
+        )
+    for sample in summary.get("report_triage_samples", [])[:4]:
+        if not isinstance(sample, Mapping):
+            continue
+        status = sample.get("triage_status") or "unknown"
+        parts = []
+        for key, label in (
+            ("first_blocked_gate", "gate"),
+            ("first_blocked_gate_status", "gate_status"),
+            ("first_next_measurement_priority", "next_priority"),
+            ("first_next_measurement", "next"),
+            ("first_useful_section", "section"),
+            ("first_action", "action"),
+            ("claim_boundary", "boundary"),
+        ):
+            value = sample.get(key)
+            if value:
+                parts.append(f"{label}={value}")
+        line = f"- Report triage detail: status={status}"
+        if parts:
+            line += " " + " ".join(parts)
+        lines.append(line)
     preflight_counts = {
         key: summary.get(f"preflight_{key}_count") for key in ("ok", "warn", "fail")
     }
@@ -756,8 +761,7 @@ def render_trace_report_lines(summary: Mapping[str, Any]) -> list[str]:
     }
     if preflight_counts:
         lines.append(
-            "- Preflight counts: "
-            f"`{json.dumps(preflight_counts, sort_keys=True)}`"
+            f"- Preflight counts: `{json.dumps(preflight_counts, sort_keys=True)}`"
         )
     section_names = summary.get("section_names")
     if isinstance(section_names, list):
@@ -901,9 +905,7 @@ def render_trace_report_lines(summary: Mapping[str, Any]) -> list[str]:
     if summary.get("ab_coverage_status_counts"):
         lines.append(
             "- A/B coverage: "
-            "`"
-            + json.dumps(summary["ab_coverage_status_counts"], sort_keys=True)
-            + "`"
+            "`" + json.dumps(summary["ab_coverage_status_counts"], sort_keys=True) + "`"
         )
     if summary.get("ab_repeatability_status_counts"):
         lines.append(
@@ -935,16 +937,12 @@ def render_trace_report_lines(summary: Mapping[str, Any]) -> list[str]:
     if summary.get("capture_trace_mode_counts"):
         lines.append(
             "- Capture trace modes: "
-            "`"
-            + json.dumps(summary["capture_trace_mode_counts"], sort_keys=True)
-            + "`"
+            "`" + json.dumps(summary["capture_trace_mode_counts"], sort_keys=True) + "`"
         )
     if summary.get("capture_backend_counts"):
         lines.append(
             "- Capture backends: "
-            "`"
-            + json.dumps(summary["capture_backend_counts"], sort_keys=True)
-            + "`"
+            "`" + json.dumps(summary["capture_backend_counts"], sort_keys=True) + "`"
         )
     if summary.get("run_provenance_source_state_counts"):
         lines.append(
@@ -1943,7 +1941,9 @@ def render_trace_report_lines(summary: Mapping[str, Any]) -> list[str]:
                 parts.append(f"sensitivity={payload_sensitivity}")
             if boundary:
                 parts.append(f"boundary={boundary}")
-            line = f"- Route-only provider payload boundary: {provider_id}/{payload_lane}"
+            line = (
+                f"- Route-only provider payload boundary: {provider_id}/{payload_lane}"
+            )
             if any(parts):
                 line += " " + " ".join(part for part in parts if part)
             lines.append(line)
@@ -3330,8 +3330,9 @@ def trace_report_prompt_section(spec: Mapping[str, Any]) -> list[str]:
         "",
         *render_trace_report_lines(summary),
         "",
-        "Prefer the report's `sections.report_grade`, `sections.answerability`,",
-        "`sections.unsupported_claims`, `sections.next_measurements`,",
+        "Prefer the report's `sections.report_grade`, `sections.report_triage`,",
+        "`sections.answerability`, `sections.unsupported_claims`,",
+        "`sections.next_measurements`,",
         "`sections.preflight_findings`, and `sections.evidence_classification`",
         "before ad hoc log parsing. Use",
         "`sections.report_json_section_inventory` and",
@@ -4467,7 +4468,7 @@ def gate_guidance(
         common.extend(
             [
                 f"- Trace report JSON: `{resolve_run_path(str(value), cfg)}`",
-                "- Inspect `sections.report_grade`, `sections.answerability`, `sections.unsupported_claims`, `sections.next_measurements`, `sections.preflight_findings`, and `sections.evidence_classification` before ad hoc parsing.",
+                "- Inspect `sections.report_grade`, `sections.report_triage`, `sections.answerability`, `sections.unsupported_claims`, `sections.next_measurements`, `sections.preflight_findings`, and `sections.evidence_classification` before ad hoc parsing.",
                 "- Read `sections.report_json_section_inventory` and `sections.report_section_inventory` to discover available report sections and timeline queries, then read `sections.capture`, `sections.run_provenance`, `sections.artifact_identities`, `sections.artifact_identity_checks`, `sections.capture_capabilities`, `sections.trace_config_rows` including `missing_requested_sidecar_controls`, `sections.provider_payload_boundary_inventory_rows` including recorded provider-callback rows and route-only runtime-sidecar rows, `sections.trace_event_artifacts`, `sections.backend_event_artifacts`, `sections.backend_event_rows`, `sections.backend_provider_boundaries`, `sections.backend_fail_closed_root_causes`, `sections.debug_payload_artifact_summary_rows`, `sections.token_quality_summary_rows`, `sections.oracle_reference_summary_rows`, `sections.introspection_capability_rows`, `sections.introspection_artifacts`, `sections.introspection_artifact_summary_rows`, and `sections.introspection_section_inventory` before choosing sidecar-specific report sections such as `sections.planning_decision_sidecar_rows`, `sections.token_quality_sidecar_rows`, `sections.topk_token_sidecar_rows`, `sections.tensor_payload_sidecar_rows`, `sections.kv_payload_digest_sidecar_rows`, `sections.logit_slice_sidecar_rows`, `sections.activation_digest_sidecar_rows`, `sections.scheduler_packet_lineage_sidecar_rows`, `sections.scheduler_listener_sparse_logit_sidecar_rows`, `sections.device_dma_lifecycle_sidecar_rows`, `sections.attention_page_trace_sidecar_rows`, and `sections.device_result_digest_sidecar_rows`; use `sections.timeline_query_summary` only after capture/report provenance supports timeline analysis.",
             ]
         )

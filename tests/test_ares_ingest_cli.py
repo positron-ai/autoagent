@@ -153,6 +153,29 @@ def trace_report_payload() -> dict:
                     "proof_grade_status": "not_established_by_report",
                 }
             ],
+            "report_triage": [
+                {
+                    "triage_status": "needs_measurement",
+                    "report_grade": "diagnostic",
+                    "proof_grade_status": "not_established_by_report",
+                    "first_blocked_gate": "hf_cpu_oracle",
+                    "first_blocked_gate_status": "blocked",
+                    "first_blocked_gate_basis": "HF CPU oracle not recorded",
+                    "first_next_measurement_priority": "backend_jsonl",
+                    "first_next_measurement_reason": "backend JSONL evidence not present",
+                    "first_next_measurement": "Capture backend event JSONL",
+                    "first_next_measurement_command_hint": (
+                        "set ARES_BACKEND_EVENT_ARTIFACT_DIR"
+                    ),
+                    "first_answerable_question": "",
+                    "first_unsupported_claim": (
+                        "backend JSONL evidence is unsupported"
+                    ),
+                    "first_useful_section": "sections.next_measurements",
+                    "first_action": "Capture backend event JSONL",
+                    "claim_boundary": "diagnostic_routing_not_evidence",
+                }
+            ],
             "supported_claims": [
                 {
                     "claim": "trace preflight is answerable",
@@ -338,8 +361,7 @@ def trace_report_payload() -> dict:
                     "hardware_card_count": 0,
                     "hardware_cards": "",
                     "provenance_boundary": (
-                        "clean promotion evidence requires matched artifacts "
-                        "and hardware identity"
+                        "clean promotion evidence requires matched artifacts and hardware identity"
                     ),
                 }
             ],
@@ -378,6 +400,13 @@ def trace_report_payload() -> dict:
                     "json_section": "trace_config_rows",
                     "section_kind": "capture_configuration",
                     "claim_boundary": "requested_controls_not_recorded_evidence",
+                },
+                {
+                    "heading": "Report Triage",
+                    "json_path": "sections.report_triage",
+                    "json_section": "report_triage",
+                    "section_kind": "measurement_guidance",
+                    "claim_boundary": "diagnostic_routing_not_evidence",
                 },
                 {
                     "heading": "A/B Provenance",
@@ -668,7 +697,7 @@ def trace_report_payload() -> dict:
                         "system_under_test_device_result_digest_diagnostic"
                     ),
                     "next_action": "wait_for_explicit_provider_payload_boundary",
-                }
+                },
             ],
             "trace_event_artifacts": [
                 {
@@ -759,8 +788,7 @@ def trace_report_payload() -> dict:
                     "boundary_status": "fail_closed",
                     "root_cause_stage": "targetplan_validation",
                     "root_cause": (
-                        "target_plan_validation_status="
-                        "rejected_scheduler_runtime_table_missing"
+                        "target_plan_validation_status=rejected_scheduler_runtime_table_missing"
                     ),
                     "model_id": "trace-model",
                     "request_id": "boundary-req-0",
@@ -787,8 +815,7 @@ def trace_report_payload() -> dict:
                     "provider_stage": "forward",
                     "root_cause_stage": "targetplan_validation",
                     "root_cause": (
-                        "target_plan_validation_status="
-                        "rejected_scheduler_runtime_table_missing"
+                        "target_plan_validation_status=rejected_scheduler_runtime_table_missing"
                     ),
                     "event_kind": "forward_failed",
                     "failure_count": 1,
@@ -1526,15 +1553,27 @@ class AresIngestCliTest(unittest.TestCase):
             self.assertEqual(state["trace_report"]["path"], str(report_path.resolve()))
             self.assertEqual(len(state["trace_report"]["sha256"]), 64)
             self.assertEqual(state["trace_report"]["report_grade"], "diagnostic")
+            self.assertEqual(
+                state["trace_report"]["report_triage_status_counts"],
+                {"needs_measurement": 1},
+            )
+            self.assertEqual(
+                state["trace_report"]["report_triage_samples"][0][
+                    "first_useful_section"
+                ],
+                "sections.next_measurements",
+            )
+            self.assertEqual(
+                state["trace_report"]["report_triage_samples"][0]["claim_boundary"],
+                "diagnostic_routing_not_evidence",
+            )
             self.assertEqual(state["trace_report"]["supported_claim_count"], 1)
             self.assertEqual(
                 state["trace_report"]["correctness_evidence_status_counts"],
                 {"not_recorded": 1},
             )
             self.assertEqual(
-                state["trace_report"][
-                    "correctness_evidence_proof_grade_status_counts"
-                ],
+                state["trace_report"]["correctness_evidence_proof_grade_status_counts"],
                 {"not_established_by_report": 1},
             )
             self.assertEqual(
@@ -1602,7 +1641,9 @@ class AresIngestCliTest(unittest.TestCase):
                 {"not_established_by_report": 1},
             )
             self.assertEqual(state["trace_report"]["ab_repeatability_baseline_runs"], 1)
-            self.assertEqual(state["trace_report"]["ab_repeatability_candidate_runs"], 1)
+            self.assertEqual(
+                state["trace_report"]["ab_repeatability_candidate_runs"], 1
+            )
             self.assertEqual(
                 state["trace_report"][
                     "ab_repeatability_required_matched_runs_for_hardware_proof"
@@ -1746,9 +1787,7 @@ class AresIngestCliTest(unittest.TestCase):
                 {"targetplan_validation": 1},
             )
             self.assertEqual(
-                state["trace_report"][
-                    "backend_fail_closed_root_cause_backend_counts"
-                ],
+                state["trace_report"]["backend_fail_closed_root_cause_backend_counts"],
                 {"fpga": 1},
             )
             self.assertEqual(
@@ -1858,9 +1897,7 @@ class AresIngestCliTest(unittest.TestCase):
                 {"device_result": 1},
             )
             self.assertEqual(
-                state["trace_report"][
-                    "device_result_digest_sidecar_intrinsic_counts"
-                ],
+                state["trace_report"]["device_result_digest_sidecar_intrinsic_counts"],
                 {"fpga.device_result_digest": 1},
             )
             self.assertEqual(
@@ -1934,7 +1971,7 @@ class AresIngestCliTest(unittest.TestCase):
                     "topk_rows": 1,
                 },
             )
-            self.assertEqual(state["trace_report"]["report_json_section_count"], 29)
+            self.assertEqual(state["trace_report"]["report_json_section_count"], 30)
             self.assertEqual(
                 state["trace_report"]["report_json_section_kind_counts"],
                 {
@@ -1944,7 +1981,7 @@ class AresIngestCliTest(unittest.TestCase):
                     "debug_payload_diagnostic": 1,
                     "introspection": 2,
                     "introspection_inventory": 2,
-                    "measurement_guidance": 1,
+                    "measurement_guidance": 2,
                     "sidecar": 14,
                 },
             )
@@ -2012,7 +2049,9 @@ class AresIngestCliTest(unittest.TestCase):
             self.assertIn("Provider payload boundaries", handoff)
             self.assertIn("Provider payload boundary: fpga/kv_payload_digests", handoff)
             self.assertIn("Recorded provider payload lanes", handoff)
-            self.assertIn("Recorded provider payload boundary: fpga/kv_payload_digests", handoff)
+            self.assertIn(
+                "Recorded provider payload boundary: fpga/kv_payload_digests", handoff
+            )
             self.assertIn("Route-only provider payload lanes", handoff)
             self.assertIn("generic/device_result_digests", handoff)
             self.assertIn(
@@ -2161,7 +2200,9 @@ class AresIngestCliTest(unittest.TestCase):
             )
             self.assertIn("Supported claim: trace preflight is answerable", handoff)
             self.assertIn("Correctness evidence: hf_cpu_oracle_tokens_logits", handoff)
-            self.assertIn("Evidence artifact check: metadata.evidence_artifacts", handoff)
+            self.assertIn(
+                "Evidence artifact check: metadata.evidence_artifacts", handoff
+            )
             self.assertIn("Promotion gate: capture_preflight", handoff)
             self.assertIn("Trace mode guardrail: timeline-lite", handoff)
             self.assertIn(
@@ -2180,10 +2221,14 @@ class AresIngestCliTest(unittest.TestCase):
             self.assertIn("Trace report JSON:", prompt)
             self.assertIn("## Trace Report Summary", prompt)
             self.assertIn("sections.report_grade", prompt)
+            self.assertIn("sections.report_triage", prompt)
             self.assertIn("sections.answerability", prompt)
+            self.assertIn("Report triage detail: status=needs_measurement", prompt)
             self.assertIn("Supported claim: trace preflight is answerable", prompt)
             self.assertIn("Correctness evidence: hf_cpu_oracle_tokens_logits", prompt)
-            self.assertIn("Evidence artifact check: metadata.evidence_artifacts", prompt)
+            self.assertIn(
+                "Evidence artifact check: metadata.evidence_artifacts", prompt
+            )
             self.assertIn("Promotion gate: capture_preflight", prompt)
             self.assertIn("Trace mode guardrail: timeline-lite", prompt)
             self.assertIn("sections.report_json_section_inventory", prompt)
@@ -2354,7 +2399,7 @@ class AresIngestCliTest(unittest.TestCase):
         )
 
         self.assertIsNotNone(summary)
-        self.assertEqual((summary or {}).get("section_count"), 52)
+        self.assertEqual((summary or {}).get("section_count"), 53)
         lines = "\n".join(render_trace_report_lines(summary or {}))
 
         expected_basis = (
@@ -2366,7 +2411,9 @@ class AresIngestCliTest(unittest.TestCase):
             "Trace grade promotion gate: Capture comparable baseline/candidate artifacts",
             lines,
         )
-        self.assertIn("Report sections available: count=52", lines)
+        self.assertIn("Report sections available: count=53", lines)
+        self.assertIn("Report triage detail: status=needs_measurement", lines)
+        self.assertIn("next_priority=timeline_capture", lines)
         self.assertIn("analysis_commands", lines)
         self.assertIn("Answerability detail: metadata artifact identity", lines)
         self.assertIn("status=not_present", lines)
@@ -2381,6 +2428,7 @@ class AresIngestCliTest(unittest.TestCase):
         self.assertIn("Report JSON section: sections.preflight", lines)
         self.assertIn("Report JSON section: sections.analysis_commands", lines)
         self.assertIn("Report JSON section: sections.report_grade", lines)
+        self.assertIn("Report JSON section: sections.report_triage", lines)
         self.assertIn(
             "Report JSON section: sections.report_json_section_inventory",
             lines,
@@ -2802,15 +2850,11 @@ class AresIngestCliTest(unittest.TestCase):
             saved = json.loads(cfg.state_path.read_text())
             self.assertEqual(saved["status"], "failed")
             self.assertEqual(
-                saved["introspection_ladder"]["first_failed_comparison"][
-                    "to_stage"
-                ],
+                saved["introspection_ladder"]["first_failed_comparison"]["to_stage"],
                 "source_hf_hypergraph",
             )
             self.assertEqual(
-                saved["introspection_ladder"]["first_mismatch"][
-                    "producer_generator"
-                ],
+                saved["introspection_ladder"]["first_mismatch"]["producer_generator"],
                 "linear_0",
             )
             handoff = (run_dir / "handoff.md").read_text()
