@@ -181,8 +181,34 @@ def trace_report_summary_from_spec(spec: Mapping[str, Any]) -> dict[str, Any] | 
         "proof_grade_status": detail.get("proof_grade_status"),
         "answerability_count": detail.get("answerability_count"),
         "answerability_status_counts": detail.get("answerability_status_counts"),
+        "supported_claim_count": detail.get("supported_claim_count"),
         "unsupported_claim_count": detail.get("unsupported_claim_count"),
         "next_measurement_count": detail.get("next_measurement_count"),
+        "correctness_evidence_count": detail.get("correctness_evidence_count"),
+        "correctness_evidence_status_counts": detail.get(
+            "correctness_evidence_status_counts"
+        ),
+        "correctness_evidence_proof_grade_status_counts": detail.get(
+            "correctness_evidence_proof_grade_status_counts"
+        ),
+        "evidence_artifact_check_count": detail.get("evidence_artifact_check_count"),
+        "evidence_artifact_check_status_counts": detail.get(
+            "evidence_artifact_check_status_counts"
+        ),
+        "promotion_gate_summary_count": detail.get("promotion_gate_summary_count"),
+        "promotion_gate_summary_status_counts": detail.get(
+            "promotion_gate_summary_status_counts"
+        ),
+        "promotion_gate_summary_proof_grade_status_counts": detail.get(
+            "promotion_gate_summary_proof_grade_status_counts"
+        ),
+        "trace_mode_guardrail_count": detail.get("trace_mode_guardrail_count"),
+        "trace_mode_guardrail_mode_counts": detail.get(
+            "trace_mode_guardrail_mode_counts"
+        ),
+        "trace_mode_guardrail_overhead_counts": detail.get(
+            "trace_mode_guardrail_overhead_counts"
+        ),
         "report_json_section_count": detail.get("report_json_section_count"),
         "report_json_section_kind_counts": detail.get(
             "report_json_section_kind_counts"
@@ -494,6 +520,15 @@ def trace_report_summary_from_spec(spec: Mapping[str, Any]) -> dict[str, Any] | 
         "introspection_section_inventory_samples": detail.get(
             "introspection_section_inventory_samples"
         ),
+        "supported_claim_samples": detail.get("supported_claim_samples"),
+        "correctness_evidence_samples": detail.get("correctness_evidence_samples"),
+        "evidence_artifact_check_samples": detail.get(
+            "evidence_artifact_check_samples"
+        ),
+        "promotion_gate_summary_samples": detail.get(
+            "promotion_gate_summary_samples"
+        ),
+        "trace_mode_guardrail_samples": detail.get("trace_mode_guardrail_samples"),
         "section_names": detail.get("section_names"),
     }
     errors = gate.get("errors")
@@ -525,6 +560,66 @@ def render_trace_report_lines(summary: Mapping[str, Any]) -> list[str]:
         lines.append(
             "- Answerability: "
             f"`{json.dumps(summary['answerability_status_counts'], sort_keys=True)}`"
+        )
+    if summary.get("correctness_evidence_status_counts"):
+        lines.append(
+            "- Correctness evidence: "
+            "`"
+            + json.dumps(
+                summary["correctness_evidence_status_counts"],
+                sort_keys=True,
+            )
+            + "`"
+        )
+    if summary.get("evidence_artifact_check_status_counts"):
+        lines.append(
+            "- Evidence artifact checks: "
+            "`"
+            + json.dumps(
+                summary["evidence_artifact_check_status_counts"],
+                sort_keys=True,
+            )
+            + "`"
+        )
+    if summary.get("promotion_gate_summary_status_counts"):
+        lines.append(
+            "- Promotion gate summary: "
+            "`"
+            + json.dumps(
+                summary["promotion_gate_summary_status_counts"],
+                sort_keys=True,
+            )
+            + "`"
+        )
+    if summary.get("promotion_gate_summary_proof_grade_status_counts"):
+        lines.append(
+            "- Promotion proof-grade status: "
+            "`"
+            + json.dumps(
+                summary["promotion_gate_summary_proof_grade_status_counts"],
+                sort_keys=True,
+            )
+            + "`"
+        )
+    if summary.get("trace_mode_guardrail_mode_counts"):
+        lines.append(
+            "- Trace mode guardrails: "
+            "`"
+            + json.dumps(
+                summary["trace_mode_guardrail_mode_counts"],
+                sort_keys=True,
+            )
+            + "`"
+        )
+    if summary.get("trace_mode_guardrail_overhead_counts"):
+        lines.append(
+            "- Trace overhead boundaries: "
+            "`"
+            + json.dumps(
+                summary["trace_mode_guardrail_overhead_counts"],
+                sort_keys=True,
+            )
+            + "`"
         )
     if summary.get("report_json_section_kind_counts"):
         lines.append(
@@ -2348,6 +2443,98 @@ def render_trace_report_lines(summary: Mapping[str, Any]) -> list[str]:
             line = f"- Introspection section: {json_section}"
             if any(parts):
                 line += " " + " ".join(part for part in parts if part)
+            lines.append(line)
+    for sample in summary.get("supported_claim_samples", [])[:3]:
+        if not isinstance(sample, Mapping):
+            continue
+        claim = sample.get("claim")
+        basis = sample.get("basis")
+        evidence_grade = sample.get("evidence_grade")
+        if claim:
+            parts = []
+            if evidence_grade:
+                parts.append(f"grade={evidence_grade}")
+            if basis:
+                parts.append(f"basis={basis}")
+            line = f"- Supported claim: {claim}"
+            if parts:
+                line += " " + " ".join(parts)
+            lines.append(line)
+    for sample in summary.get("correctness_evidence_samples", [])[:3]:
+        if not isinstance(sample, Mapping):
+            continue
+        evidence = sample.get("evidence")
+        status = sample.get("status")
+        proof = sample.get("proof_grade_status")
+        next_gate = sample.get("next_gate")
+        if evidence:
+            parts = []
+            if status:
+                parts.append(f"status={status}")
+            if proof:
+                parts.append(f"proof={proof}")
+            line = f"- Correctness evidence: {evidence}"
+            if parts:
+                line += " " + " ".join(parts)
+            lines.append(line)
+        if next_gate:
+            lines.append(f"  Next gate: `{next_gate}`")
+    for sample in summary.get("evidence_artifact_check_samples", [])[:3]:
+        if not isinstance(sample, Mapping):
+            continue
+        check = sample.get("check")
+        status = sample.get("status")
+        detail = sample.get("detail")
+        artifact = sample.get("evidence_artifact")
+        if check:
+            parts = []
+            if artifact:
+                parts.append(f"artifact={artifact}")
+            if status:
+                parts.append(f"status={status}")
+            if detail:
+                parts.append(f"detail={detail}")
+            line = f"- Evidence artifact check: {check}"
+            if parts:
+                line += " " + " ".join(parts)
+            lines.append(line)
+    for sample in summary.get("promotion_gate_summary_samples", [])[:6]:
+        if not isinstance(sample, Mapping):
+            continue
+        gate = sample.get("gate")
+        status = sample.get("status")
+        proof = sample.get("proof_grade_status")
+        next_gate = sample.get("next_gate")
+        if gate:
+            parts = []
+            if status:
+                parts.append(f"status={status}")
+            if proof:
+                parts.append(f"proof={proof}")
+            line = f"- Promotion gate: {gate}"
+            if parts:
+                line += " " + " ".join(parts)
+            lines.append(line)
+        if next_gate:
+            lines.append(f"  Next gate: `{next_gate}`")
+    for sample in summary.get("trace_mode_guardrail_samples", [])[:3]:
+        if not isinstance(sample, Mapping):
+            continue
+        trace_mode = sample.get("trace_mode")
+        guardrail = sample.get("claim_guardrail")
+        overhead = sample.get("overhead_boundary")
+        sinks = sample.get("trace_sinks")
+        if trace_mode:
+            parts = []
+            if sinks:
+                parts.append(f"sinks={sinks}")
+            if overhead:
+                parts.append(f"overhead={overhead}")
+            if guardrail:
+                parts.append(f"guardrail={guardrail}")
+            line = f"- Trace mode guardrail: {trace_mode}"
+            if parts:
+                line += " " + " ".join(parts)
             lines.append(line)
     for sample in summary.get("next_measurement_samples", [])[:3]:
         if not isinstance(sample, Mapping):

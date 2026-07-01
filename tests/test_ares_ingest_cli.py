@@ -141,6 +141,13 @@ def trace_report_payload() -> dict:
                     "proof_grade_status": "not_established_by_report",
                 }
             ],
+            "supported_claims": [
+                {
+                    "claim": "trace preflight is answerable",
+                    "basis": "preflight section is present",
+                    "evidence_grade": "diagnostic",
+                }
+            ],
             "answerability": [
                 {
                     "question": "backend JSONL evidence",
@@ -160,6 +167,42 @@ def trace_report_payload() -> dict:
                     "next_measurement": "Capture backend event JSONL",
                     "reason": "backend JSONL evidence not present",
                     "command_hint": "set ARES_BACKEND_EVENT_ARTIFACT_DIR",
+                }
+            ],
+            "correctness_evidence": [
+                {
+                    "evidence": "hf_cpu_oracle_tokens_logits",
+                    "status": "not_recorded",
+                    "evidence_role": "oracle_required_for_correctness",
+                    "proof_grade_status": "not_established_by_report",
+                    "basis": "no HF CPU oracle artifact attached",
+                    "next_gate": "attach HF CPU oracle evidence",
+                }
+            ],
+            "evidence_artifact_checks": [
+                {
+                    "check": "metadata.evidence_artifacts",
+                    "evidence_artifact": "<all>",
+                    "status": "ok",
+                    "detail": "0 artifact(s)",
+                }
+            ],
+            "promotion_gate_summary": [
+                {
+                    "gate": "capture_preflight",
+                    "status": "passed",
+                    "proof_grade_status": "not_established_by_report",
+                    "basis": "preflight passed for report inputs",
+                    "next_gate": "attach oracle evidence before promotion",
+                }
+            ],
+            "trace_mode_guardrails": [
+                {
+                    "trace_mode": "timeline-lite",
+                    "trace_sinks": "jsonl",
+                    "role": "report",
+                    "overhead_boundary": "low_overhead",
+                    "claim_guardrail": "do not treat trace timing as promotion proof",
                 }
             ],
             "report_json_section_inventory": [
@@ -1223,6 +1266,39 @@ class AresIngestCliTest(unittest.TestCase):
             self.assertEqual(state["trace_report"]["path"], str(report_path.resolve()))
             self.assertEqual(len(state["trace_report"]["sha256"]), 64)
             self.assertEqual(state["trace_report"]["report_grade"], "diagnostic")
+            self.assertEqual(state["trace_report"]["supported_claim_count"], 1)
+            self.assertEqual(
+                state["trace_report"]["correctness_evidence_status_counts"],
+                {"not_recorded": 1},
+            )
+            self.assertEqual(
+                state["trace_report"][
+                    "correctness_evidence_proof_grade_status_counts"
+                ],
+                {"not_established_by_report": 1},
+            )
+            self.assertEqual(
+                state["trace_report"]["evidence_artifact_check_status_counts"],
+                {"ok": 1},
+            )
+            self.assertEqual(
+                state["trace_report"]["promotion_gate_summary_status_counts"],
+                {"passed": 1},
+            )
+            self.assertEqual(
+                state["trace_report"][
+                    "promotion_gate_summary_proof_grade_status_counts"
+                ],
+                {"not_established_by_report": 1},
+            )
+            self.assertEqual(
+                state["trace_report"]["trace_mode_guardrail_mode_counts"],
+                {"timeline-lite": 1},
+            )
+            self.assertEqual(
+                state["trace_report"]["trace_mode_guardrail_overhead_counts"],
+                {"low_overhead": 1},
+            )
             self.assertEqual(
                 state["trace_report"]["introspection_capability_status_counts"],
                 {"recorded": 1},
@@ -1640,6 +1716,11 @@ class AresIngestCliTest(unittest.TestCase):
             self.assertIn("status=available", handoff)
             self.assertIn("capability=token_quality", handoff)
             self.assertIn("artifacts=1", handoff)
+            self.assertIn("Supported claim: trace preflight is answerable", handoff)
+            self.assertIn("Correctness evidence: hf_cpu_oracle_tokens_logits", handoff)
+            self.assertIn("Evidence artifact check: metadata.evidence_artifacts", handoff)
+            self.assertIn("Promotion gate: capture_preflight", handoff)
+            self.assertIn("Trace mode guardrail: timeline-lite", handoff)
             self.assertIn(
                 "Introspection section: planning_decision_sidecar_rows",
                 handoff,
@@ -1656,6 +1737,11 @@ class AresIngestCliTest(unittest.TestCase):
             self.assertIn("Trace report JSON:", prompt)
             self.assertIn("## Trace Report Summary", prompt)
             self.assertIn("sections.answerability", prompt)
+            self.assertIn("Supported claim: trace preflight is answerable", prompt)
+            self.assertIn("Correctness evidence: hf_cpu_oracle_tokens_logits", prompt)
+            self.assertIn("Evidence artifact check: metadata.evidence_artifacts", prompt)
+            self.assertIn("Promotion gate: capture_preflight", prompt)
+            self.assertIn("Trace mode guardrail: timeline-lite", prompt)
             self.assertIn("sections.report_json_section_inventory", prompt)
             self.assertIn("sections.trace_config_rows", prompt)
             self.assertIn("sections.provider_payload_boundary_inventory_rows", prompt)

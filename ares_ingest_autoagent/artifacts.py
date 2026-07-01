@@ -95,6 +95,11 @@ TRACE_REPORT_JSON_SECTION_SAMPLE_KEYS = (
     "introspection_capability_rows",
     "introspection_artifact_summary_rows",
     "introspection_section_inventory",
+    "supported_claims",
+    "correctness_evidence",
+    "evidence_artifact_checks",
+    "promotion_gate_summary",
+    "trace_mode_guardrails",
     "answerability",
     "unsupported_claims",
     "next_measurements",
@@ -1585,8 +1590,13 @@ def validate_trace_report_json(report: Any) -> ArtifactValidation:
     preflight_rows: list[dict[str, Any]] = []
     analysis_command_rows: list[dict[str, Any]] = []
     answerability_rows: list[dict[str, Any]] = []
+    supported_claim_rows: list[dict[str, Any]] = []
     unsupported_claim_rows: list[dict[str, Any]] = []
     next_measurement_rows: list[dict[str, Any]] = []
+    correctness_evidence_rows: list[dict[str, Any]] = []
+    evidence_artifact_check_rows: list[dict[str, Any]] = []
+    promotion_gate_summary_rows: list[dict[str, Any]] = []
+    trace_mode_guardrail_rows: list[dict[str, Any]] = []
     report_json_section_rows: list[dict[str, Any]] = []
     trace_config_rows: list[dict[str, Any]] = []
     provider_payload_boundary_rows: list[dict[str, Any]] = []
@@ -1626,11 +1636,41 @@ def validate_trace_report_json(report: Any) -> ArtifactValidation:
         answerability_rows = _trace_report_section_rows(
             errors, sections, "answerability"
         )
+        supported_claim_rows = _trace_report_section_rows(
+            errors,
+            sections,
+            "supported_claims",
+            required=False,
+        )
         unsupported_claim_rows = _trace_report_section_rows(
             errors, sections, "unsupported_claims"
         )
         next_measurement_rows = _trace_report_section_rows(
             errors, sections, "next_measurements"
+        )
+        correctness_evidence_rows = _trace_report_section_rows(
+            errors,
+            sections,
+            "correctness_evidence",
+            required=False,
+        )
+        evidence_artifact_check_rows = _trace_report_section_rows(
+            errors,
+            sections,
+            "evidence_artifact_checks",
+            required=False,
+        )
+        promotion_gate_summary_rows = _trace_report_section_rows(
+            errors,
+            sections,
+            "promotion_gate_summary",
+            required=False,
+        )
+        trace_mode_guardrail_rows = _trace_report_section_rows(
+            errors,
+            sections,
+            "trace_mode_guardrails",
+            required=False,
         )
         report_json_section_rows = _trace_report_section_rows(
             errors,
@@ -1846,8 +1886,45 @@ def validate_trace_report_json(report: Any) -> ArtifactValidation:
         "answerability_status_counts": dict(
             sorted(answerability_status_counts.items())
         ),
+        "supported_claim_count": len(supported_claim_rows),
         "unsupported_claim_count": len(unsupported_claim_rows),
         "next_measurement_count": len(next_measurement_rows),
+        "correctness_evidence_count": len(correctness_evidence_rows),
+        "correctness_evidence_status_counts": _trace_report_value_counts(
+            correctness_evidence_rows,
+            "status",
+        ),
+        "correctness_evidence_proof_grade_status_counts": (
+            _trace_report_value_counts(
+                correctness_evidence_rows,
+                "proof_grade_status",
+            )
+        ),
+        "evidence_artifact_check_count": len(evidence_artifact_check_rows),
+        "evidence_artifact_check_status_counts": _trace_report_value_counts(
+            evidence_artifact_check_rows,
+            "status",
+        ),
+        "promotion_gate_summary_count": len(promotion_gate_summary_rows),
+        "promotion_gate_summary_status_counts": _trace_report_value_counts(
+            promotion_gate_summary_rows,
+            "status",
+        ),
+        "promotion_gate_summary_proof_grade_status_counts": (
+            _trace_report_value_counts(
+                promotion_gate_summary_rows,
+                "proof_grade_status",
+            )
+        ),
+        "trace_mode_guardrail_count": len(trace_mode_guardrail_rows),
+        "trace_mode_guardrail_mode_counts": _trace_report_value_counts(
+            trace_mode_guardrail_rows,
+            "trace_mode",
+        ),
+        "trace_mode_guardrail_overhead_counts": _trace_report_value_counts(
+            trace_mode_guardrail_rows,
+            "overhead_boundary",
+        ),
         "report_json_section_count": len(report_json_section_rows),
         "report_json_section_kind_counts": _trace_report_value_counts(
             report_json_section_rows,
@@ -2158,9 +2235,43 @@ def validate_trace_report_json(report: Any) -> ArtifactValidation:
                 "capture_capability",
             )
         ),
+        "supported_claim_samples": _trace_report_samples(
+            supported_claim_rows,
+            ("claim", "basis", "evidence_grade"),
+        ),
         "unsupported_claim_samples": _trace_report_samples(
             unsupported_claim_rows,
             ("claim", "reason", "basis"),
+        ),
+        "correctness_evidence_samples": _trace_report_samples(
+            correctness_evidence_rows,
+            (
+                "evidence",
+                "status",
+                "evidence_role",
+                "proof_grade_status",
+                "basis",
+                "next_gate",
+            ),
+        ),
+        "evidence_artifact_check_samples": _trace_report_samples(
+            evidence_artifact_check_rows,
+            ("check", "evidence_artifact", "status", "detail"),
+        ),
+        "promotion_gate_summary_samples": _trace_report_samples(
+            promotion_gate_summary_rows,
+            ("gate", "status", "proof_grade_status", "basis", "next_gate"),
+            limit=6,
+        ),
+        "trace_mode_guardrail_samples": _trace_report_samples(
+            trace_mode_guardrail_rows,
+            (
+                "trace_mode",
+                "trace_sinks",
+                "role",
+                "overhead_boundary",
+                "claim_guardrail",
+            ),
         ),
         "next_measurement_samples": _trace_report_samples(
             next_measurement_rows,
@@ -2173,7 +2284,7 @@ def validate_trace_report_json(report: Any) -> ArtifactValidation:
         "report_json_section_samples": _trace_report_samples(
             report_json_section_sample_rows,
             ("json_path", "json_section", "section_kind", "claim_boundary"),
-            limit=24,
+            limit=32,
         ),
         "trace_config_samples": _trace_report_samples(
             trace_config_rows,

@@ -398,6 +398,13 @@ class AresIngestArtifactTest(unittest.TestCase):
                                     "proof_grade_status": "not_established_by_report",
                                 }
                             ],
+                            "supported_claims": [
+                                {
+                                    "claim": "trace preflight is answerable",
+                                    "basis": "preflight section is present",
+                                    "evidence_grade": "diagnostic",
+                                }
+                            ],
                             "answerability": [
                                 {
                                     "question": "backend JSONL evidence",
@@ -416,6 +423,44 @@ class AresIngestArtifactTest(unittest.TestCase):
                                     "priority": "backend_jsonl",
                                     "next_measurement": "Capture backend JSONL",
                                     "command_hint": "set ARES_BACKEND_EVENT_ARTIFACT_DIR",
+                                }
+                            ],
+                            "correctness_evidence": [
+                                {
+                                    "evidence": "hf_cpu_oracle_tokens_logits",
+                                    "status": "not_recorded",
+                                    "evidence_role": "oracle_required_for_correctness",
+                                    "proof_grade_status": "not_established_by_report",
+                                    "basis": "no HF CPU oracle artifact attached",
+                                    "next_gate": "attach HF CPU oracle evidence",
+                                }
+                            ],
+                            "evidence_artifact_checks": [
+                                {
+                                    "check": "metadata.evidence_artifacts",
+                                    "evidence_artifact": "<all>",
+                                    "status": "ok",
+                                    "detail": "0 artifact(s)",
+                                }
+                            ],
+                            "promotion_gate_summary": [
+                                {
+                                    "gate": "capture_preflight",
+                                    "status": "passed",
+                                    "proof_grade_status": "not_established_by_report",
+                                    "basis": "preflight passed for report inputs",
+                                    "next_gate": "attach oracle evidence before promotion",
+                                }
+                            ],
+                            "trace_mode_guardrails": [
+                                {
+                                    "trace_mode": "timeline-lite",
+                                    "trace_sinks": "jsonl",
+                                    "role": "report",
+                                    "overhead_boundary": "low_overhead",
+                                    "claim_guardrail": (
+                                        "do not treat trace timing as promotion proof"
+                                    ),
                                 }
                             ],
                             "report_json_section_inventory": [
@@ -1480,8 +1525,37 @@ class AresIngestArtifactTest(unittest.TestCase):
             self.assertEqual(gate["artifact_validator"], "trace_report")
             self.assertEqual(gate["detail"]["report_grade"], "diagnostic")
             self.assertEqual(gate["detail"]["preflight_status"], "pass")
+            self.assertEqual(gate["detail"]["supported_claim_count"], 1)
             self.assertEqual(gate["detail"]["unsupported_claim_count"], 1)
             self.assertEqual(gate["detail"]["next_measurement_count"], 1)
+            self.assertEqual(
+                gate["detail"]["correctness_evidence_status_counts"],
+                {"not_recorded": 1},
+            )
+            self.assertEqual(
+                gate["detail"]["correctness_evidence_proof_grade_status_counts"],
+                {"not_established_by_report": 1},
+            )
+            self.assertEqual(
+                gate["detail"]["evidence_artifact_check_status_counts"],
+                {"ok": 1},
+            )
+            self.assertEqual(
+                gate["detail"]["promotion_gate_summary_status_counts"],
+                {"passed": 1},
+            )
+            self.assertEqual(
+                gate["detail"]["promotion_gate_summary_proof_grade_status_counts"],
+                {"not_established_by_report": 1},
+            )
+            self.assertEqual(
+                gate["detail"]["trace_mode_guardrail_mode_counts"],
+                {"timeline-lite": 1},
+            )
+            self.assertEqual(
+                gate["detail"]["trace_mode_guardrail_overhead_counts"],
+                {"low_overhead": 1},
+            )
             self.assertEqual(
                 gate["detail"]["introspection_capability_status_counts"],
                 {"recorded": 1},
