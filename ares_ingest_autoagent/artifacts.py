@@ -1022,9 +1022,7 @@ def validate_mmlu_pro_evidence(
     )
   coverage_for_requirement = effective_coverage_value
   if question_limit_value:
-    errors.append(
-      "MMLU Pro question_limit_per_subject must be zero for mmlu_pro gate"
-    )
+    errors.append("MMLU Pro question_limit_per_subject must be zero for mmlu_pro gate")
     coverage_for_requirement = 0.0
   if (
     coverage_for_requirement is not None
@@ -1115,22 +1113,23 @@ def validate_mmlu_pro_evidence(
           f"subjects[{index}].attempted_question_count must equal correct + wrong"
         )
       result_record_count = subject.get("result_record_count")
-      if result_record_count is not None:
-        if (
-          not isinstance(result_record_count, int | float)
-          or result_record_count < 0
-          or not float(result_record_count).is_integer()
-        ):
-          errors.append(
-            f"subjects[{index}].result_record_count must be a non-negative integer"
-          )
-        elif (
-          subject_attempted_value is not None
-          and int(result_record_count) != subject_attempted_value
-        ):
-          errors.append(
-            f"subjects[{index}].result_record_count must equal attempted_question_count"
-          )
+      if result_record_count is None:
+        errors.append(f"subjects[{index}].result_record_count must be present")
+      elif (
+        not isinstance(result_record_count, int | float)
+        or result_record_count < 0
+        or not float(result_record_count).is_integer()
+      ):
+        errors.append(
+          f"subjects[{index}].result_record_count must be a non-negative integer"
+        )
+      elif (
+        subject_attempted_value is not None
+        and int(result_record_count) != subject_attempted_value
+      ):
+        errors.append(
+          f"subjects[{index}].result_record_count must equal attempted_question_count"
+        )
     if (
       attempted_question_count_value is not None
       and subject_attempt_sum is not None
@@ -1966,9 +1965,52 @@ def _command_runs_uv_mmlu_pro(command: Any) -> bool:
     tokens = shlex.split(command)
   except ValueError:
     tokens = command.split()
+  options_with_values = {
+    "--cache-dir",
+    "--config-file",
+    "--config-setting",
+    "--directory",
+    "--env-file",
+    "--exclude-newer",
+    "--extra",
+    "--find-links",
+    "--from",
+    "--index",
+    "--index-url",
+    "--keyring-provider",
+    "--link-mode",
+    "--no-binary",
+    "--no-build",
+    "--no-build-isolation-package",
+    "--only-binary",
+    "--project",
+    "--python",
+    "--python-platform",
+    "--refresh-package",
+    "--reinstall-package",
+    "--resolution",
+    "--upgrade-package",
+    "--with",
+    "--with-editable",
+    "--with-requirements",
+  }
   for index, token in enumerate(tokens[:-1]):
     if token == "uv" and tokens[index + 1] == "run":
-      return any(arg == "mmlu_pro" for arg in tokens[index + 2 :])
+      arg_index = index + 2
+      while arg_index < len(tokens):
+        arg = tokens[arg_index]
+        if arg == "--":
+          arg_index += 1
+          break
+        if not arg.startswith("-"):
+          break
+        if "=" in arg:
+          arg_index += 1
+          continue
+        arg_index += 1
+        if arg in options_with_values and arg_index < len(tokens):
+          arg_index += 1
+      return arg_index < len(tokens) and tokens[arg_index] == "mmlu_pro"
   return False
 
 
@@ -1984,22 +2026,28 @@ def _command_env_non_negative_int(
   except ValueError:
     tokens = command.split()
   prefix = f"{name}="
+  values: list[str] = []
   for token in tokens:
     if not token.startswith(prefix):
       continue
-    raw = token[len(prefix) :]
-    if raw == "":
-      return None
-    try:
-      value = int(raw)
-    except ValueError:
-      errors.append(f"systems_test.command {name} must be an integer")
-      return None
-    if value < 0:
-      errors.append(f"systems_test.command {name} must be non-negative")
-      return None
-    return value
-  return None
+    values.append(token[len(prefix) :])
+  if not values:
+    return None
+  if len(values) > 1:
+    errors.append(f"systems_test.command {name} must not be repeated")
+    return None
+  raw = values[0]
+  if raw == "":
+    return None
+  try:
+    value = int(raw)
+  except ValueError:
+    errors.append(f"systems_test.command {name} must be an integer")
+    return None
+  if value < 0:
+    errors.append(f"systems_test.command {name} must be non-negative")
+    return None
+  return value
 
 
 def _validate_revision_metadata(

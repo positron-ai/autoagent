@@ -1266,6 +1266,28 @@ class AresIngestArtifactTest(unittest.TestCase):
       self.assertFalse(gate["passed"])
       self.assertIn("command must run uv run mmlu_pro", " ".join(gate["errors"]))
 
+  def test_mmlu_pro_gate_rejects_uv_pytest_mmlu_argument(self) -> None:
+    with TemporaryDirectory() as tmp:
+      root = Path(tmp)
+      path = root / "mmlu-pro.json"
+      path.write_text(
+        json.dumps(
+          mmlu_pro_payload(
+            root,
+            command=(
+              "OPENAI_HOST=http://127.0.0.1:50183/v1 "
+              "SKIP_PROVISION=1 MMLU_MODEL=synthetic/model "
+              "uv run pytest mmlu_pro"
+            ),
+          )
+        )
+      )
+
+      gate = mmlu_pro_gate(path)
+
+      self.assertFalse(gate["passed"])
+      self.assertIn("command must run uv run mmlu_pro", " ".join(gate["errors"]))
+
   def test_mmlu_pro_gate_rejects_low_score_and_dirty_sources(self) -> None:
     with TemporaryDirectory() as tmp:
       root = Path(tmp)
@@ -1390,9 +1412,7 @@ class AresIngestArtifactTest(unittest.TestCase):
     with TemporaryDirectory() as tmp:
       root = Path(tmp)
       path = root / "mmlu-pro.json"
-      path.write_text(
-        json.dumps(mmlu_pro_payload(root, evidence_class="diagnostic"))
-      )
+      path.write_text(json.dumps(mmlu_pro_payload(root, evidence_class="diagnostic")))
 
       gate = mmlu_pro_gate(path)
 
@@ -1424,6 +1444,57 @@ class AresIngestArtifactTest(unittest.TestCase):
         " ".join(gate["errors"]),
       )
 
+  def test_mmlu_pro_gate_rejects_duplicate_question_limit_command(self) -> None:
+    with TemporaryDirectory() as tmp:
+      root = Path(tmp)
+      path = root / "mmlu-pro.json"
+      path.write_text(
+        json.dumps(
+          mmlu_pro_payload(
+            root,
+            command=(
+              "OPENAI_HOST=http://127.0.0.1:50183/v1 "
+              "SKIP_PROVISION=1 MMLU_MODEL=synthetic/model "
+              "MMLU_MAX_QUESTIONS_PER_SUBJECT=0 "
+              "MMLU_MAX_QUESTIONS_PER_SUBJECT=10 uv run mmlu_pro"
+            ),
+          )
+        )
+      )
+
+      gate = mmlu_pro_gate(path)
+
+      self.assertFalse(gate["passed"])
+      self.assertIn(
+        "MMLU_MAX_QUESTIONS_PER_SUBJECT must not be repeated",
+        " ".join(gate["errors"]),
+      )
+
+  def test_mmlu_pro_gate_rejects_negative_question_limit_command(self) -> None:
+    with TemporaryDirectory() as tmp:
+      root = Path(tmp)
+      path = root / "mmlu-pro.json"
+      path.write_text(
+        json.dumps(
+          mmlu_pro_payload(
+            root,
+            command=(
+              "OPENAI_HOST=http://127.0.0.1:50183/v1 "
+              "SKIP_PROVISION=1 MMLU_MODEL=synthetic/model "
+              "MMLU_MAX_QUESTIONS_PER_SUBJECT=-1 uv run mmlu_pro"
+            ),
+          )
+        )
+      )
+
+      gate = mmlu_pro_gate(path)
+
+      self.assertFalse(gate["passed"])
+      self.assertIn(
+        "MMLU_MAX_QUESTIONS_PER_SUBJECT must be non-negative",
+        " ".join(gate["errors"]),
+      )
+
   def test_mmlu_pro_gate_rejects_subject_count_mismatch(self) -> None:
     with TemporaryDirectory() as tmp:
       root = Path(tmp)
@@ -1452,6 +1523,22 @@ class AresIngestArtifactTest(unittest.TestCase):
       self.assertFalse(gate["passed"])
       self.assertIn(
         "result_record_count must equal attempted_question_count",
+        " ".join(gate["errors"]),
+      )
+
+  def test_mmlu_pro_gate_requires_subject_result_record_count(self) -> None:
+    with TemporaryDirectory() as tmp:
+      root = Path(tmp)
+      path = root / "mmlu-pro.json"
+      payload = mmlu_pro_payload(root)
+      del payload["subjects"][0]["result_record_count"]
+      path.write_text(json.dumps(payload))
+
+      gate = mmlu_pro_gate(path)
+
+      self.assertFalse(gate["passed"])
+      self.assertIn(
+        "result_record_count must be present",
         " ".join(gate["errors"]),
       )
 
