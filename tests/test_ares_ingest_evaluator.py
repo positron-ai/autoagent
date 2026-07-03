@@ -14,729 +14,878 @@ from typing import Any
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 EVALUATOR = (
-    REPO_ROOT / "templates/ares-ingest-harbor-task/files/evaluate_ares_ingest.py"
+  REPO_ROOT / "templates/ares-ingest-harbor-task/files/evaluate_ares_ingest.py"
 )
 
 
 def oracle_record() -> dict[str, Any]:
-    return {
-        "schema": "ares.oracles.hf_cpu.record.v1",
-        "record_kind": "hf_cpu_oracle_capture",
-        "capture_id": "test-capture",
-        "created_utc": "2026-06-26T00:00:00Z",
-        "source": {
-            "oracle": "huggingface_transformers_pytorch_cpu",
-            "capture_script": "tools/oracles/hf-cpu/capture_hf_cpu_oracle.py",
-        },
-        "model": {
-            "model_id": "synthetic/model",
-            "requested_revision": "0123456789abcdef0123456789abcdef01234567",
-            "resolved_revision": "0123456789abcdef0123456789abcdef01234567",
-            "dtype": "float32",
-        },
-        "tokenizer": {
-            "tokenizer_id": "synthetic/model",
-            "requested_revision": "0123456789abcdef0123456789abcdef01234567",
-            "resolved_revision": "0123456789abcdef0123456789abcdef01234567",
-        },
-        "run": {
-            "seed": 0,
-            "decode_strategy": "greedy",
-            "max_new_tokens": 2,
-            "top_k": 2,
-            "torch_deterministic_algorithms": True,
-            "local_files_only": True,
-            "trust_remote_code": False,
-        },
-        "prompt": {
-            "kind": "raw",
-            "text": "Hello",
-            "token_ids": [1, 7],
-            "token_count": 2,
-            "add_special_tokens": True,
-        },
-        "generation": {
-            "generated_token_ids": [3, 2],
-            "generated_token_count": 2,
-            "generated_text": " world</s>",
-            "finish_reason": "eos_token",
-            "eos_token_id": 2,
-            "eos_token_ids": [2],
-            "stop_token_id": 2,
-        },
-        "logit_slices": [
-            {
-                "step": 0,
-                "position": 1,
-                "context_token_count": 2,
-                "selected_token_id": 3,
-                "selected_token_text": " world",
-                "selected_token_logit": 12.5,
-                "top_k": [
-                    {"rank": 1, "token_id": 3, "token_text": " world", "logit": 12.5}
-                ],
-            },
-            {
-                "step": 1,
-                "position": 2,
-                "context_token_count": 3,
-                "selected_token_id": 2,
-                "selected_token_text": "</s>",
-                "selected_token_logit": 9.25,
-                "top_k": [
-                    {"rank": 1, "token_id": 2, "token_text": "</s>", "logit": 9.25}
-                ],
-            },
-        ],
-        "environment": {
-            "python_version": "3.12.13",
-            "platform": "test-platform",
-            "torch_version": "test-torch",
-            "transformers_version": "test-transformers",
-        },
-    }
+  return {
+    "schema": "ares.oracles.hf_cpu.record.v1",
+    "record_kind": "hf_cpu_oracle_capture",
+    "capture_id": "test-capture",
+    "created_utc": "2026-06-26T00:00:00Z",
+    "source": {
+      "oracle": "huggingface_transformers_pytorch_cpu",
+      "capture_script": "tools/oracles/hf-cpu/capture_hf_cpu_oracle.py",
+    },
+    "model": {
+      "model_id": "synthetic/model",
+      "requested_revision": "0123456789abcdef0123456789abcdef01234567",
+      "resolved_revision": "0123456789abcdef0123456789abcdef01234567",
+      "dtype": "float32",
+    },
+    "tokenizer": {
+      "tokenizer_id": "synthetic/model",
+      "requested_revision": "0123456789abcdef0123456789abcdef01234567",
+      "resolved_revision": "0123456789abcdef0123456789abcdef01234567",
+    },
+    "run": {
+      "seed": 0,
+      "decode_strategy": "greedy",
+      "max_new_tokens": 2,
+      "top_k": 2,
+      "torch_deterministic_algorithms": True,
+      "local_files_only": True,
+      "trust_remote_code": False,
+    },
+    "prompt": {
+      "kind": "raw",
+      "text": "Hello",
+      "token_ids": [1, 7],
+      "token_count": 2,
+      "add_special_tokens": True,
+    },
+    "generation": {
+      "generated_token_ids": [3, 2],
+      "generated_token_count": 2,
+      "generated_text": " world</s>",
+      "finish_reason": "eos_token",
+      "eos_token_id": 2,
+      "eos_token_ids": [2],
+      "stop_token_id": 2,
+    },
+    "logit_slices": [
+      {
+        "step": 0,
+        "position": 1,
+        "context_token_count": 2,
+        "selected_token_id": 3,
+        "selected_token_text": " world",
+        "selected_token_logit": 12.5,
+        "top_k": [{"rank": 1, "token_id": 3, "token_text": " world", "logit": 12.5}],
+      },
+      {
+        "step": 1,
+        "position": 2,
+        "context_token_count": 3,
+        "selected_token_id": 2,
+        "selected_token_text": "</s>",
+        "selected_token_logit": 9.25,
+        "top_k": [{"rank": 1, "token_id": 2, "token_text": "</s>", "logit": 9.25}],
+      },
+    ],
+    "environment": {
+      "python_version": "3.12.13",
+      "platform": "test-platform",
+      "torch_version": "test-torch",
+      "transformers_version": "test-transformers",
+    },
+  }
 
 
 def valid_ares_plan() -> dict[str, Any]:
-    return {
-        "schema_version": 2,
-        "config": {
-            "dim": 4,
-            "n_layers": 1,
-            "n_heads": 1,
-            "n_kv_head": 1,
-            "head_size": 4,
-            "vocab_size": 8,
-            "wcls_is_compensated": False,
-            "attn_softcapping": False,
-            "attn_sinks": False,
-            "is_eagle": False,
+  return {
+    "schema_version": 2,
+    "config": {
+      "dim": 4,
+      "n_layers": 1,
+      "n_heads": 1,
+      "n_kv_head": 1,
+      "head_size": 4,
+      "vocab_size": 8,
+      "wcls_is_compensated": False,
+      "attn_softcapping": False,
+      "attn_sinks": False,
+      "is_eagle": False,
+    },
+    "weights": ["w"],
+    "buffers": [
+      {
+        "name": "input_ids",
+        "role": "cut_in",
+        "type": {
+          "kind": "array",
+          "scalar_type": "int",
+          "outer": "singleton",
+          "inner": "1",
         },
-        "weights": ["w"],
-        "buffers": [
-            {
-                "name": "input_ids",
-                "role": "cut_in",
-                "type": {
-                    "kind": "array",
-                    "scalar_type": "int",
-                    "outer": "singleton",
-                    "inner": "1",
-                },
-            },
-            {
-                "name": "ares_logits",
-                "role": "output",
-                "type": {
-                    "kind": "array",
-                    "scalar_type": "real",
-                    "outer": "singleton",
-                    "inner": "8",
-                },
-            },
-        ],
-        "stmts": [
-            {
-                "stmt": "matmul",
-                "weight": "w",
-                "input": "input_ids",
-                "result": "ares_logits",
-            }
-        ],
-        "provenance": {
-            "fx_hash": "test-fx",
-            "rule_corpus_hash": "test-rules",
-            "emitter_version": "ingest-lean test",
-            "target_executor": "tron",
-            "hardware_policy": "tron",
-            "lowering_path": "Ingest.Plan.ToJson",
+      },
+      {
+        "name": "ares_logits",
+        "role": "output",
+        "type": {
+          "kind": "array",
+          "scalar_type": "real",
+          "outer": "singleton",
+          "inner": "8",
         },
-    }
+      },
+    ],
+    "stmts": [
+      {
+        "stmt": "matmul",
+        "weight": "w",
+        "input": "input_ids",
+        "result": "ares_logits",
+      }
+    ],
+    "provenance": {
+      "fx_hash": "test-fx",
+      "rule_corpus_hash": "test-rules",
+      "emitter_version": "ingest-lean test",
+      "target_executor": "tron",
+      "hardware_policy": "tron",
+      "lowering_path": "Ingest.Plan.ToJson",
+    },
+  }
 
 
 def valid_target_plan() -> dict[str, Any]:
-    return {
-        "schema_version": 1,
-        "producer": {
-            "language": "lean",
-            "tool": "ingest-lean",
-            "module": "Ingest.TargetPlan",
-            "version": "0.1.0",
-        },
-        "backend_id": "tron",
-        "model_id": "synthetic/model",
+  return {
+    "schema_version": 1,
+    "producer": {
+      "language": "lean",
+      "tool": "ingest-lean",
+      "module": "Ingest.TargetPlan",
+      "version": "0.1.0",
+    },
+    "backend_id": "tron",
+    "model_id": "synthetic/model",
+    "source": {
+      "schema_version": 2,
+      "statement_count": 1,
+      "config": valid_ares_plan()["config"],
+      "provenance": valid_ares_plan()["provenance"],
+    },
+    "declared_runtime_bindings": ["input_ids", "ares_logits"],
+    "hw_policy": {
+      "fallback_policy": "forbidden",
+      "placement": "single_device",
+      "notes": {},
+    },
+    "operations": [
+      {
+        "id": "runtime.input_ids",
+        "role": "runtime_binding",
+        "action": "runtime_binding",
+        "source": {"type": "runtime_binding", "name": "input_ids"},
+        "requirements": {},
+      },
+      {
+        "id": "runtime.ares_logits",
+        "role": "runtime_binding",
+        "action": "runtime_binding",
+        "source": {"type": "runtime_binding", "name": "ares_logits"},
+        "requirements": {},
+      },
+      {
+        "id": "stmt.00000.matmul",
+        "role": "semantic",
+        "action": "matmul",
         "source": {
-            "schema_version": 2,
-            "statement_count": 1,
-            "config": valid_ares_plan()["config"],
-            "provenance": valid_ares_plan()["provenance"],
+          "type": "ares_plan_statement",
+          "statement_index": 0,
+          "statement_kind": "matmul",
+          "statement_name": "w",
         },
-        "declared_runtime_bindings": ["input_ids", "ares_logits"],
-        "hw_policy": {
-            "fallback_policy": "forbidden",
-            "placement": "single_device",
-            "notes": {},
-        },
-        "operations": [
-            {
-                "id": "runtime.input_ids",
-                "role": "runtime_binding",
-                "action": "runtime_binding",
-                "source": {"type": "runtime_binding", "name": "input_ids"},
-                "requirements": {},
-            },
-            {
-                "id": "runtime.ares_logits",
-                "role": "runtime_binding",
-                "action": "runtime_binding",
-                "source": {"type": "runtime_binding", "name": "ares_logits"},
-                "requirements": {},
-            },
-            {
-                "id": "stmt.00000.matmul",
-                "role": "semantic",
-                "action": "matmul",
-                "source": {
-                    "type": "ares_plan_statement",
-                    "statement_index": 0,
-                    "statement_kind": "matmul",
-                    "statement_name": "w",
-                },
-                "requirements": {},
-            },
-        ],
-    }
+        "requirements": {},
+      },
+    ],
+  }
 
 
 def replay_context() -> dict[str, Any]:
-    return {
-        "context_tokens": [1, 2],
-        "context_tokens_role": "prompt",
-        "context_count": 2,
-        "new_count": 1,
-        "runtime_request_token_count": 2,
-        "context_prefix_token_count": 0,
-        "last_token": 2,
-    }
+  return {
+    "context_tokens": [1, 2],
+    "context_tokens_role": "prompt",
+    "context_count": 2,
+    "new_count": 1,
+    "runtime_request_token_count": 2,
+    "context_prefix_token_count": 0,
+    "last_token": 2,
+  }
+
+
+def model_provenance() -> dict[str, Any]:
+  revision = "0123456789abcdef0123456789abcdef01234567"
+  return {
+    "model_id": "synthetic/model",
+    "checkpoint": {
+      "model_id": "synthetic/model",
+      "requested_revision": revision,
+      "resolved_revision": revision,
+      "checkpoint_class": "SyntheticForCausalLM",
+      "dtype": "bfloat16",
+    },
+    "tokenizer": {
+      "tokenizer_id": "synthetic/model",
+      "requested_revision": revision,
+      "resolved_revision": revision,
+      "tokenizer_class": "SyntheticTokenizer",
+    },
+    "input_policy": {
+      "decode_strategy": "greedy",
+      "context_tokens_role": "hf_oracle_replay_context",
+      "prompt_suite_id": "synthetic_prompt_suite",
+    },
+  }
+
+
+def text_file_record(path: str, text: str, rows: int | None = None) -> dict[str, Any]:
+  record: dict[str, Any] = {
+    "path": path,
+    "sha256": hashlib.sha256(text.encode()).hexdigest(),
+    "size_bytes": len(text.encode()),
+  }
+  if rows is not None:
+    record["rows"] = rows
+  return record
 
 
 def backend_open_evidence() -> dict[str, Any]:
-    return {
-        "schema": "ares.runtime.backend_open.v1",
-        "evidence_class": "system_under_test",
-        "status": "opened",
-        "backend_id": "tron",
-        "ares_plan": {"path": "ares-plan.json", "sha256": "a" * 64},
-        "target_plan": {
-            "path": "tron.target-plan.json",
-            "sha256": "b" * 64,
-            "backend_id": "tron",
-        },
-        "events": [{"event": "backend_open", "backend_id": "tron"}],
-        "runtime_generated_sidecars": False,
-    }
+  return {
+    "schema": "ares.runtime.backend_open.v1",
+    "evidence_class": "system_under_test",
+    "status": "opened",
+    "backend_id": "tron",
+    "ares_plan": {"path": "ares-plan.json", "sha256": "a" * 64},
+    "target_plan": {
+      "path": "tron.target-plan.json",
+      "sha256": "b" * 64,
+      "backend_id": "tron",
+    },
+    "events": [{"event": "backend_open", "backend_id": "tron"}],
+    "runtime_generated_sidecars": False,
+  }
 
 
-def one_token_logits_evidence() -> dict[str, Any]:
-    return {
-        "schema": "ares.runtime.one_token_logits.v1",
-        "evidence_class": "system_under_test",
-        "oracle": "huggingface_transformers_pytorch_cpu",
-        "candidate": "ares",
-        "tvd": 0.001,
-        "tvd_threshold": 0.01,
-        "top1_agreement": 1.0,
-        "same_argmax": True,
-        "replay_context": replay_context(),
-    }
+def one_token_logits_evidence(artifacts: dict[str, Any]) -> dict[str, Any]:
+  return {
+    "schema": "ares.runtime.one_token_logits.v1",
+    "evidence_class": "system_under_test",
+    "oracle": "huggingface_transformers_pytorch_cpu",
+    "candidate": "ares",
+    "tvd": 0.001,
+    "tvd_threshold": 0.01,
+    "top1_agreement": 1.0,
+    "same_argmax": True,
+    "replay_context": replay_context(),
+    "model_provenance": model_provenance(),
+    "artifacts": artifacts,
+  }
+
+
+def eight_token_greedy_evidence(
+  *,
+  reference_text: str,
+  candidate_text: str,
+  hf_dense_text: str,
+  ares_dense_text: str,
+  ares_plan_text: str,
+  target_plan_text: str,
+) -> dict[str, Any]:
+  generated = [1, 2, 3, 4, 5, 6, 7, 8]
+  return {
+    "schema": "ares.runtime.greedy_token_agreement.v1",
+    "evidence_class": "system_under_test",
+    "oracle": "huggingface_transformers_pytorch_cpu",
+    "candidate": "ares",
+    "decode_strategy": "greedy",
+    "expected_generated_tokens": 8,
+    "generated_tokens": 8,
+    "reference_generated_token_ids": generated,
+    "candidate_generated_token_ids": generated,
+    "exact_match": True,
+    "score": 1.0,
+    "exact_fraction": 1.0,
+    "top1_agreement": 1.0,
+    "model_provenance": model_provenance(),
+    "reference": text_file_record("reference_tokens.json", reference_text),
+    "candidate_output": {
+      **text_file_record("candidate_tokens.json", candidate_text),
+      "runtime": "ares",
+    },
+    "cases": [
+      {
+        "name": "default",
+        "exact_match": True,
+        "candidate_length": 8,
+        "reference_length": 8,
+        "matching_prefix_tokens": 8,
+      }
+    ],
+    "artifacts": {
+      "reference_tokens": text_file_record(
+        "reference_tokens.json",
+        reference_text,
+      ),
+      "candidate_tokens": text_file_record(
+        "candidate_tokens.json",
+        candidate_text,
+      ),
+      "hf_cpu_dense_logits_jsonl": text_file_record(
+        "hf-dense.jsonl",
+        hf_dense_text,
+        rows=1,
+      ),
+      "ares_dense_logits_jsonl": text_file_record(
+        "ares-dense.jsonl",
+        ares_dense_text,
+        rows=1,
+      ),
+      "runtime_binary": text_file_record(
+        "runares",
+        "synthetic-runares-binary",
+      ),
+      "ares_plan": text_file_record("ares-plan.json", ares_plan_text),
+      "target_plan": text_file_record(
+        "tron.target-plan.json",
+        target_plan_text,
+      ),
+    },
+  }
 
 
 def cpp_tvd_evidence() -> dict[str, Any]:
-    return {
-        "schema": "ares.comparison.cpp_tvd.v1",
-        "evidence_class": "comparison",
-        "comparison_source": "cpp_tron_rinzler",
-        "candidate": "ares",
-        "tvd": 0.001,
-        "tvd_threshold": 0.01,
-        "replay_context": replay_context(),
-    }
+  return {
+    "schema": "ares.comparison.cpp_tvd.v1",
+    "evidence_class": "comparison",
+    "comparison_source": "cpp_tron_rinzler",
+    "candidate": "ares",
+    "tvd": 0.001,
+    "tvd_threshold": 0.01,
+    "replay_context": replay_context(),
+  }
 
 
 def depth_performance_evidence() -> dict[str, Any]:
-    return {
-        "schema": "ares.performance.depth_ladder.v1",
-        "evidence_class": "system_under_test",
-        "workload": "independent_decode",
-        "correctness_gates_green": True,
-        "depths": [
-            {
-                "generated_tokens": 8,
-                "tokens_match": True,
-                "throughput_tokens_per_second": 80.0,
-            },
-            {
-                "generated_tokens": 64,
-                "tokens_match": True,
-                "throughput_tokens_per_second": 70.0,
-            },
-            {
-                "generated_tokens": 512,
-                "tokens_match": True,
-                "throughput_tokens_per_second": 60.0,
-            },
-        ],
-    }
+  return {
+    "schema": "ares.performance.depth_ladder.v1",
+    "evidence_class": "system_under_test",
+    "workload": "independent_decode",
+    "correctness_gates_green": True,
+    "depths": [
+      {
+        "generated_tokens": 8,
+        "tokens_match": True,
+        "throughput_tokens_per_second": 80.0,
+      },
+      {
+        "generated_tokens": 64,
+        "tokens_match": True,
+        "throughput_tokens_per_second": 70.0,
+      },
+      {
+        "generated_tokens": 512,
+        "tokens_match": True,
+        "throughput_tokens_per_second": 60.0,
+      },
+    ],
+  }
 
 
 def mmlu_pro_evidence(
-    report_text: str,
-    endpoint_models_text: str,
-    systems_test_config_text: str,
-    *,
-    model: str = "synthetic/model",
-    backend: str = "tron",
+  report_text: str,
+  endpoint_models_text: str,
+  systems_test_config_text: str,
+  *,
+  model: str = "synthetic/model",
+  backend: str = "tron",
 ) -> dict[str, Any]:
-    report_sha = hashlib.sha256(report_text.encode()).hexdigest()
-    endpoint_models_sha = hashlib.sha256(endpoint_models_text.encode()).hexdigest()
-    systems_test_config_sha = hashlib.sha256(
-        systems_test_config_text.encode()
-    ).hexdigest()
-    return {
-        "schema": "ares.benchmark.mmlu_pro.v1",
-        "evidence_class": "system_under_test",
-        "status": "passed",
-        "model": model,
-        "backend": backend,
-        "openai_host": "http://127.0.0.1:8000/v1",
-        "coverage_percent": 10,
+  report_sha = hashlib.sha256(report_text.encode()).hexdigest()
+  endpoint_models_sha = hashlib.sha256(endpoint_models_text.encode()).hexdigest()
+  systems_test_config_sha = hashlib.sha256(
+    systems_test_config_text.encode()
+  ).hexdigest()
+  return {
+    "schema": "ares.benchmark.mmlu_pro.v1",
+    "evidence_class": "system_under_test",
+    "status": "passed",
+    "model": model,
+    "backend": backend,
+    "openai_host": "http://127.0.0.1:8000/v1",
+    "coverage_percent": 10,
+    "score_percent": 72.0,
+    "required_score_percent": 70.0,
+    "endpoint_models": {
+      "path": "endpoint-models.json",
+      "sha256": endpoint_models_sha,
+      "openai_host": "http://127.0.0.1:8000/v1",
+      "models": [model],
+    },
+    "subjects": [
+      {
+        "subject": "total",
+        "correct": 72,
+        "wrong": 28,
         "score_percent": 72.0,
-        "required_score_percent": 70.0,
-        "endpoint_models": {
-            "path": "endpoint-models.json",
-            "sha256": endpoint_models_sha,
-            "openai_host": "http://127.0.0.1:8000/v1",
-            "models": [model],
-        },
-        "subjects": [
-            {
-                "subject": "total",
-                "correct": 72,
-                "wrong": 28,
-                "score_percent": 72.0,
-            }
-        ],
-        "systems_test": {
-            "path": "third_party/systems_test",
-            "commit": "1" * 40,
-            "dirty": False,
-            "config_model": model,
-            "config": {
-                "path": "systems-test-config-row.json",
-                "sha256": systems_test_config_sha,
-                "source_path": "scripts/mmlu_pro.py",
-                "model": model,
-                "nominal_users": 1,
-            },
-            "command": "OPENAI_HOST=http://127.0.0.1:8000/v1 SKIP_PROVISION=1 uv run mmlu_pro",
-        },
-        "ares": {
-            "commit": "2" * 40,
-            "dirty": False,
-            "backend": backend,
-            "runtime_generated_sidecars": False,
-            "ares_plan_sha256": "a" * 64,
-            "target_plan_sha256": "b" * 64,
-        },
-        "artifacts": [{"path": "mmlu-report.txt", "sha256": report_sha}],
-    }
+      }
+    ],
+    "systems_test": {
+      "path": "third_party/systems_test",
+      "commit": "1" * 40,
+      "dirty": False,
+      "config_model": model,
+      "config": {
+        "path": "systems-test-config-row.json",
+        "sha256": systems_test_config_sha,
+        "source_path": "scripts/mmlu_pro.py",
+        "model": model,
+        "nominal_users": 1,
+      },
+      "command": "OPENAI_HOST=http://127.0.0.1:8000/v1 SKIP_PROVISION=1 uv run mmlu_pro",
+    },
+    "ares": {
+      "commit": "2" * 40,
+      "dirty": False,
+      "backend": backend,
+      "runtime_generated_sidecars": False,
+      "ares_plan_sha256": "a" * 64,
+      "target_plan_sha256": "b" * 64,
+    },
+    "artifacts": [{"path": "mmlu-report.txt", "sha256": report_sha}],
+  }
 
 
 class AresIngestEvaluatorTest(unittest.TestCase):
-    def run_evaluator(
-        self, spec: dict[str, Any], task_file_texts: dict[str, str]
-    ) -> dict[str, Any]:
-        root = Path(tempfile.mkdtemp())
-        self.addCleanup(shutil.rmtree, root)
+  def run_evaluator(
+    self, spec: dict[str, Any], task_file_texts: dict[str, str]
+  ) -> dict[str, Any]:
+    root = Path(tempfile.mkdtemp())
+    self.addCleanup(shutil.rmtree, root)
 
-        ares_repo = root / "ares"
-        task_files = root / "task-files"
-        work_dir = root / "work"
-        logs_dir = root / "logs/verifier"
-        reward_json = logs_dir / "reward.json"
-        reward_txt = root / "logs/reward.txt"
-        ares_repo.mkdir()
-        task_files.mkdir()
+    ares_repo = root / "ares"
+    task_files = root / "task-files"
+    work_dir = root / "work"
+    logs_dir = root / "logs/verifier"
+    reward_json = logs_dir / "reward.json"
+    reward_txt = root / "logs/reward.txt"
+    ares_repo.mkdir()
+    task_files.mkdir()
 
-        for name, text in task_file_texts.items():
-            (task_files / name).write_text(text)
+    for name, text in task_file_texts.items():
+      (task_files / name).write_text(text)
 
-        full_spec = {
-            "model": "synthetic/model",
-            "work_dir": str(work_dir),
-            **spec,
+    full_spec = {
+      "model": "synthetic/model",
+      "work_dir": str(work_dir),
+      **spec,
+    }
+    (task_files / "model_spec.json").write_text(json.dumps(full_spec))
+
+    env = os.environ.copy()
+    pythonpath = [str(REPO_ROOT)]
+    if existing := env.get("PYTHONPATH"):
+      pythonpath.append(existing)
+    env.update(
+      {
+        "ARES_REPO": str(ares_repo),
+        "TASK_FILES_DIR": str(task_files),
+        "VERIFIER_LOG_DIR": str(logs_dir),
+        "REWARD_JSON": str(reward_json),
+        "REWARD_TXT": str(reward_txt),
+        "PYTHONPATH": ":".join(pythonpath),
+      }
+    )
+    subprocess.run([sys.executable, str(EVALUATOR)], env=env, check=True)
+    return {
+      "work_dir": work_dir,
+      "logs_dir": logs_dir,
+      "reward_json": reward_json,
+      "reward_txt": reward_txt,
+      "reward": json.loads(reward_json.read_text()),
+    }
+
+  def test_evaluator_scores_full_artifact_backed_profile(self) -> None:
+    mmlu_report = "Total, 72/100, 72.00%\n"
+    ares_plan = json.dumps(valid_ares_plan()) + "\n"
+    target_plan = json.dumps(valid_target_plan()) + "\n"
+    hf_dense = '{"logits":[0.0,1.0]}\n'
+    ares_dense = '{"logits":[0.0,1.0]}\n'
+    reference_tokens = json.dumps(
+      {
+        "token_ids": [99, 98],
+        "generated_token_ids": [1, 2, 3, 4, 5, 6, 7, 8],
+      }
+    )
+    candidate_tokens = json.dumps(
+      {
+        "token_ids": [99, 98],
+        "generated_token_ids": [1, 2, 3, 4, 5, 6, 7, 8],
+      }
+    )
+    one_token_artifacts = {
+      "hf_cpu_dense_logits_jsonl": text_file_record(
+        "hf-dense.jsonl",
+        hf_dense,
+        rows=1,
+      ),
+      "ares_dense_logits_jsonl": text_file_record(
+        "ares-dense.jsonl",
+        ares_dense,
+        rows=1,
+      ),
+      "runtime_binary": text_file_record(
+        "runares",
+        "synthetic-runares-binary",
+      ),
+      "ares_plan": text_file_record("ares-plan.json", ares_plan),
+      "target_plan": text_file_record("tron.target-plan.json", target_plan),
+    }
+    endpoint_models = (
+      json.dumps({"data": [{"id": "synthetic/model", "object": "model"}]}) + "\n"
+    )
+    systems_test_config = (
+      json.dumps(
+        {
+          "name": "synthetic_model",
+          "sample_name": "synthetic_model",
+          "model": "synthetic/model",
+          "nominal_users": 1,
+          "user_sets": [],
         }
-        (task_files / "model_spec.json").write_text(json.dumps(full_spec))
-
-        env = os.environ.copy()
-        pythonpath = [str(REPO_ROOT)]
-        if existing := env.get("PYTHONPATH"):
-            pythonpath.append(existing)
-        env.update(
-            {
-                "ARES_REPO": str(ares_repo),
-                "TASK_FILES_DIR": str(task_files),
-                "VERIFIER_LOG_DIR": str(logs_dir),
-                "REWARD_JSON": str(reward_json),
-                "REWARD_TXT": str(reward_txt),
-                "PYTHONPATH": ":".join(pythonpath),
+      )
+      + "\n"
+    )
+    result = self.run_evaluator(
+      {
+        "required_gates": [
+          "model_spec",
+          "hf_cpu_oracle",
+          "frontend_export",
+          "lean_ingest",
+          "aresplan_valid",
+          "targetplan_valid",
+          "artifact_consistency",
+          "shortcut_scan",
+          "backend_open",
+          "one_token_logits",
+          "eight_token_greedy",
+          "cpp_tvd",
+          "depth_performance",
+          "mmlu_pro",
+        ],
+        "explicit_gates": {
+          "model_spec": True,
+          "frontend_export": True,
+          "lean_ingest": True,
+        },
+        "oracle_records": "oracle.jsonl",
+        "ares_plan": "ares-plan.json",
+        "target_plan": "tron.target-plan.json",
+        "backend_open_evidence": "backend-open.json",
+        "one_token_logits_evidence": "one-token.json",
+        "eight_token_greedy_evidence": "eight-token.json",
+        "cpp_tvd_evidence": "cpp-tvd.json",
+        "depth_performance_evidence": "depth.json",
+        "mmlu_pro_evidence": "mmlu-pro.json",
+        "performance_comparison": {
+          "measured": "measured.log",
+          "speed_of_light": "speed.json",
+          "workload": "independent_decode",
+        },
+      },
+      {
+        "oracle.jsonl": json.dumps(oracle_record()) + "\n",
+        "ares-plan.json": ares_plan,
+        "tron.target-plan.json": target_plan,
+        "backend-open.json": json.dumps(backend_open_evidence()) + "\n",
+        "one-token.json": json.dumps(one_token_logits_evidence(one_token_artifacts))
+        + "\n",
+        "eight-token.json": json.dumps(
+          eight_token_greedy_evidence(
+            reference_text=reference_tokens,
+            candidate_text=candidate_tokens,
+            hf_dense_text=hf_dense,
+            ares_dense_text=ares_dense,
+            ares_plan_text=ares_plan,
+            target_plan_text=target_plan,
+          )
+        )
+        + "\n",
+        "hf-dense.jsonl": hf_dense,
+        "ares-dense.jsonl": ares_dense,
+        "runares": "synthetic-runares-binary",
+        "cpp-tvd.json": json.dumps(cpp_tvd_evidence()) + "\n",
+        "depth.json": json.dumps(depth_performance_evidence()) + "\n",
+        "mmlu-pro.json": json.dumps(
+          mmlu_pro_evidence(
+            mmlu_report,
+            endpoint_models,
+            systems_test_config,
+          )
+        )
+        + "\n",
+        "mmlu-report.txt": mmlu_report,
+        "endpoint-models.json": endpoint_models,
+        "systems-test-config-row.json": systems_test_config,
+        "reference_tokens.json": reference_tokens,
+        "candidate_tokens.json": candidate_tokens,
+        "measured.log": "Throughput 80.0 tok/s\n",
+        "speed.json": json.dumps(
+          {
+            "targets": {
+              "independent_decode": {"speed_of_light_tokens_per_second": 100.0}
             }
-        )
-        subprocess.run([sys.executable, str(EVALUATOR)], env=env, check=True)
-        return {
-            "work_dir": work_dir,
-            "logs_dir": logs_dir,
-            "reward_json": reward_json,
-            "reward_txt": reward_txt,
-            "reward": json.loads(reward_json.read_text()),
+          }
+        ),
+      },
+    )
+
+    reward = result["reward"]
+    self.assertEqual(reward["first_failed_gate"], "complete")
+    self.assertEqual(reward["stage_cap"], 1.0)
+    self.assertEqual(reward["tau_tokens"], 1.0)
+    self.assertEqual(reward["delta_inference"], 0.8)
+    self.assertTrue(reward["gates"]["eight_token_greedy"]["passed"])
+    validated_gates = json.loads(
+      (result["work_dir"] / "validated_gates.json").read_text()
+    )["gates"]
+    eight_token_detail = validated_gates["eight_token_greedy"]
+    self.assertEqual(
+      eight_token_detail["artifact_validator"],
+      "eight_token_greedy",
+    )
+    self.assertIn(
+      "hf_cpu_dense_logits_jsonl",
+      eight_token_detail["detail"]["artifact_keys"],
+    )
+    self.assertTrue((result["work_dir"] / "performance.json").exists())
+
+  def test_evaluator_rejects_mmlu_pro_for_wrong_model(self) -> None:
+    mmlu_report = "Total, 72/100, 72.00%\n"
+    endpoint_models = (
+      json.dumps({"data": [{"id": "wrong/model", "object": "model"}]}) + "\n"
+    )
+    systems_test_config = (
+      json.dumps(
+        {
+          "name": "wrong_model",
+          "sample_name": "wrong_model",
+          "model": "wrong/model",
+          "nominal_users": 1,
+          "user_sets": [],
         }
-
-    def test_evaluator_scores_full_artifact_backed_profile(self) -> None:
-        mmlu_report = "Total, 72/100, 72.00%\n"
-        endpoint_models = (
-            json.dumps({"data": [{"id": "synthetic/model", "object": "model"}]}) + "\n"
+      )
+      + "\n"
+    )
+    result = self.run_evaluator(
+      {
+        "required_gates": ["model_spec", "mmlu_pro"],
+        "explicit_gates": {"model_spec": True},
+        "backend": "tron",
+        "mmlu_pro_evidence": "mmlu-pro.json",
+      },
+      {
+        "mmlu-pro.json": json.dumps(
+          mmlu_pro_evidence(
+            mmlu_report,
+            endpoint_models,
+            systems_test_config,
+            model="wrong/model",
+          )
         )
-        systems_test_config = (
-            json.dumps(
-                {
-                    "name": "synthetic_model",
-                    "sample_name": "synthetic_model",
-                    "model": "synthetic/model",
-                    "nominal_users": 1,
-                    "user_sets": [],
-                }
-            )
-            + "\n"
-        )
-        result = self.run_evaluator(
-            {
-                "required_gates": [
-                    "model_spec",
-                    "hf_cpu_oracle",
-                    "frontend_export",
-                    "lean_ingest",
-                    "aresplan_valid",
-                    "targetplan_valid",
-                    "artifact_consistency",
-                    "shortcut_scan",
-                    "backend_open",
-                    "one_token_logits",
-                    "eight_token_greedy",
-                    "cpp_tvd",
-                    "depth_performance",
-                    "mmlu_pro",
-                ],
-                "explicit_gates": {
-                    "model_spec": True,
-                    "frontend_export": True,
-                    "lean_ingest": True,
-                },
-                "oracle_records": "oracle.jsonl",
-                "ares_plan": "ares-plan.json",
-                "target_plan": "tron.target-plan.json",
-                "backend_open_evidence": "backend-open.json",
-                "one_token_logits_evidence": "one-token.json",
-                "cpp_tvd_evidence": "cpp-tvd.json",
-                "depth_performance_evidence": "depth.json",
-                "mmlu_pro_evidence": "mmlu-pro.json",
-                "token_comparison": {
-                    "reference": "reference_tokens.json",
-                    "candidate": "candidate_tokens.json",
-                    "expected_generated_tokens": 8,
-                },
-                "performance_comparison": {
-                    "measured": "measured.log",
-                    "speed_of_light": "speed.json",
-                    "workload": "independent_decode",
-                },
-            },
-            {
-                "oracle.jsonl": json.dumps(oracle_record()) + "\n",
-                "ares-plan.json": json.dumps(valid_ares_plan()) + "\n",
-                "tron.target-plan.json": json.dumps(valid_target_plan()) + "\n",
-                "backend-open.json": json.dumps(backend_open_evidence()) + "\n",
-                "one-token.json": json.dumps(one_token_logits_evidence()) + "\n",
-                "cpp-tvd.json": json.dumps(cpp_tvd_evidence()) + "\n",
-                "depth.json": json.dumps(depth_performance_evidence()) + "\n",
-                "mmlu-pro.json": json.dumps(
-                    mmlu_pro_evidence(
-                        mmlu_report,
-                        endpoint_models,
-                        systems_test_config,
-                    )
-                )
-                + "\n",
-                "mmlu-report.txt": mmlu_report,
-                "endpoint-models.json": endpoint_models,
-                "systems-test-config-row.json": systems_test_config,
-                "reference_tokens.json": json.dumps(
-                    {
-                        "token_ids": [99, 98],
-                        "generated_token_ids": [1, 2, 3, 4, 5, 6, 7, 8],
-                    }
-                ),
-                "candidate_tokens.json": json.dumps(
-                    {
-                        "token_ids": [99, 98],
-                        "generated_token_ids": [1, 2, 3, 4, 5, 6, 7, 8],
-                    }
-                ),
-                "measured.log": "Throughput 80.0 tok/s\n",
-                "speed.json": json.dumps(
-                    {
-                        "targets": {
-                            "independent_decode": {
-                                "speed_of_light_tokens_per_second": 100.0
-                            }
-                        }
-                    }
-                ),
-            },
-        )
+        + "\n",
+        "mmlu-report.txt": mmlu_report,
+        "endpoint-models.json": endpoint_models,
+        "systems-test-config-row.json": systems_test_config,
+      },
+    )
 
-        reward = result["reward"]
-        self.assertEqual(reward["first_failed_gate"], "complete")
-        self.assertEqual(reward["stage_cap"], 1.0)
-        self.assertEqual(reward["tau_tokens"], 1.0)
-        self.assertEqual(reward["delta_inference"], 0.8)
-        self.assertTrue((result["work_dir"] / "tokens.json").exists())
-        self.assertTrue(reward["gates"]["eight_token_greedy"]["passed"])
-        self.assertTrue((result["work_dir"] / "performance.json").exists())
+    reward = result["reward"]
+    self.assertEqual(reward["first_failed_gate"], "mmlu_pro")
+    self.assertFalse(reward["gates"]["mmlu_pro"]["passed"])
 
-    def test_evaluator_rejects_mmlu_pro_for_wrong_model(self) -> None:
-        mmlu_report = "Total, 72/100, 72.00%\n"
-        endpoint_models = (
-            json.dumps({"data": [{"id": "wrong/model", "object": "model"}]}) + "\n"
-        )
-        systems_test_config = (
-            json.dumps(
-                {
-                    "name": "wrong_model",
-                    "sample_name": "wrong_model",
-                    "model": "wrong/model",
-                    "nominal_users": 1,
-                    "user_sets": [],
-                }
-            )
-            + "\n"
-        )
-        result = self.run_evaluator(
-            {
-                "required_gates": ["model_spec", "mmlu_pro"],
-                "explicit_gates": {"model_spec": True},
-                "backend": "tron",
-                "mmlu_pro_evidence": "mmlu-pro.json",
-            },
-            {
-                "mmlu-pro.json": json.dumps(
-                    mmlu_pro_evidence(
-                        mmlu_report,
-                        endpoint_models,
-                        systems_test_config,
-                        model="wrong/model",
-                    )
-                )
-                + "\n",
-                "mmlu-report.txt": mmlu_report,
-                "endpoint-models.json": endpoint_models,
-                "systems-test-config-row.json": systems_test_config,
-            },
-        )
+  def test_evaluator_rejects_target_plan_model_mismatch(self) -> None:
+    target_plan = valid_target_plan()
+    target_plan["model_id"] = "fixture/model"
+    result = self.run_evaluator(
+      {
+        "required_gates": [
+          "model_spec",
+          "hf_cpu_oracle",
+          "frontend_export",
+          "lean_ingest",
+          "aresplan_valid",
+          "targetplan_valid",
+          "artifact_consistency",
+          "shortcut_scan",
+        ],
+        "explicit_gates": {
+          "model_spec": True,
+          "frontend_export": True,
+          "lean_ingest": True,
+        },
+        "oracle_records": "oracle.jsonl",
+        "ares_plan": "ares-plan.json",
+        "target_plan": "tron.target-plan.json",
+      },
+      {
+        "oracle.jsonl": json.dumps(oracle_record()) + "\n",
+        "ares-plan.json": json.dumps(valid_ares_plan()) + "\n",
+        "tron.target-plan.json": json.dumps(target_plan) + "\n",
+      },
+    )
 
-        reward = result["reward"]
-        self.assertEqual(reward["first_failed_gate"], "mmlu_pro")
-        self.assertFalse(reward["gates"]["mmlu_pro"]["passed"])
+    reward = result["reward"]
+    self.assertEqual(reward["first_failed_gate"], "artifact_consistency")
+    self.assertFalse(reward["gates"]["artifact_consistency"]["passed"])
 
-    def test_evaluator_rejects_target_plan_model_mismatch(self) -> None:
-        target_plan = valid_target_plan()
-        target_plan["model_id"] = "fixture/model"
-        result = self.run_evaluator(
-            {
-                "required_gates": [
-                    "model_spec",
-                    "hf_cpu_oracle",
-                    "frontend_export",
-                    "lean_ingest",
-                    "aresplan_valid",
-                    "targetplan_valid",
-                    "artifact_consistency",
-                    "shortcut_scan",
-                ],
-                "explicit_gates": {
-                    "model_spec": True,
-                    "frontend_export": True,
-                    "lean_ingest": True,
-                },
-                "oracle_records": "oracle.jsonl",
-                "ares_plan": "ares-plan.json",
-                "target_plan": "tron.target-plan.json",
-            },
-            {
-                "oracle.jsonl": json.dumps(oracle_record()) + "\n",
-                "ares-plan.json": json.dumps(valid_ares_plan()) + "\n",
-                "tron.target-plan.json": json.dumps(target_plan) + "\n",
-            },
-        )
+  def test_evaluator_rejects_placeholder_plan_json(self) -> None:
+    result = self.run_evaluator(
+      {
+        "required_gates": [
+          "model_spec",
+          "hf_cpu_oracle",
+          "frontend_export",
+          "lean_ingest",
+          "aresplan_valid",
+          "targetplan_valid",
+        ],
+        "explicit_gates": {
+          "model_spec": True,
+          "frontend_export": True,
+          "lean_ingest": True,
+        },
+        "oracle_records": "oracle.jsonl",
+        "ares_plan": "ares-plan.json",
+        "target_plan": "tron.target-plan.json",
+      },
+      {
+        "oracle.jsonl": json.dumps(oracle_record()) + "\n",
+        "ares-plan.json": "{}\n",
+        "tron.target-plan.json": "{}\n",
+      },
+    )
 
-        reward = result["reward"]
-        self.assertEqual(reward["first_failed_gate"], "artifact_consistency")
-        self.assertFalse(reward["gates"]["artifact_consistency"]["passed"])
+    reward = result["reward"]
+    self.assertEqual(reward["first_failed_gate"], "aresplan_valid")
+    self.assertFalse(reward["gates"]["aresplan_valid"]["passed"])
 
-    def test_evaluator_rejects_placeholder_plan_json(self) -> None:
-        result = self.run_evaluator(
-            {
-                "required_gates": [
-                    "model_spec",
-                    "hf_cpu_oracle",
-                    "frontend_export",
-                    "lean_ingest",
-                    "aresplan_valid",
-                    "targetplan_valid",
-                ],
-                "explicit_gates": {
-                    "model_spec": True,
-                    "frontend_export": True,
-                    "lean_ingest": True,
-                },
-                "oracle_records": "oracle.jsonl",
-                "ares_plan": "ares-plan.json",
-                "target_plan": "tron.target-plan.json",
-            },
-            {
-                "oracle.jsonl": json.dumps(oracle_record()) + "\n",
-                "ares-plan.json": "{}\n",
-                "tron.target-plan.json": "{}\n",
-            },
-        )
+  def test_explicit_gates_cannot_replace_missing_oracle_artifact(self) -> None:
+    result = self.run_evaluator(
+      {
+        "required_gates": [
+          "model_spec",
+          "hf_cpu_oracle",
+          "frontend_export",
+          "lean_ingest",
+          "aresplan_valid",
+          "targetplan_valid",
+        ],
+        "explicit_gates": {
+          "model_spec": True,
+          "hf_cpu_oracle": True,
+          "frontend_export": True,
+          "lean_ingest": True,
+          "aresplan_valid": True,
+          "targetplan_valid": True,
+        },
+      },
+      {},
+    )
 
-        reward = result["reward"]
-        self.assertEqual(reward["first_failed_gate"], "aresplan_valid")
-        self.assertFalse(reward["gates"]["aresplan_valid"]["passed"])
+    reward = result["reward"]
+    self.assertEqual(reward["first_failed_gate"], "hf_cpu_oracle")
+    self.assertFalse(reward["gates"]["hf_cpu_oracle"]["passed"])
 
-    def test_explicit_gates_cannot_replace_missing_oracle_artifact(self) -> None:
-        result = self.run_evaluator(
-            {
-                "required_gates": [
-                    "model_spec",
-                    "hf_cpu_oracle",
-                    "frontend_export",
-                    "lean_ingest",
-                    "aresplan_valid",
-                    "targetplan_valid",
-                ],
-                "explicit_gates": {
-                    "model_spec": True,
-                    "hf_cpu_oracle": True,
-                    "frontend_export": True,
-                    "lean_ingest": True,
-                    "aresplan_valid": True,
-                    "targetplan_valid": True,
-                },
-            },
-            {},
-        )
+  def test_explicit_gates_cannot_replace_missing_plan_artifacts(self) -> None:
+    result = self.run_evaluator(
+      {
+        "required_gates": [
+          "model_spec",
+          "hf_cpu_oracle",
+          "frontend_export",
+          "lean_ingest",
+          "aresplan_valid",
+          "targetplan_valid",
+        ],
+        "explicit_gates": {
+          "model_spec": True,
+          "frontend_export": True,
+          "lean_ingest": True,
+          "aresplan_valid": True,
+          "targetplan_valid": True,
+        },
+        "oracle_records": "oracle.jsonl",
+      },
+      {"oracle.jsonl": json.dumps(oracle_record()) + "\n"},
+    )
 
-        reward = result["reward"]
-        self.assertEqual(reward["first_failed_gate"], "hf_cpu_oracle")
-        self.assertFalse(reward["gates"]["hf_cpu_oracle"]["passed"])
+    reward = result["reward"]
+    self.assertEqual(reward["first_failed_gate"], "aresplan_valid")
+    self.assertFalse(reward["gates"]["aresplan_valid"]["passed"])
 
-    def test_explicit_gates_cannot_replace_missing_plan_artifacts(self) -> None:
-        result = self.run_evaluator(
-            {
-                "required_gates": [
-                    "model_spec",
-                    "hf_cpu_oracle",
-                    "frontend_export",
-                    "lean_ingest",
-                    "aresplan_valid",
-                    "targetplan_valid",
-                ],
-                "explicit_gates": {
-                    "model_spec": True,
-                    "frontend_export": True,
-                    "lean_ingest": True,
-                    "aresplan_valid": True,
-                    "targetplan_valid": True,
-                },
-                "oracle_records": "oracle.jsonl",
-            },
-            {"oracle.jsonl": json.dumps(oracle_record()) + "\n"},
-        )
+  def test_explicit_gates_cannot_replace_missing_target_plan_artifact(self) -> None:
+    result = self.run_evaluator(
+      {
+        "required_gates": [
+          "model_spec",
+          "hf_cpu_oracle",
+          "frontend_export",
+          "lean_ingest",
+          "aresplan_valid",
+          "targetplan_valid",
+        ],
+        "explicit_gates": {
+          "model_spec": True,
+          "frontend_export": True,
+          "lean_ingest": True,
+          "targetplan_valid": True,
+        },
+        "oracle_records": "oracle.jsonl",
+        "ares_plan": "ares-plan.json",
+      },
+      {
+        "oracle.jsonl": json.dumps(oracle_record()) + "\n",
+        "ares-plan.json": json.dumps(valid_ares_plan()) + "\n",
+      },
+    )
 
-        reward = result["reward"]
-        self.assertEqual(reward["first_failed_gate"], "aresplan_valid")
-        self.assertFalse(reward["gates"]["aresplan_valid"]["passed"])
+    reward = result["reward"]
+    self.assertEqual(reward["first_failed_gate"], "targetplan_valid")
+    self.assertFalse(reward["gates"]["targetplan_valid"]["passed"])
 
-    def test_explicit_gates_cannot_replace_missing_target_plan_artifact(self) -> None:
-        result = self.run_evaluator(
-            {
-                "required_gates": [
-                    "model_spec",
-                    "hf_cpu_oracle",
-                    "frontend_export",
-                    "lean_ingest",
-                    "aresplan_valid",
-                    "targetplan_valid",
-                ],
-                "explicit_gates": {
-                    "model_spec": True,
-                    "frontend_export": True,
-                    "lean_ingest": True,
-                    "targetplan_valid": True,
-                },
-                "oracle_records": "oracle.jsonl",
-                "ares_plan": "ares-plan.json",
-            },
-            {
-                "oracle.jsonl": json.dumps(oracle_record()) + "\n",
-                "ares-plan.json": json.dumps(valid_ares_plan()) + "\n",
-            },
-        )
+  def test_evaluator_writes_nonexecuted_command_wrapper_plan(self) -> None:
+    result = self.run_evaluator(
+      {
+        "required_gates": [
+          "model_spec",
+          "backend_open",
+          "one_token_logits",
+        ],
+        "explicit_gates": {"model_spec": True},
+        "weights": "/weights/synthetic",
+        "ares_plan": "ares-plan.json",
+        "target_plan": "tron.target-plan.json",
+      },
+      {},
+    )
 
-        reward = result["reward"]
-        self.assertEqual(reward["first_failed_gate"], "targetplan_valid")
-        self.assertFalse(reward["gates"]["targetplan_valid"]["passed"])
-
-    def test_evaluator_writes_nonexecuted_command_wrapper_plan(self) -> None:
-        result = self.run_evaluator(
-            {
-                "required_gates": [
-                    "model_spec",
-                    "backend_open",
-                    "one_token_logits",
-                ],
-                "explicit_gates": {"model_spec": True},
-                "weights": "/weights/synthetic",
-                "ares_plan": "ares-plan.json",
-                "target_plan": "tron.target-plan.json",
-            },
-            {},
-        )
-
-        plan = json.loads((result["work_dir"] / "command_wrappers.json").read_text())
-        self.assertEqual(plan["schema"], "ares.autoagent.command_wrappers.v1")
-        self.assertFalse(plan["execute_command_wrappers"])
-        self.assertEqual(plan["command_gates"], [])
-        self.assertEqual(
-            {wrapper["name"] for wrapper in plan["wrappers"]},
-            {"rinzler_chat_one_token", "rinzler_full_inference_smoke"},
-        )
-        self.assertEqual(
-            sorted(path.name for path in result["logs_dir"].glob("rinzler*.log")),
-            [],
-            "wrapper commands should not run unless execute_command_wrappers is true",
-        )
+    plan = json.loads((result["work_dir"] / "command_wrappers.json").read_text())
+    self.assertEqual(plan["schema"], "ares.autoagent.command_wrappers.v1")
+    self.assertFalse(plan["execute_command_wrappers"])
+    self.assertEqual(plan["command_gates"], [])
+    self.assertEqual(
+      {wrapper["name"] for wrapper in plan["wrappers"]},
+      {"rinzler_chat_one_token", "rinzler_full_inference_smoke"},
+    )
+    self.assertEqual(
+      sorted(path.name for path in result["logs_dir"].glob("rinzler*.log")),
+      [],
+      "wrapper commands should not run unless execute_command_wrappers is true",
+    )
 
 
 if __name__ == "__main__":
-    unittest.main()
+  unittest.main()
