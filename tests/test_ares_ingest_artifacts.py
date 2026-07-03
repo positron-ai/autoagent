@@ -142,6 +142,8 @@ def mmlu_pro_payload(
   coverage_percent: float = 10,
   score_percent: float = 72.0,
   required_score_percent: float = 70.0,
+  evidence_class: str = "system_under_test",
+  question_limit_per_subject: int = 0,
   systems_test_dirty: bool = False,
   include_endpoint_models: bool = True,
   include_systems_test_config: bool = True,
@@ -155,7 +157,9 @@ def mmlu_pro_payload(
     "config_model": model,
     "command": command
     or (
-      f"OPENAI_HOST={openai_host} SKIP_PROVISION=1 MMLU_MODEL={model} uv run mmlu_pro"
+      f"OPENAI_HOST={openai_host} SKIP_PROVISION=1 MMLU_MODEL={model} "
+      f"MMLU_MAX_QUESTIONS_PER_SUBJECT={question_limit_per_subject} "
+      "uv run mmlu_pro"
     ),
   }
   if include_systems_test_config:
@@ -176,12 +180,17 @@ def mmlu_pro_payload(
     }
   payload = {
     "schema": "ares.benchmark.mmlu_pro.v1",
-    "evidence_class": "system_under_test",
+    "evidence_class": evidence_class,
     "status": "passed",
     "model": model,
     "backend": backend,
     "openai_host": openai_host,
     "coverage_percent": coverage_percent,
+    "effective_coverage_percent": (
+      0.0 if question_limit_per_subject else coverage_percent
+    ),
+    "attempted_question_count": 100,
+    "question_limit_per_subject": question_limit_per_subject,
     "score_percent": score_percent,
     "required_score_percent": required_score_percent,
     "subjects": [
@@ -189,6 +198,8 @@ def mmlu_pro_payload(
         "subject": "total",
         "correct": score_percent,
         "wrong": 100 - score_percent,
+        "attempted_question_count": 100,
+        "result_record_count": 100,
         "score_percent": score_percent,
       }
     ],
@@ -1328,7 +1339,121 @@ class AresIngestArtifactTest(unittest.TestCase):
       gate = mmlu_pro_gate(path, required_coverage_percent=10)
 
       self.assertFalse(gate["passed"])
-      self.assertIn("coverage_percent must meet", " ".join(gate["errors"]))
+      self.assertIn("effective_coverage_percent must meet", " ".join(gate["errors"]))
+
+  def test_mmlu_pro_gate_rejects_capped_run_for_required_coverage(self) -> None:
+    with TemporaryDirectory() as tmp:
+      root = Path(tmp)
+      path = root / "mmlu-pro.json"
+      path.write_text(
+        json.dumps(
+          mmlu_pro_payload(
+            root,
+            coverage_percent=100,
+            score_percent=90,
+            question_limit_per_subject=10,
+          )
+        )
+      )
+
+      gate = mmlu_pro_gate(path, required_coverage_percent=100)
+
+      self.assertFalse(gate["passed"])
+      joined = " ".join(gate["errors"])
+      self.assertIn("question_limit_per_subject must be zero", joined)
+      self.assertIn("effective_coverage_percent must meet", joined)
+
+  def test_mmlu_pro_gate_rejects_capped_run_without_required_coverage(self) -> None:
+    with TemporaryDirectory() as tmp:
+      root = Path(tmp)
+      path = root / "mmlu-pro.json"
+      path.write_text(
+        json.dumps(
+          mmlu_pro_payload(
+            root,
+            coverage_percent=100,
+            score_percent=90,
+            question_limit_per_subject=10,
+          )
+        )
+      )
+
+      gate = mmlu_pro_gate(path)
+
+      self.assertFalse(gate["passed"])
+      self.assertIn(
+        "question_limit_per_subject must be zero",
+        " ".join(gate["errors"]),
+      )
+
+  def test_mmlu_pro_gate_rejects_diagnostic_evidence(self) -> None:
+    with TemporaryDirectory() as tmp:
+      root = Path(tmp)
+      path = root / "mmlu-pro.json"
+      path.write_text(
+        json.dumps(mmlu_pro_payload(root, evidence_class="diagnostic"))
+      )
+
+      gate = mmlu_pro_gate(path)
+
+      self.assertFalse(gate["passed"])
+      self.assertIn("diagnostic evidence", " ".join(gate["errors"]))
+
+  def test_mmlu_pro_gate_rejects_invalid_question_limit_command(self) -> None:
+    with TemporaryDirectory() as tmp:
+      root = Path(tmp)
+      path = root / "mmlu-pro.json"
+      path.write_text(
+        json.dumps(
+          mmlu_pro_payload(
+            root,
+            command=(
+              "OPENAI_HOST=http://127.0.0.1:50183/v1 "
+              "SKIP_PROVISION=1 MMLU_MODEL=synthetic/model "
+              "MMLU_MAX_QUESTIONS_PER_SUBJECT=abc uv run mmlu_pro"
+            ),
+          )
+        )
+      )
+
+      gate = mmlu_pro_gate(path)
+
+      self.assertFalse(gate["passed"])
+      self.assertIn(
+        "MMLU_MAX_QUESTIONS_PER_SUBJECT must be an integer",
+        " ".join(gate["errors"]),
+      )
+
+  def test_mmlu_pro_gate_rejects_subject_count_mismatch(self) -> None:
+    with TemporaryDirectory() as tmp:
+      root = Path(tmp)
+      path = root / "mmlu-pro.json"
+      payload = mmlu_pro_payload(root)
+      payload["subjects"][0]["attempted_question_count"] = 99
+      path.write_text(json.dumps(payload))
+
+      gate = mmlu_pro_gate(path)
+
+      self.assertFalse(gate["passed"])
+      joined = " ".join(gate["errors"])
+      self.assertIn("attempted_question_count must equal correct + wrong", joined)
+      self.assertIn("attempted_question_count must equal sum", joined)
+
+  def test_mmlu_pro_gate_rejects_result_record_count_mismatch(self) -> None:
+    with TemporaryDirectory() as tmp:
+      root = Path(tmp)
+      path = root / "mmlu-pro.json"
+      payload = mmlu_pro_payload(root)
+      payload["subjects"][0]["result_record_count"] = 1
+      path.write_text(json.dumps(payload))
+
+      gate = mmlu_pro_gate(path)
+
+      self.assertFalse(gate["passed"])
+      self.assertIn(
+        "result_record_count must equal attempted_question_count",
+        " ".join(gate["errors"]),
+      )
 
 
 if __name__ == "__main__":

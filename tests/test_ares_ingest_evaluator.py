@@ -415,6 +415,9 @@ def mmlu_pro_evidence(
     "backend": backend,
     "openai_host": "http://127.0.0.1:8000/v1",
     "coverage_percent": 10,
+    "effective_coverage_percent": 10,
+    "attempted_question_count": 100,
+    "question_limit_per_subject": 0,
     "score_percent": 72.0,
     "required_score_percent": 70.0,
     "endpoint_models": {
@@ -428,6 +431,8 @@ def mmlu_pro_evidence(
         "subject": "total",
         "correct": 72,
         "wrong": 28,
+        "attempted_question_count": 100,
+        "result_record_count": 100,
         "score_percent": 72.0,
       }
     ],

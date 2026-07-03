@@ -812,8 +812,12 @@ def validate_mmlu_pro_evidence(
   if root.get("schema") != "ares.benchmark.mmlu_pro.v1":
     errors.append("MMLU Pro schema must be ares.benchmark.mmlu_pro.v1")
   evidence_class = _first_string(root, [], ("evidence_class", "classification"))
-  if evidence_class not in {"system_under_test", "promotion"}:
-    errors.append("MMLU Pro evidence_class must be system_under_test or promotion")
+  if evidence_class not in {"system_under_test", "promotion", "diagnostic"}:
+    errors.append(
+      "MMLU Pro evidence_class must be system_under_test, promotion, or diagnostic"
+    )
+  elif evidence_class == "diagnostic":
+    errors.append("MMLU Pro diagnostic evidence cannot satisfy mmlu_pro gate")
   if root.get("status") != "passed":
     errors.append("MMLU Pro status must be passed")
 
@@ -837,12 +841,34 @@ def validate_mmlu_pro_evidence(
     coverage_value = None
   else:
     coverage_value = float(coverage)
-  if (
-    coverage_value is not None
-    and required_coverage_percent is not None
-    and coverage_value < required_coverage_percent
-  ):
-    errors.append("MMLU Pro coverage_percent must meet required coverage")
+  has_effective_coverage = "effective_coverage_percent" in root
+  effective_coverage = root.get("effective_coverage_percent", coverage)
+  if not isinstance(effective_coverage, int | float) or float(effective_coverage) < 0:
+    errors.append("MMLU Pro effective_coverage_percent must be non-negative")
+    effective_coverage_value = None
+  else:
+    effective_coverage_value = float(effective_coverage)
+  attempted_question_count = root.get("attempted_question_count")
+  attempted_question_count_value: int | None = None
+  if attempted_question_count is not None:
+    if (
+      not isinstance(attempted_question_count, int | float)
+      or attempted_question_count <= 0
+    ):
+      errors.append("MMLU Pro attempted_question_count must be positive")
+    elif not float(attempted_question_count).is_integer():
+      errors.append("MMLU Pro attempted_question_count must be an integer")
+    else:
+      attempted_question_count_value = int(attempted_question_count)
+  question_limit = root.get("question_limit_per_subject")
+  question_limit_value: int | None
+  if question_limit is None:
+    question_limit_value = 0
+  elif not isinstance(question_limit, int) or question_limit < 0:
+    errors.append("MMLU Pro question_limit_per_subject must be non-negative")
+    question_limit_value = None
+  else:
+    question_limit_value = question_limit
 
   score = root.get("score_percent", root.get("score"))
   required = root.get(
@@ -959,15 +985,53 @@ def validate_mmlu_pro_evidence(
       nominal_users = config.get("nominal_users")
       if not isinstance(nominal_users, int | float) or nominal_users <= 0:
         errors.append("systems_test.config.nominal_users must be positive")
+    command = systems_test.get("command")
     _require_non_empty_string(
       errors,
-      systems_test.get("command"),
+      command,
       "systems_test.command",
     )
-    if not _command_runs_uv_mmlu_pro(systems_test.get("command")):
+    if not _command_runs_uv_mmlu_pro(command):
       errors.append("systems_test.command must run uv run mmlu_pro")
-    if "SKIP_PROVISION=1" not in str(systems_test.get("command", "")):
+    if "SKIP_PROVISION=1" not in str(command or ""):
       errors.append("systems_test.command must set SKIP_PROVISION=1")
+    command_question_limit = _command_env_non_negative_int(
+      errors,
+      command,
+      "MMLU_MAX_QUESTIONS_PER_SUBJECT",
+    )
+    if command_question_limit is not None:
+      if root.get("question_limit_per_subject") is None:
+        question_limit_value = command_question_limit
+      elif (
+        question_limit_value is not None
+        and question_limit_value != command_question_limit
+      ):
+        errors.append(
+          "MMLU Pro question_limit_per_subject must match systems_test.command"
+        )
+
+  if question_limit_value and not has_effective_coverage:
+    effective_coverage_value = 0.0
+  if question_limit_value and (
+    effective_coverage_value is not None and effective_coverage_value > 0.0
+  ):
+    errors.append(
+      "MMLU Pro effective_coverage_percent must be zero when "
+      "question_limit_per_subject is nonzero"
+    )
+  coverage_for_requirement = effective_coverage_value
+  if question_limit_value:
+    errors.append(
+      "MMLU Pro question_limit_per_subject must be zero for mmlu_pro gate"
+    )
+    coverage_for_requirement = 0.0
+  if (
+    coverage_for_requirement is not None
+    and required_coverage_percent is not None
+    and coverage_for_requirement < required_coverage_percent
+  ):
+    errors.append("MMLU Pro effective_coverage_percent must meet required coverage")
 
   ares = _expect_object(errors, root.get("ares"), "ares")
   if ares is not None:
@@ -996,19 +1060,85 @@ def validate_mmlu_pro_evidence(
   if not isinstance(subjects, list) or not subjects:
     errors.append("MMLU Pro subjects must be a non-empty list")
   else:
+    subject_attempt_sum: int | None = 0
     for index, subject in enumerate(subjects):
       if not isinstance(subject, dict):
         errors.append(f"subjects[{index}] must be an object")
+        subject_attempt_sum = None
         continue
       _require_non_empty_string(
         errors,
         subject.get("subject"),
         f"subjects[{index}].subject",
       )
+      correct_value: float | None = None
+      wrong_value: float | None = None
       for field in ("correct", "wrong", "score_percent"):
         value = subject.get(field)
         if not isinstance(value, int | float) or float(value) < 0:
           errors.append(f"subjects[{index}].{field} must be non-negative")
+        elif field == "correct":
+          correct_value = float(value)
+        elif field == "wrong":
+          wrong_value = float(value)
+      subject_attempted = subject.get("attempted_question_count")
+      subject_attempted_value: int | None = None
+      if subject_attempted is not None:
+        if (
+          not isinstance(subject_attempted, int | float)
+          or subject_attempted < 0
+          or not float(subject_attempted).is_integer()
+        ):
+          errors.append(
+            f"subjects[{index}].attempted_question_count must be a non-negative integer"
+          )
+          subject_attempt_sum = None
+        else:
+          subject_attempted_value = int(subject_attempted)
+          if subject_attempt_sum is not None:
+            subject_attempt_sum += subject_attempted_value
+      elif correct_value is not None and wrong_value is not None:
+        derived_attempted = correct_value + wrong_value
+        if derived_attempted.is_integer():
+          subject_attempted_value = int(derived_attempted)
+          if subject_attempt_sum is not None:
+            subject_attempt_sum += subject_attempted_value
+        else:
+          subject_attempt_sum = None
+      if (
+        subject_attempted_value is not None
+        and correct_value is not None
+        and wrong_value is not None
+        and abs(subject_attempted_value - (correct_value + wrong_value)) > 1e-9
+      ):
+        errors.append(
+          f"subjects[{index}].attempted_question_count must equal correct + wrong"
+        )
+      result_record_count = subject.get("result_record_count")
+      if result_record_count is not None:
+        if (
+          not isinstance(result_record_count, int | float)
+          or result_record_count < 0
+          or not float(result_record_count).is_integer()
+        ):
+          errors.append(
+            f"subjects[{index}].result_record_count must be a non-negative integer"
+          )
+        elif (
+          subject_attempted_value is not None
+          and int(result_record_count) != subject_attempted_value
+        ):
+          errors.append(
+            f"subjects[{index}].result_record_count must equal attempted_question_count"
+          )
+    if (
+      attempted_question_count_value is not None
+      and subject_attempt_sum is not None
+      and attempted_question_count_value != subject_attempt_sum
+    ):
+      errors.append(
+        "MMLU Pro attempted_question_count must equal sum of subject attempts"
+      )
 
   artifacts = root.get("artifacts")
   if not isinstance(artifacts, list) or not artifacts:
@@ -1035,6 +1165,8 @@ def validate_mmlu_pro_evidence(
     "model": model,
     "backend": backend,
     "coverage_percent": coverage_value,
+    "effective_coverage_percent": effective_coverage_value,
+    "question_limit_per_subject": question_limit_value,
     "score_percent": score_value,
     "required_score_percent": required_value,
     "required_coverage_percent": required_coverage_percent,
@@ -1838,6 +1970,36 @@ def _command_runs_uv_mmlu_pro(command: Any) -> bool:
     if token == "uv" and tokens[index + 1] == "run":
       return any(arg == "mmlu_pro" for arg in tokens[index + 2 :])
   return False
+
+
+def _command_env_non_negative_int(
+  errors: list[str],
+  command: Any,
+  name: str,
+) -> int | None:
+  if not isinstance(command, str):
+    return None
+  try:
+    tokens = shlex.split(command)
+  except ValueError:
+    tokens = command.split()
+  prefix = f"{name}="
+  for token in tokens:
+    if not token.startswith(prefix):
+      continue
+    raw = token[len(prefix) :]
+    if raw == "":
+      return None
+    try:
+      value = int(raw)
+    except ValueError:
+      errors.append(f"systems_test.command {name} must be an integer")
+      return None
+    if value < 0:
+      errors.append(f"systems_test.command {name} must be non-negative")
+      return None
+    return value
+  return None
 
 
 def _validate_revision_metadata(
