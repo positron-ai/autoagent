@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 import re
 import shlex
 from dataclasses import dataclass
@@ -13,6 +14,7 @@ from typing import Any, Iterable, Mapping
 
 HF_CPU_SCHEMA_ID = "ares.oracles.hf_cpu.record.v1"
 HF_CPU_ORACLE_KIND = "huggingface_transformers_pytorch_cpu"
+INTROSPECTION_LADDER_SCHEMA = "ares.introspection.ladder.v1"
 LEAN_TARGET_PLAN_PRODUCER = {"language": "lean", "tool": "ingest-lean"}
 ONE_TOKEN_LOGITS_SCHEMA = "ares.runtime.one_token_logits.v1"
 ONE_TOKEN_PREFLIGHT_REPORT_SCHEMA = "ares.runtime.one_token_logits.preflight_report.v1"
@@ -40,6 +42,139 @@ CPP_COMPARISON_SOURCES = {
 }
 ARES_RUNTIME_CANDIDATES = {"ares", "ares_rust", "ares_runtime", "runares", "rinzler"}
 SCORING_WORKLOADS = {"independent_decode", "long_prefill"}
+INTROSPECTION_STAGES = {
+    "hf_cpu_oracle",
+    "source_hf_hypergraph",
+    "lean_imported_hypergraph",
+    "lean_post_bridge_hypergraph",
+    "lean_post_eqsat_hypergraph",
+    "lean_extracted_hypergraph",
+    "aresplan_semantic",
+    "targetplan_colored",
+    "backend",
+}
+INTROSPECTION_OWNERS = {
+    "none",
+    "ares-python",
+    "ares-lean",
+    "ares-targetplan",
+    "ares-rust",
+    "ares-perfetto",
+    "model-inventory",
+}
+INTROSPECTION_TRACE_ARTIFACT_FIELDS = (
+    "backend_events",
+    "perfetto_traces",
+    "stage_event_summaries",
+    "perfetto_summaries",
+    "trace_metadata",
+)
+INTROSPECTION_COMPARISON_DETAIL_LIMIT = 8
+INTROSPECTION_FIRST_MISMATCH_SCALAR_FIELDS = (
+    "id",
+    "producer_generator",
+    "value_id",
+    "tensor",
+    "metric",
+    "max_abs_error",
+    "max_rel_error",
+    "tvd",
+    "top1_reference",
+    "top1_candidate",
+    "token_index",
+    "statement_index",
+    "statement_name",
+    "operation_id",
+    "trace_label",
+)
+TRACE_REPORT_REQUIRED_SECTIONS = (
+    "preflight",
+    "analysis_commands",
+    "report_grade",
+    "report_triage",
+    "answerability",
+    "unsupported_claims",
+    "next_measurements",
+)
+TRACE_REPORT_TRIAGE_REQUIRED_FIELDS = (
+    "triage_status",
+    "report_grade",
+    "proof_grade_status",
+    "first_blocked_gate",
+    "first_blocked_gate_status",
+    "first_blocked_gate_basis",
+    "first_next_measurement_priority",
+    "first_next_measurement_reason",
+    "first_next_measurement",
+    "first_next_measurement_command_hint",
+    "first_answerable_question",
+    "first_unsupported_claim",
+    "first_useful_section",
+    "first_action",
+    "claim_boundary",
+)
+TRACE_REPORT_TRIAGE_STATUSES = {
+    "needs_measurement",
+    "review_blocked_gate",
+    "inspect_answerable_sections",
+    "inspect_report_grade",
+}
+TRACE_REPORT_GRADES = {"inconclusive", "diagnostic", "comparison-grade"}
+TRACE_REPORT_JSON_SECTION_SAMPLE_KEYS = (
+    "preflight",
+    "analysis_commands",
+    "report_grade",
+    "report_triage",
+    "capture",
+    "run_provenance",
+    "artifact_identities",
+    "artifact_identity_checks",
+    "capture_capabilities",
+    "trace_config_rows",
+    "provider_payload_boundary_inventory_rows",
+    "trace_event_artifacts",
+    "backend_event_artifacts",
+    "backend_event_rows",
+    "backend_provider_boundaries",
+    "backend_fail_closed_root_causes",
+    "debug_payload_artifact_summary_rows",
+    "token_quality_summary_rows",
+    "oracle_reference_summary_rows",
+    "planning_decision_sidecar_rows",
+    "token_quality_sidecar_rows",
+    "topk_token_sidecar_rows",
+    "tensor_payload_sidecar_rows",
+    "kv_payload_digest_sidecar_rows",
+    "logit_slice_sidecar_rows",
+    "activation_digest_sidecar_rows",
+    "device_result_digest_sidecar_rows",
+    "scheduler_packet_lineage_sidecar_rows",
+    "scheduler_kv_shard_lifecycle_sidecar_rows",
+    "scheduler_listener_sparse_logit_sidecar_rows",
+    "device_dma_lifecycle_sidecar_rows",
+    "attention_page_trace_sidecar_rows",
+    "introspection_artifacts",
+    "introspection_capability_rows",
+    "introspection_artifact_summary_rows",
+    "introspection_section_inventory",
+    "supported_claims",
+    "correctness_evidence",
+    "evidence_artifact_checks",
+    "promotion_gate_summary",
+    "trace_mode_guardrails",
+    "ab_provenance",
+    "ab_comparability",
+    "ab_coverage",
+    "ab_repeatability",
+    "report_json_section_inventory",
+    "report_section_inventory",
+    "preflight_findings",
+    "evidence_classification",
+    "answerability",
+    "unsupported_claims",
+    "next_measurements",
+    "timeline_query_summary",
+)
 
 FLOATING_REVISION_NAMES = {
   "@",
@@ -307,6 +442,84 @@ def mmlu_pro_gate(
     validator_name="mmlu_pro",
     path=path,
   )
+
+
+def introspection_ladder_gate(
+    path: Path,
+    *,
+    label: str = "introspection ladder evidence",
+) -> dict[str, Any]:
+    if not path.is_file():
+        return {
+            "label": label,
+            "artifact_validator": "introspection_ladder",
+            "path": str(path),
+            "exists": path.exists(),
+            "passed": False,
+            "score": 0.0,
+            "errors": ["introspection ladder file is missing"],
+        }
+    try:
+        payload = _read_json_or_jsonl(path)
+    except ValueError as exc:
+        return {
+            "label": label,
+            "artifact_validator": "introspection_ladder",
+            "path": str(path),
+            "exists": True,
+            "passed": False,
+            "score": 0.0,
+            "errors": [str(exc)],
+        }
+    gate = validate_introspection_ladder_report(
+        payload,
+        base_dir=path.parent,
+    ).as_gate(
+        label=label,
+        validator_name="introspection_ladder",
+        path=path,
+    )
+    gate["sha256"] = _sha256_file(path)
+    return gate
+
+
+def trace_report_gate(
+    path: Path, *, label: str = "Ares trace report JSON"
+) -> dict[str, Any]:
+    if not path.is_file():
+        return {
+            "label": label,
+            "artifact_validator": "trace_report",
+            "path": str(path),
+            "exists": path.exists(),
+            "passed": False,
+            "score": 0.0,
+            "errors": ["trace report JSON file is missing"],
+        }
+    digest = _sha256_file(path)
+    try:
+        payload = json.loads(path.read_text())
+    except json.JSONDecodeError as exc:
+        return {
+            "label": label,
+            "artifact_validator": "trace_report",
+            "path": str(path),
+            "exists": True,
+            "passed": False,
+            "score": 0.0,
+            "detail": {"sha256": digest},
+            "errors": [f"invalid JSON: {exc}"],
+        }
+    validation = validate_trace_report_json(payload)
+    gate = validation.as_gate(
+        label=label,
+        validator_name="trace_report",
+        path=path,
+    )
+    detail = gate.setdefault("detail", {})
+    if isinstance(detail, dict):
+        detail["sha256"] = digest
+    return gate
 
 
 def token_agreement_gate(
@@ -1177,6 +1390,148 @@ def validate_mmlu_pro_evidence(
   return _validation(not errors, errors, detail)
 
 
+def validate_introspection_ladder_report(
+    payload: Any,
+    *,
+    base_dir: Path | None = None,
+) -> ArtifactValidation:
+    errors: list[str] = []
+    if not isinstance(payload, dict):
+        return _validation(
+            False,
+            ["introspection ladder report must be a JSON object"],
+            {},
+        )
+
+    if payload.get("schema") != INTROSPECTION_LADDER_SCHEMA:
+        errors.append(
+            f"introspection ladder schema must be {INTROSPECTION_LADDER_SCHEMA}"
+        )
+    if payload.get("evidence_class") != "semantic_localization":
+        errors.append(
+            "introspection ladder evidence_class must be semantic_localization"
+        )
+
+    status = payload.get("status")
+    if status not in {"passed", "failed"}:
+        errors.append("introspection ladder status must be passed or failed")
+
+    stage_order = payload.get("stage_order")
+    if not isinstance(stage_order, list) or not stage_order:
+        errors.append("introspection ladder stage_order must be a non-empty list")
+        stage_names: list[str] = []
+    else:
+        stage_names = []
+        for index, stage in enumerate(stage_order):
+            if not isinstance(stage, str) or stage not in INTROSPECTION_STAGES:
+                errors.append(f"stage_order[{index}] is not a known ladder stage")
+                continue
+            stage_names.append(stage)
+
+    comparisons = payload.get("comparisons")
+    if not isinstance(comparisons, list) or not comparisons:
+        errors.append("introspection ladder comparisons must be a non-empty list")
+    else:
+        for index, comparison in enumerate(comparisons):
+            _validate_introspection_comparison_ref(
+                errors,
+                comparison,
+                base_dir,
+                f"comparisons[{index}]",
+            )
+
+    runs = payload.get("runs")
+    if not isinstance(runs, list):
+        errors.append("introspection ladder runs must be a list")
+    else:
+        for index, run in enumerate(runs):
+            _validate_introspection_artifact_ref(
+                errors,
+                run,
+                base_dir,
+                f"runs[{index}]",
+                expected_schema="ares.introspection.run.v1",
+            )
+
+    graphs = payload.get("graphs")
+    if not isinstance(graphs, list):
+        errors.append("introspection ladder graphs must be a list")
+    else:
+        for index, graph in enumerate(graphs):
+            _validate_introspection_artifact_ref(
+                errors,
+                graph,
+                base_dir,
+                f"graphs[{index}]",
+                expected_schema="ares.introspection.graph.v1",
+                verify_path=False,
+            )
+
+    first_failing_stage = payload.get("first_failing_stage")
+    next_owner = payload.get("next_owner")
+    if status == "failed":
+        if (
+            not isinstance(first_failing_stage, str)
+            or first_failing_stage not in INTROSPECTION_STAGES
+        ):
+            errors.append(
+                "failed introspection ladder must name a known first_failing_stage"
+            )
+        elif stage_names and first_failing_stage not in stage_names:
+            errors.append("first_failing_stage must appear in stage_order")
+        if not isinstance(next_owner, str) or next_owner in {"", "none"}:
+            errors.append("failed introspection ladder must name next_owner")
+    elif status == "passed":
+        if first_failing_stage is not None:
+            errors.append("passed introspection ladder must not name a failing stage")
+        if next_owner != "none":
+            errors.append("passed introspection ladder next_owner must be none")
+
+    if isinstance(next_owner, str) and next_owner not in INTROSPECTION_OWNERS:
+        errors.append("introspection ladder next_owner is not a known owner")
+    _require_non_empty_string(
+        errors,
+        payload.get("recommendation"),
+        "introspection ladder recommendation",
+    )
+    trace_context = payload.get("trace_context")
+    if "trace_context" in payload:
+        if not isinstance(trace_context, Mapping):
+            errors.append("introspection ladder trace_context must be a JSON object")
+        else:
+            _validate_introspection_trace_context(
+                errors,
+                trace_context,
+                base_dir,
+            )
+
+    trace_context_detail = (
+        _introspection_trace_context_detail(trace_context)
+        if isinstance(trace_context, Mapping)
+        else {}
+    )
+    comparison_details = _introspection_ladder_comparison_details(comparisons)
+    first_failed_comparison = _introspection_first_failed_comparison_detail(comparisons)
+    detail = {
+        "schema": payload.get("schema"),
+        "evidence_class": payload.get("evidence_class"),
+        "status": status,
+        "first_failing_stage": first_failing_stage,
+        "next_owner": next_owner,
+        "stage_order": stage_names,
+        "comparison_count": len(comparisons) if isinstance(comparisons, list) else 0,
+        "run_count": len(runs) if isinstance(runs, list) else 0,
+        "graph_count": len(graphs) if isinstance(graphs, list) else 0,
+        "trace_context": trace_context_detail,
+        "comparisons": comparison_details,
+    }
+    if first_failed_comparison is not None:
+        detail["first_failed_comparison"] = first_failed_comparison
+        if isinstance(first_failed_comparison.get("first_mismatch"), Mapping):
+            detail["first_mismatch"] = first_failed_comparison["first_mismatch"]
+    return _validation(not errors, errors, detail)
+
+
 def validate_token_agreement_evidence(
   payload: Any,
   *,
@@ -1472,6 +1827,1842 @@ def validate_artifact_consistency(
   return _validation(not errors, errors, detail)
 
 
+def validate_trace_report_json(report: Any) -> ArtifactValidation:
+    errors: list[str] = []
+    if not isinstance(report, dict):
+        return _validation(False, ["trace report must be a JSON object"], {})
+
+    if report.get("schema_version") != 1:
+        errors.append("trace report schema_version must be 1")
+    _require_non_empty_string(errors, report.get("title"), "trace report title")
+    inputs = _expect_object(errors, report.get("inputs"), "trace report inputs")
+    sections = _expect_object(errors, report.get("sections"), "trace report sections")
+
+    section_names: list[str] = []
+    report_grade_rows: list[dict[str, Any]] = []
+    report_triage_rows: list[dict[str, Any]] = []
+    preflight_rows: list[dict[str, Any]] = []
+    analysis_command_rows: list[dict[str, Any]] = []
+    answerability_rows: list[dict[str, Any]] = []
+    capture_rows: list[dict[str, Any]] = []
+    run_provenance_rows: list[dict[str, Any]] = []
+    artifact_identity_rows: list[dict[str, Any]] = []
+    artifact_identity_check_rows: list[dict[str, Any]] = []
+    capture_capability_rows: list[dict[str, Any]] = []
+    supported_claim_rows: list[dict[str, Any]] = []
+    unsupported_claim_rows: list[dict[str, Any]] = []
+    next_measurement_rows: list[dict[str, Any]] = []
+    correctness_evidence_rows: list[dict[str, Any]] = []
+    evidence_artifact_check_rows: list[dict[str, Any]] = []
+    promotion_gate_summary_rows: list[dict[str, Any]] = []
+    trace_mode_guardrail_rows: list[dict[str, Any]] = []
+    ab_provenance_rows: list[dict[str, Any]] = []
+    ab_comparability_rows: list[dict[str, Any]] = []
+    ab_coverage_rows: list[dict[str, Any]] = []
+    ab_repeatability_rows: list[dict[str, Any]] = []
+    report_json_section_rows: list[dict[str, Any]] = []
+    report_section_inventory_rows: list[dict[str, Any]] = []
+    preflight_finding_rows: list[str] = []
+    evidence_classification_rows: list[str] = []
+    trace_config_rows: list[dict[str, Any]] = []
+    provider_payload_boundary_rows: list[dict[str, Any]] = []
+    trace_event_artifact_rows: list[dict[str, Any]] = []
+    backend_event_artifact_rows: list[dict[str, Any]] = []
+    backend_event_rows: list[dict[str, Any]] = []
+    backend_provider_boundary_rows: list[dict[str, Any]] = []
+    backend_fail_closed_root_cause_rows: list[dict[str, Any]] = []
+    debug_payload_artifact_summary_rows: list[dict[str, Any]] = []
+    token_quality_summary_rows: list[dict[str, Any]] = []
+    oracle_reference_summary_rows: list[dict[str, Any]] = []
+    planning_decision_sidecar_rows: list[dict[str, Any]] = []
+    token_quality_sidecar_rows: list[dict[str, Any]] = []
+    topk_token_sidecar_rows: list[dict[str, Any]] = []
+    tensor_payload_sidecar_rows: list[dict[str, Any]] = []
+    kv_payload_digest_sidecar_rows: list[dict[str, Any]] = []
+    logit_slice_sidecar_rows: list[dict[str, Any]] = []
+    activation_digest_sidecar_rows: list[dict[str, Any]] = []
+    device_result_digest_sidecar_rows: list[dict[str, Any]] = []
+    scheduler_packet_lineage_sidecar_rows: list[dict[str, Any]] = []
+    scheduler_kv_shard_lifecycle_sidecar_rows: list[dict[str, Any]] = []
+    scheduler_listener_sparse_logit_sidecar_rows: list[dict[str, Any]] = []
+    device_dma_lifecycle_sidecar_rows: list[dict[str, Any]] = []
+    attention_page_trace_sidecar_rows: list[dict[str, Any]] = []
+    introspection_artifact_rows: list[dict[str, Any]] = []
+    introspection_capability_rows: list[dict[str, Any]] = []
+    introspection_artifact_summary_rows: list[dict[str, Any]] = []
+    introspection_section_inventory_rows: list[dict[str, Any]] = []
+    timeline_query_summary_rows: list[dict[str, Any]] = []
+    if sections is not None:
+        section_names = sorted(str(name) for name in sections)
+        for name in TRACE_REPORT_REQUIRED_SECTIONS:
+            if name not in sections:
+                errors.append(f"trace report sections missing required section: {name}")
+        preflight_rows = _trace_report_section_rows(errors, sections, "preflight")
+        analysis_command_rows = _trace_report_section_rows(
+            errors, sections, "analysis_commands"
+        )
+        report_grade_rows = _trace_report_section_rows(errors, sections, "report_grade")
+        report_triage_rows = _trace_report_section_rows(
+            errors,
+            sections,
+            "report_triage",
+        )
+        _validate_trace_report_triage_rows(errors, report_triage_rows)
+        answerability_rows = _trace_report_section_rows(
+            errors, sections, "answerability"
+        )
+        capture_rows = _trace_report_section_rows(
+            errors,
+            sections,
+            "capture",
+            required=False,
+        )
+        run_provenance_rows = _trace_report_section_rows(
+            errors,
+            sections,
+            "run_provenance",
+            required=False,
+        )
+        artifact_identity_rows = _trace_report_section_rows(
+            errors,
+            sections,
+            "artifact_identities",
+            required=False,
+        )
+        artifact_identity_check_rows = _trace_report_section_rows(
+            errors,
+            sections,
+            "artifact_identity_checks",
+            required=False,
+        )
+        capture_capability_rows = _trace_report_section_rows(
+            errors,
+            sections,
+            "capture_capabilities",
+            required=False,
+        )
+        supported_claim_rows = _trace_report_section_rows(
+            errors,
+            sections,
+            "supported_claims",
+            required=False,
+        )
+        unsupported_claim_rows = _trace_report_section_rows(
+            errors, sections, "unsupported_claims"
+        )
+        next_measurement_rows = _trace_report_section_rows(
+            errors, sections, "next_measurements"
+        )
+        correctness_evidence_rows = _trace_report_section_rows(
+            errors,
+            sections,
+            "correctness_evidence",
+            required=False,
+        )
+        evidence_artifact_check_rows = _trace_report_section_rows(
+            errors,
+            sections,
+            "evidence_artifact_checks",
+            required=False,
+        )
+        promotion_gate_summary_rows = _trace_report_section_rows(
+            errors,
+            sections,
+            "promotion_gate_summary",
+            required=False,
+        )
+        trace_mode_guardrail_rows = _trace_report_section_rows(
+            errors,
+            sections,
+            "trace_mode_guardrails",
+            required=False,
+        )
+        ab_provenance_rows = _trace_report_section_rows(
+            errors,
+            sections,
+            "ab_provenance",
+            required=False,
+        )
+        ab_comparability_rows = _trace_report_section_rows(
+            errors,
+            sections,
+            "ab_comparability",
+            required=False,
+        )
+        ab_coverage_rows = _trace_report_section_rows(
+            errors,
+            sections,
+            "ab_coverage",
+            required=False,
+        )
+        ab_repeatability_rows = _trace_report_section_rows(
+            errors,
+            sections,
+            "ab_repeatability",
+            required=False,
+        )
+        report_json_section_rows = _trace_report_section_rows(
+            errors,
+            sections,
+            "report_json_section_inventory",
+            required=False,
+        )
+        report_section_inventory_rows = _trace_report_section_rows(
+            errors,
+            sections,
+            "report_section_inventory",
+            required=False,
+        )
+        preflight_finding_rows = _trace_report_string_rows(
+            errors,
+            sections,
+            "preflight_findings",
+            required=False,
+        )
+        evidence_classification_rows = _trace_report_string_rows(
+            errors,
+            sections,
+            "evidence_classification",
+            required=False,
+        )
+        trace_config_rows = _trace_report_section_rows(
+            errors,
+            sections,
+            "trace_config_rows",
+            required=False,
+        )
+        provider_payload_boundary_rows = _trace_report_section_rows(
+            errors,
+            sections,
+            "provider_payload_boundary_inventory_rows",
+            required=False,
+        )
+        trace_event_artifact_rows = _trace_report_section_rows(
+            errors,
+            sections,
+            "trace_event_artifacts",
+            required=False,
+        )
+        backend_event_artifact_rows = _trace_report_section_rows(
+            errors,
+            sections,
+            "backend_event_artifacts",
+            required=False,
+        )
+        backend_event_rows = _trace_report_section_rows(
+            errors,
+            sections,
+            "backend_event_rows",
+            required=False,
+        )
+        backend_provider_boundary_rows = _trace_report_section_rows(
+            errors,
+            sections,
+            "backend_provider_boundaries",
+            required=False,
+        )
+        backend_fail_closed_root_cause_rows = _trace_report_section_rows(
+            errors,
+            sections,
+            "backend_fail_closed_root_causes",
+            required=False,
+        )
+        debug_payload_artifact_summary_rows = _trace_report_section_rows(
+            errors,
+            sections,
+            "debug_payload_artifact_summary_rows",
+            required=False,
+        )
+        token_quality_summary_rows = _trace_report_section_rows(
+            errors,
+            sections,
+            "token_quality_summary_rows",
+            required=False,
+        )
+        oracle_reference_summary_rows = _trace_report_section_rows(
+            errors,
+            sections,
+            "oracle_reference_summary_rows",
+            required=False,
+        )
+        planning_decision_sidecar_rows = _trace_report_section_rows(
+            errors,
+            sections,
+            "planning_decision_sidecar_rows",
+            required=False,
+        )
+        token_quality_sidecar_rows = _trace_report_section_rows(
+            errors,
+            sections,
+            "token_quality_sidecar_rows",
+            required=False,
+        )
+        topk_token_sidecar_rows = _trace_report_section_rows(
+            errors,
+            sections,
+            "topk_token_sidecar_rows",
+            required=False,
+        )
+        tensor_payload_sidecar_rows = _trace_report_section_rows(
+            errors,
+            sections,
+            "tensor_payload_sidecar_rows",
+            required=False,
+        )
+        kv_payload_digest_sidecar_rows = _trace_report_section_rows(
+            errors,
+            sections,
+            "kv_payload_digest_sidecar_rows",
+            required=False,
+        )
+        logit_slice_sidecar_rows = _trace_report_section_rows(
+            errors,
+            sections,
+            "logit_slice_sidecar_rows",
+            required=False,
+        )
+        activation_digest_sidecar_rows = _trace_report_section_rows(
+            errors,
+            sections,
+            "activation_digest_sidecar_rows",
+            required=False,
+        )
+        device_result_digest_sidecar_rows = _trace_report_section_rows(
+            errors,
+            sections,
+            "device_result_digest_sidecar_rows",
+            required=False,
+        )
+        scheduler_packet_lineage_sidecar_rows = _trace_report_section_rows(
+            errors,
+            sections,
+            "scheduler_packet_lineage_sidecar_rows",
+            required=False,
+        )
+        scheduler_kv_shard_lifecycle_sidecar_rows = _trace_report_section_rows(
+            errors,
+            sections,
+            "scheduler_kv_shard_lifecycle_sidecar_rows",
+            required=False,
+        )
+        scheduler_listener_sparse_logit_sidecar_rows = _trace_report_section_rows(
+            errors,
+            sections,
+            "scheduler_listener_sparse_logit_sidecar_rows",
+            required=False,
+        )
+        device_dma_lifecycle_sidecar_rows = _trace_report_section_rows(
+            errors,
+            sections,
+            "device_dma_lifecycle_sidecar_rows",
+            required=False,
+        )
+        attention_page_trace_sidecar_rows = _trace_report_section_rows(
+            errors,
+            sections,
+            "attention_page_trace_sidecar_rows",
+            required=False,
+        )
+        introspection_artifact_rows = _trace_report_section_rows(
+            errors,
+            sections,
+            "introspection_artifacts",
+            required=False,
+        )
+        introspection_capability_rows = _trace_report_section_rows(
+            errors,
+            sections,
+            "introspection_capability_rows",
+            required=False,
+        )
+        introspection_artifact_summary_rows = _trace_report_section_rows(
+            errors,
+            sections,
+            "introspection_artifact_summary_rows",
+            required=False,
+        )
+        introspection_section_inventory_rows = _trace_report_section_rows(
+            errors,
+            sections,
+            "introspection_section_inventory",
+            required=False,
+        )
+        timeline_query_summary_rows = _trace_report_section_rows(
+            errors,
+            sections,
+            "timeline_query_summary",
+            required=False,
+        )
+
+    if not preflight_rows:
+        errors.append("trace report sections.preflight must include at least one row")
+    if not analysis_command_rows:
+        errors.append(
+            "trace report sections.analysis_commands must include at least one row"
+        )
+    if not report_grade_rows:
+        errors.append(
+            "trace report sections.report_grade must include at least one row"
+        )
+    if not answerability_rows:
+        errors.append(
+            "trace report sections.answerability must include at least one row"
+        )
+
+    first_grade = report_grade_rows[0] if report_grade_rows else {}
+    first_preflight = preflight_rows[0] if preflight_rows else {}
+    answerability_status_counts = _trace_report_value_counts(
+        answerability_rows,
+        "status",
+    )
+    provider_payload_route_only_rows = [
+        row
+        for row in provider_payload_boundary_rows
+        if row.get("producer_contract") == "runtime_sidecar_route_only"
+        or row.get("producer_status") == "runtime_route_only_no_provider_producer"
+        or row.get("capture_status") == "route_available_no_provider_producer"
+    ]
+    provider_payload_recorded_rows = [
+        row
+        for row in provider_payload_boundary_rows
+        if row.get("capture_status") == "recorded_artifact"
+        or _trace_report_int(row.get("matching_provider_artifact_count")) > 0
+        or _trace_report_int(row.get("artifact_count")) > 0
+    ]
+    report_json_section_sample_rows = [
+        row
+        for row in report_json_section_rows
+        if row.get("json_section") in TRACE_REPORT_JSON_SECTION_SAMPLE_KEYS
+    ]
+    if not report_json_section_sample_rows:
+        report_json_section_sample_rows = report_json_section_rows
+    ab_coverage_row = ab_coverage_rows[0] if ab_coverage_rows else {}
+    ab_repeatability_row = ab_repeatability_rows[0] if ab_repeatability_rows else {}
+    introspection_artifact_row_count_total = 0
+    introspection_artifact_byte_count_total = 0
+    for index, row in enumerate(introspection_artifact_rows):
+        introspection_artifact_row_count_total += _trace_report_optional_count(
+            errors,
+            row.get("row_count"),
+            f"trace report sections.introspection_artifacts[{index}].row_count",
+        )
+        introspection_artifact_byte_count_total += _trace_report_optional_count(
+            errors,
+            row.get("byte_count"),
+            f"trace report sections.introspection_artifacts[{index}].byte_count",
+        )
+    preflight_ok_count = _trace_report_optional_count(
+        errors,
+        first_preflight.get("ok"),
+        "trace report sections.preflight[0].ok",
+    )
+    preflight_warn_count = _trace_report_optional_count(
+        errors,
+        first_preflight.get("warn"),
+        "trace report sections.preflight[0].warn",
+    )
+    preflight_fail_count = _trace_report_optional_count(
+        errors,
+        first_preflight.get("fail"),
+        "trace report sections.preflight[0].fail",
+    )
+
+    detail = {
+        "schema_version": report.get("schema_version"),
+        "title": report.get("title"),
+        "metadata": inputs.get("metadata") if inputs is not None else None,
+        "trace": inputs.get("trace") if inputs is not None else None,
+        "section_count": len(section_names),
+        "section_names": section_names,
+        "preflight_status": first_preflight.get("status"),
+        "preflight_ok_count": preflight_ok_count,
+        "preflight_warn_count": preflight_warn_count,
+        "preflight_fail_count": preflight_fail_count,
+        "report_grade": first_grade.get("report_grade"),
+        "proof_grade_status": first_grade.get("proof_grade_status"),
+        "report_grade_basis": first_grade.get("basis"),
+        "report_grade_promotion_gate": first_grade.get("promotion_gate"),
+        "report_triage_count": len(report_triage_rows),
+        "report_triage_status_counts": _trace_report_value_counts(
+            report_triage_rows,
+            "triage_status",
+        ),
+        "report_triage_samples": _trace_report_samples(
+            report_triage_rows,
+            (
+                "triage_status",
+                "report_grade",
+                "first_blocked_gate",
+                "first_blocked_gate_status",
+                "first_next_measurement_priority",
+                "first_next_measurement",
+                "first_useful_section",
+                "first_action",
+                "claim_boundary",
+            ),
+            limit=4,
+        ),
+        "answerability_count": len(answerability_rows),
+        "answerability_status_counts": dict(
+            sorted(answerability_status_counts.items())
+        ),
+        "supported_claim_count": len(supported_claim_rows),
+        "unsupported_claim_count": len(unsupported_claim_rows),
+        "next_measurement_count": len(next_measurement_rows),
+        "correctness_evidence_count": len(correctness_evidence_rows),
+        "correctness_evidence_status_counts": _trace_report_value_counts(
+            correctness_evidence_rows,
+            "status",
+        ),
+        "correctness_evidence_proof_grade_status_counts": (
+            _trace_report_value_counts(
+                correctness_evidence_rows,
+                "proof_grade_status",
+            )
+        ),
+        "evidence_artifact_check_count": len(evidence_artifact_check_rows),
+        "evidence_artifact_check_status_counts": _trace_report_value_counts(
+            evidence_artifact_check_rows,
+            "status",
+        ),
+        "promotion_gate_summary_count": len(promotion_gate_summary_rows),
+        "promotion_gate_summary_status_counts": _trace_report_value_counts(
+            promotion_gate_summary_rows,
+            "status",
+        ),
+        "promotion_gate_summary_proof_grade_status_counts": (
+            _trace_report_value_counts(
+                promotion_gate_summary_rows,
+                "proof_grade_status",
+            )
+        ),
+        "trace_mode_guardrail_count": len(trace_mode_guardrail_rows),
+        "trace_mode_guardrail_mode_counts": _trace_report_value_counts(
+            trace_mode_guardrail_rows,
+            "trace_mode",
+        ),
+        "trace_mode_guardrail_overhead_counts": _trace_report_value_counts(
+            trace_mode_guardrail_rows,
+            "overhead_boundary",
+        ),
+        "ab_provenance_count": len(ab_provenance_rows),
+        "ab_provenance_status_counts": _trace_report_value_counts(
+            ab_provenance_rows,
+            "provenance_status",
+        ),
+        "ab_provenance_source_state_counts": _trace_report_value_counts(
+            ab_provenance_rows,
+            "source_state",
+        ),
+        "ab_provenance_artifact_hash_status_counts": _trace_report_value_counts(
+            ab_provenance_rows,
+            "artifact_hash_status",
+        ),
+        "ab_provenance_proof_grade_status_counts": _trace_report_value_counts(
+            ab_provenance_rows,
+            "proof_grade_status",
+        ),
+        "ab_comparability_count": len(ab_comparability_rows),
+        "ab_comparability_status_counts": _trace_report_value_counts(
+            ab_comparability_rows,
+            "status",
+        ),
+        "ab_coverage_count": len(ab_coverage_rows),
+        "ab_coverage_status_counts": _trace_report_value_counts(
+            ab_coverage_rows,
+            "coverage_status",
+        ),
+        "ab_coverage_total_rows": _trace_report_int(ab_coverage_row.get("total_rows")),
+        "ab_coverage_matched_rows": _trace_report_int(
+            ab_coverage_row.get("matched_rows")
+        ),
+        "ab_coverage_baseline_only_rows": _trace_report_int(
+            ab_coverage_row.get("baseline_only_rows")
+        ),
+        "ab_coverage_candidate_only_rows": _trace_report_int(
+            ab_coverage_row.get("candidate_only_rows")
+        ),
+        "ab_repeatability_count": len(ab_repeatability_rows),
+        "ab_repeatability_status_counts": _trace_report_value_counts(
+            ab_repeatability_rows,
+            "status",
+        ),
+        "ab_repeatability_proof_grade_status_counts": _trace_report_value_counts(
+            ab_repeatability_rows,
+            "proof_grade_status",
+        ),
+        "ab_repeatability_baseline_runs": _trace_report_int(
+            ab_repeatability_row.get("baseline_runs")
+        ),
+        "ab_repeatability_candidate_runs": _trace_report_int(
+            ab_repeatability_row.get("candidate_runs")
+        ),
+        "ab_repeatability_required_matched_runs_for_hardware_proof": (
+            _trace_report_int(
+                ab_repeatability_row.get("required_matched_runs_for_hardware_proof")
+            )
+        ),
+        "ab_repeatability_matched_rows": _trace_report_int(
+            ab_repeatability_row.get("matched_rows")
+        ),
+        "report_json_section_count": len(report_json_section_rows),
+        "report_json_section_kind_counts": _trace_report_value_counts(
+            report_json_section_rows,
+            "section_kind",
+        ),
+        "report_section_inventory_count": len(report_section_inventory_rows),
+        "report_section_inventory_native_sql_counts": _trace_report_value_counts(
+            report_section_inventory_rows,
+            "native_sql",
+        ),
+        "preflight_finding_count": len(preflight_finding_rows),
+        "preflight_finding_kind_counts": _trace_report_string_prefix_counts(
+            preflight_finding_rows,
+        ),
+        "evidence_classification_count": len(evidence_classification_rows),
+        "evidence_classification_kind_counts": _trace_report_string_prefix_counts(
+            evidence_classification_rows,
+        ),
+        "capture_count": len(capture_rows),
+        "capture_process_kind_counts": _trace_report_value_counts(
+            capture_rows,
+            "process_kind",
+        ),
+        "capture_backend_counts": _trace_report_value_counts(
+            capture_rows,
+            "backend_id",
+        ),
+        "capture_trace_mode_counts": _trace_report_value_counts(
+            capture_rows,
+            "trace_mode",
+        ),
+        "run_provenance_count": len(run_provenance_rows),
+        "run_provenance_source_state_counts": _trace_report_value_counts(
+            run_provenance_rows,
+            "source_state",
+        ),
+        "artifact_identity_count": len(artifact_identity_rows),
+        "artifact_identity_artifact_counts": _trace_report_value_counts(
+            artifact_identity_rows,
+            "artifact",
+        ),
+        "artifact_identity_load_status_counts": _trace_report_value_counts(
+            artifact_identity_rows,
+            "load_status",
+        ),
+        "artifact_identity_check_count": len(artifact_identity_check_rows),
+        "artifact_identity_check_status_counts": _trace_report_value_counts(
+            artifact_identity_check_rows,
+            "status",
+        ),
+        "capture_capability_count": len(capture_capability_rows),
+        "capture_capability_present_counts": _trace_report_value_counts(
+            capture_capability_rows,
+            "present",
+        ),
+        "trace_config_count": len(trace_config_rows),
+        "trace_config_status_counts": _trace_report_value_counts(
+            trace_config_rows,
+            "config_status",
+        ),
+        "trace_config_missing_requested_sidecar_counts": (
+            _trace_report_comma_value_counts(
+                trace_config_rows,
+                "missing_requested_sidecar_controls",
+            )
+        ),
+        "provider_payload_boundary_count": len(provider_payload_boundary_rows),
+        "provider_payload_boundary_status_counts": _trace_report_value_counts(
+            provider_payload_boundary_rows,
+            "capture_status",
+        ),
+        "provider_payload_boundary_route_only_count": len(
+            provider_payload_route_only_rows
+        ),
+        "provider_payload_boundary_route_only_lanes": (
+            _trace_report_provider_payload_lanes(provider_payload_route_only_rows)
+        ),
+        "provider_payload_boundary_recorded_count": len(provider_payload_recorded_rows),
+        "provider_payload_boundary_recorded_lanes": (
+            _trace_report_provider_payload_lanes(provider_payload_recorded_rows)
+        ),
+        "trace_event_artifact_count": len(trace_event_artifact_rows),
+        "trace_event_artifact_status_counts": _trace_report_value_counts(
+            trace_event_artifact_rows,
+            "status",
+        ),
+        "trace_event_artifact_event_kind_counts": (
+            _trace_report_comma_value_counts(
+                trace_event_artifact_rows,
+                "event_kinds",
+            )
+        ),
+        "backend_event_artifact_count": len(backend_event_artifact_rows),
+        "backend_event_artifact_status_counts": _trace_report_value_counts(
+            backend_event_artifact_rows,
+            "status",
+        ),
+        "backend_event_artifact_event_kind_counts": (
+            _trace_report_comma_value_counts(
+                backend_event_artifact_rows,
+                "event_kinds",
+            )
+        ),
+        "backend_event_row_count": len(backend_event_rows),
+        "backend_event_row_event_kind_counts": _trace_report_value_counts(
+            backend_event_rows,
+            "event_kind",
+        ),
+        "backend_event_row_backend_counts": _trace_report_value_counts(
+            backend_event_rows,
+            "backend_id",
+        ),
+        "backend_provider_boundary_count": len(backend_provider_boundary_rows),
+        "backend_provider_boundary_status_counts": _trace_report_value_counts(
+            backend_provider_boundary_rows,
+            "boundary_status",
+        ),
+        "backend_provider_boundary_stage_counts": _trace_report_value_counts(
+            backend_provider_boundary_rows,
+            "provider_stage",
+        ),
+        "backend_provider_boundary_root_stage_counts": _trace_report_value_counts(
+            backend_provider_boundary_rows,
+            "root_cause_stage",
+        ),
+        "backend_fail_closed_root_cause_count": len(
+            backend_fail_closed_root_cause_rows
+        ),
+        "backend_fail_closed_root_cause_backend_counts": (
+            _trace_report_value_counts(
+                backend_fail_closed_root_cause_rows,
+                "backend_id",
+            )
+        ),
+        "backend_fail_closed_root_cause_stage_counts": (
+            _trace_report_value_counts(
+                backend_fail_closed_root_cause_rows,
+                "provider_stage",
+            )
+        ),
+        "backend_fail_closed_root_cause_root_stage_counts": (
+            _trace_report_value_counts(
+                backend_fail_closed_root_cause_rows,
+                "root_cause_stage",
+            )
+        ),
+        "debug_payload_artifact_summary_count": len(
+            debug_payload_artifact_summary_rows
+        ),
+        "debug_payload_artifact_summary_status_counts": _trace_report_value_counts(
+            debug_payload_artifact_summary_rows,
+            "payload_summary_status",
+        ),
+        "token_quality_summary_count": len(token_quality_summary_rows),
+        "token_quality_summary_status_counts": _trace_report_value_counts(
+            token_quality_summary_rows,
+            "status",
+        ),
+        "token_quality_summary_topk_status_counts": _trace_report_value_counts(
+            token_quality_summary_rows,
+            "selected_topk_status",
+        ),
+        "oracle_reference_summary_count": len(oracle_reference_summary_rows),
+        "oracle_reference_summary_status_counts": _trace_report_value_counts(
+            oracle_reference_summary_rows,
+            "oracle_reference_status",
+        ),
+        "oracle_reference_summary_correctness_counts": _trace_report_value_counts(
+            oracle_reference_summary_rows,
+            "correctness_claim_status",
+        ),
+        "planning_decision_sidecar_count": len(planning_decision_sidecar_rows),
+        "planning_decision_sidecar_status_counts": _trace_report_value_counts(
+            planning_decision_sidecar_rows,
+            "status",
+        ),
+        "planning_decision_sidecar_row_kind_counts": _trace_report_value_counts(
+            planning_decision_sidecar_rows,
+            "row_kind",
+        ),
+        "planning_decision_sidecar_phase_counts": _trace_report_value_counts(
+            planning_decision_sidecar_rows,
+            "planning_phase",
+        ),
+        "token_quality_sidecar_count": len(token_quality_sidecar_rows),
+        "token_quality_sidecar_status_counts": _trace_report_value_counts(
+            token_quality_sidecar_rows,
+            "status",
+        ),
+        "token_quality_sidecar_finish_reason_counts": _trace_report_value_counts(
+            token_quality_sidecar_rows,
+            "finish_reason",
+        ),
+        "topk_token_sidecar_count": len(topk_token_sidecar_rows),
+        "topk_token_sidecar_status_counts": _trace_report_value_counts(
+            topk_token_sidecar_rows,
+            "status",
+        ),
+        "topk_token_sidecar_selected_status_counts": _trace_report_value_counts(
+            topk_token_sidecar_rows,
+            "selected_candidate_status",
+        ),
+        "topk_token_sidecar_score_kind_counts": _trace_report_value_counts(
+            topk_token_sidecar_rows,
+            "score_kind",
+        ),
+        "tensor_payload_sidecar_count": len(tensor_payload_sidecar_rows),
+        "tensor_payload_sidecar_status_counts": _trace_report_value_counts(
+            tensor_payload_sidecar_rows,
+            "status",
+        ),
+        "tensor_payload_sidecar_kind_counts": _trace_report_value_counts(
+            tensor_payload_sidecar_rows,
+            "tensor_payload_kind",
+        ),
+        "tensor_payload_sidecar_role_counts": _trace_report_value_counts(
+            tensor_payload_sidecar_rows,
+            "tensor_role",
+        ),
+        "kv_payload_digest_sidecar_count": len(kv_payload_digest_sidecar_rows),
+        "kv_payload_digest_sidecar_status_counts": _trace_report_value_counts(
+            kv_payload_digest_sidecar_rows,
+            "status",
+        ),
+        "kv_payload_digest_sidecar_role_counts": _trace_report_value_counts(
+            kv_payload_digest_sidecar_rows,
+            "tensor_role",
+        ),
+        "logit_slice_sidecar_count": len(logit_slice_sidecar_rows),
+        "logit_slice_sidecar_status_counts": _trace_report_value_counts(
+            logit_slice_sidecar_rows,
+            "status",
+        ),
+        "logit_slice_sidecar_role_counts": _trace_report_value_counts(
+            logit_slice_sidecar_rows,
+            "tensor_role",
+        ),
+        "logit_slice_sidecar_action_counts": _trace_report_value_counts(
+            logit_slice_sidecar_rows,
+            "targetplan_action",
+        ),
+        "activation_digest_sidecar_count": len(activation_digest_sidecar_rows),
+        "activation_digest_sidecar_status_counts": _trace_report_value_counts(
+            activation_digest_sidecar_rows,
+            "status",
+        ),
+        "activation_digest_sidecar_role_counts": _trace_report_value_counts(
+            activation_digest_sidecar_rows,
+            "tensor_role",
+        ),
+        "activation_digest_sidecar_intrinsic_counts": _trace_report_value_counts(
+            activation_digest_sidecar_rows,
+            "intrinsic",
+        ),
+        "device_result_digest_sidecar_count": len(device_result_digest_sidecar_rows),
+        "device_result_digest_sidecar_status_counts": _trace_report_value_counts(
+            device_result_digest_sidecar_rows,
+            "status",
+        ),
+        "device_result_digest_sidecar_role_counts": _trace_report_value_counts(
+            device_result_digest_sidecar_rows,
+            "tensor_role",
+        ),
+        "device_result_digest_sidecar_action_counts": _trace_report_value_counts(
+            device_result_digest_sidecar_rows,
+            "targetplan_action",
+        ),
+        "device_result_digest_sidecar_intrinsic_counts": _trace_report_value_counts(
+            device_result_digest_sidecar_rows,
+            "intrinsic",
+        ),
+        "scheduler_packet_lineage_sidecar_count": len(
+            scheduler_packet_lineage_sidecar_rows
+        ),
+        "scheduler_packet_lineage_sidecar_status_counts": (
+            _trace_report_value_counts(
+                scheduler_packet_lineage_sidecar_rows,
+                "status",
+            )
+        ),
+        "scheduler_packet_lineage_sidecar_executor_counts": (
+            _trace_report_value_counts(
+                scheduler_packet_lineage_sidecar_rows,
+                "executor_status",
+            )
+        ),
+        "scheduler_kv_shard_lifecycle_sidecar_count": len(
+            scheduler_kv_shard_lifecycle_sidecar_rows
+        ),
+        "scheduler_kv_shard_lifecycle_sidecar_status_counts": (
+            _trace_report_value_counts(
+                scheduler_kv_shard_lifecycle_sidecar_rows,
+                "status",
+            )
+        ),
+        "scheduler_kv_shard_lifecycle_sidecar_lifecycle_counts": (
+            _trace_report_value_counts(
+                scheduler_kv_shard_lifecycle_sidecar_rows,
+                "kv_lifecycle_status",
+            )
+        ),
+        "scheduler_listener_sparse_logit_sidecar_count": len(
+            scheduler_listener_sparse_logit_sidecar_rows
+        ),
+        "scheduler_listener_sparse_logit_sidecar_status_counts": (
+            _trace_report_value_counts(
+                scheduler_listener_sparse_logit_sidecar_rows,
+                "status",
+            )
+        ),
+        "scheduler_listener_sparse_logit_sidecar_listener_status_counts": (
+            _trace_report_value_counts(
+                scheduler_listener_sparse_logit_sidecar_rows,
+                "listener_sparse_status",
+            )
+        ),
+        "scheduler_listener_sparse_logit_sidecar_executor_counts": (
+            _trace_report_value_counts(
+                scheduler_listener_sparse_logit_sidecar_rows,
+                "executor_status",
+            )
+        ),
+        "device_dma_lifecycle_sidecar_count": len(device_dma_lifecycle_sidecar_rows),
+        "device_dma_lifecycle_sidecar_status_counts": _trace_report_value_counts(
+            device_dma_lifecycle_sidecar_rows,
+            "status",
+        ),
+        "device_dma_lifecycle_sidecar_stage_counts": _trace_report_value_counts(
+            device_dma_lifecycle_sidecar_rows,
+            "device_stage",
+        ),
+        "device_dma_lifecycle_sidecar_queue_counts": _trace_report_value_counts(
+            device_dma_lifecycle_sidecar_rows,
+            "queue_id",
+        ),
+        "attention_page_trace_sidecar_count": len(attention_page_trace_sidecar_rows),
+        "attention_page_trace_sidecar_status_counts": _trace_report_value_counts(
+            attention_page_trace_sidecar_rows,
+            "status",
+        ),
+        "attention_page_trace_sidecar_action_counts": _trace_report_value_counts(
+            attention_page_trace_sidecar_rows,
+            "targetplan_action",
+        ),
+        "introspection_artifact_count": len(introspection_artifact_rows),
+        "introspection_artifact_status_counts": _trace_report_value_counts(
+            introspection_artifact_rows,
+            "status",
+        ),
+        "introspection_artifact_kind_counts": _trace_report_value_counts(
+            introspection_artifact_rows,
+            "kind",
+        ),
+        "introspection_artifact_format_counts": _trace_report_value_counts(
+            introspection_artifact_rows,
+            "artifact_kind",
+        ),
+        "introspection_artifact_sensitivity_counts": _trace_report_value_counts(
+            introspection_artifact_rows,
+            "sensitivity",
+        ),
+        "introspection_artifact_compile_feature_counts": (
+            _trace_report_comma_value_counts(
+                introspection_artifact_rows,
+                "compile_features",
+            )
+        ),
+        "introspection_artifact_row_count_total": (
+            introspection_artifact_row_count_total
+        ),
+        "introspection_artifact_byte_count_total": (
+            introspection_artifact_byte_count_total
+        ),
+        "introspection_capability_count": len(introspection_capability_rows),
+        "introspection_capability_status_counts": _trace_report_value_counts(
+            introspection_capability_rows,
+            "capability_status",
+        ),
+        "introspection_artifact_summary_count": len(
+            introspection_artifact_summary_rows
+        ),
+        "introspection_artifact_summary_status_counts": _trace_report_value_counts(
+            introspection_artifact_summary_rows,
+            "summary_status",
+        ),
+        "introspection_section_inventory_count": len(
+            introspection_section_inventory_rows
+        ),
+        "introspection_section_inventory_status_counts": _trace_report_value_counts(
+            introspection_section_inventory_rows,
+            "section_status",
+        ),
+        "introspection_section_inventory_capability_counts": (
+            _trace_report_value_counts(
+                introspection_section_inventory_rows,
+                "capture_capability",
+            )
+        ),
+        "timeline_query_summary_count": len(timeline_query_summary_rows),
+        "timeline_query_summary_status_counts": _trace_report_value_counts(
+            timeline_query_summary_rows,
+            "status",
+        ),
+        "supported_claim_samples": _trace_report_samples(
+            supported_claim_rows,
+            ("claim", "basis", "evidence_grade"),
+        ),
+        "unsupported_claim_samples": _trace_report_samples(
+            unsupported_claim_rows,
+            ("claim", "reason", "basis"),
+        ),
+        "correctness_evidence_samples": _trace_report_samples(
+            correctness_evidence_rows,
+            (
+                "evidence",
+                "status",
+                "evidence_role",
+                "proof_grade_status",
+                "basis",
+                "next_gate",
+            ),
+        ),
+        "evidence_artifact_check_samples": _trace_report_samples(
+            evidence_artifact_check_rows,
+            ("check", "evidence_artifact", "status", "detail"),
+        ),
+        "promotion_gate_summary_samples": _trace_report_samples(
+            promotion_gate_summary_rows,
+            ("gate", "status", "proof_grade_status", "basis", "next_gate"),
+            limit=6,
+        ),
+        "trace_mode_guardrail_samples": _trace_report_samples(
+            trace_mode_guardrail_rows,
+            (
+                "trace_mode",
+                "trace_sinks",
+                "role",
+                "overhead_boundary",
+                "claim_guardrail",
+            ),
+        ),
+        "ab_provenance_samples": _trace_report_samples(
+            ab_provenance_rows,
+            (
+                "role",
+                "binary",
+                "git_sha",
+                "worktree_dirty",
+                "source_state",
+                "artifact_hash_count",
+                "artifact_hash_status",
+                "hardware_card_count",
+                "hardware_cards",
+                "provenance_status",
+                "proof_grade_status",
+                "basis",
+            ),
+            limit=4,
+        ),
+        "ab_comparability_samples": _trace_report_samples(
+            ab_comparability_rows,
+            ("status", "basis", "promotion_gate"),
+        ),
+        "ab_coverage_samples": _trace_report_samples(
+            ab_coverage_rows,
+            (
+                "align",
+                "coverage_status",
+                "total_rows",
+                "matched_rows",
+                "baseline_only_rows",
+                "candidate_only_rows",
+                "warnings",
+                "basis",
+            ),
+        ),
+        "ab_repeatability_samples": _trace_report_samples(
+            ab_repeatability_rows,
+            (
+                "status",
+                "align",
+                "baseline_runs",
+                "candidate_runs",
+                "required_matched_runs_for_hardware_proof",
+                "matched_rows",
+                "proof_grade_status",
+                "basis",
+            ),
+        ),
+        "next_measurement_samples": _trace_report_samples(
+            next_measurement_rows,
+            ("priority", "next_measurement", "reason", "command_hint"),
+        ),
+        "answerability_samples": _trace_report_samples(
+            answerability_rows,
+            ("question", "status", "basis"),
+            limit=8,
+        ),
+        "analysis_command_samples": _trace_report_samples(
+            analysis_command_rows,
+            ("purpose", "command"),
+        ),
+        "report_json_section_samples": _trace_report_samples(
+            report_json_section_sample_rows,
+            (
+                "heading",
+                "json_path",
+                "json_section",
+                "section_kind",
+                "requires_timeline_trace",
+                "claim_boundary",
+            ),
+            limit=64,
+        ),
+        "report_section_inventory_samples": _trace_report_samples(
+            report_section_inventory_rows,
+            (
+                "heading",
+                "query",
+                "native_sql",
+                "portable_command",
+                "native_sql_command",
+            ),
+            limit=8,
+        ),
+        "preflight_finding_samples": _trace_report_string_samples(
+            preflight_finding_rows,
+            limit=8,
+        ),
+        "evidence_classification_samples": _trace_report_string_samples(
+            evidence_classification_rows,
+            limit=4,
+        ),
+        "capture_samples": _trace_report_samples(
+            capture_rows,
+            (
+                "metadata",
+                "trace",
+                "trace_run_id",
+                "process_kind",
+                "trace_mode",
+                "trace_sinks",
+                "model_id",
+                "backend_id",
+                "target_plan_sha256",
+                "worktree_dirty",
+            ),
+        ),
+        "run_provenance_samples": _trace_report_samples(
+            run_provenance_rows,
+            (
+                "binary",
+                "git_sha",
+                "worktree_dirty",
+                "source_state",
+                "hardware_card_count",
+                "hardware_cards",
+                "provenance_boundary",
+            ),
+        ),
+        "artifact_identity_samples": _trace_report_samples(
+            artifact_identity_rows,
+            ("artifact", "path", "sha256", "load_status", "status_source"),
+        ),
+        "artifact_identity_check_samples": _trace_report_samples(
+            artifact_identity_check_rows,
+            ("artifact", "check", "status", "detail"),
+        ),
+        "capture_capability_samples": _trace_report_samples(
+            capture_capability_rows,
+            ("capability", "present"),
+            limit=8,
+        ),
+        "trace_config_samples": _trace_report_samples(
+            trace_config_rows,
+            (
+                "config_status",
+                "requested_sidecar_controls",
+                "recorded_sidecar_capabilities",
+                "missing_requested_sidecar_controls",
+                "introspection_level",
+                "compile_feature_trace_introspection",
+                "deep_introspection_effective",
+                "next_action",
+            ),
+        ),
+        "trace_event_artifact_samples": _trace_report_samples(
+            trace_event_artifact_rows,
+            (
+                "index",
+                "path",
+                "sha256",
+                "row_count",
+                "matching_trace_run_id_rows",
+                "event_kinds",
+                "status",
+            ),
+        ),
+        "provider_payload_boundary_samples": _trace_report_samples(
+            provider_payload_boundary_rows,
+            (
+                "provider_id",
+                "payload_lane",
+                "capture_status",
+                "artifact_count",
+                "matching_provider_artifact_count",
+                "artifact_kind_recorded_count",
+                "artifact_kind_recorded_backend_count",
+                "artifact_kind_recorded_backend_ids",
+                "report_section",
+                "boundary_status",
+                "producer_status",
+                "producer_contract",
+                "payload_record_policy",
+                "payload_sensitivity",
+                "claim_boundary",
+                "next_action",
+            ),
+        ),
+        "provider_payload_boundary_route_only_samples": _trace_report_samples(
+            provider_payload_route_only_rows,
+            (
+                "provider_id",
+                "payload_lane",
+                "capture_status",
+                "capture_capability",
+                "artifact_kind",
+                "capture_control",
+                "artifact_count",
+                "matching_provider_artifact_count",
+                "artifact_kind_recorded_count",
+                "artifact_kind_recorded_backend_count",
+                "artifact_kind_recorded_backend_ids",
+                "report_section",
+                "boundary_status",
+                "producer_status",
+                "producer_contract",
+                "payload_record_policy",
+                "payload_sensitivity",
+                "claim_boundary",
+                "next_action",
+            ),
+        ),
+        "provider_payload_boundary_recorded_samples": _trace_report_samples(
+            provider_payload_recorded_rows,
+            (
+                "provider_id",
+                "payload_lane",
+                "capture_status",
+                "capture_capability",
+                "artifact_kind",
+                "capture_control",
+                "artifact_count",
+                "matching_provider_artifact_count",
+                "artifact_kind_recorded_count",
+                "artifact_kind_recorded_backend_count",
+                "artifact_kind_recorded_backend_ids",
+                "report_section",
+                "boundary_status",
+                "producer_status",
+                "producer_contract",
+                "payload_record_policy",
+                "payload_sensitivity",
+                "claim_boundary",
+                "next_action",
+            ),
+        ),
+        "backend_event_artifact_samples": _trace_report_samples(
+            backend_event_artifact_rows,
+            (
+                "index",
+                "path",
+                "sha256",
+                "row_count",
+                "matching_trace_run_id_rows",
+                "event_kinds",
+                "status",
+            ),
+        ),
+        "backend_event_samples": _trace_report_samples(
+            backend_event_rows,
+            (
+                "artifact_index",
+                "row_index",
+                "timestamp_ns",
+                "backend_id",
+                "event_kind",
+                "model_id",
+                "request_id",
+                "generation_id",
+                "targetplan_op_id",
+                "artifact",
+                "message",
+                "metadata_keys",
+            ),
+        ),
+        "backend_provider_boundary_samples": _trace_report_samples(
+            backend_provider_boundary_rows,
+            (
+                "artifact_index",
+                "row_index",
+                "timestamp_ns",
+                "backend_id",
+                "event_kind",
+                "provider_stage",
+                "boundary_status",
+                "root_cause_stage",
+                "root_cause",
+                "model_id",
+                "request_id",
+                "generation_id",
+                "targetplan_op_id",
+                "failure_reason",
+                "message",
+                "plan_artifact_status",
+                "target_plan_artifact_status",
+                "target_plan_validation_status",
+                "runtime_binding_status",
+                "backend_descriptor_status",
+                "hardware_gate_status",
+                "device_binding_status",
+                "weight_policy_status",
+                "scheduler_targetplan_execution_step_bridge_status",
+            ),
+        ),
+        "backend_fail_closed_root_cause_samples": _trace_report_samples(
+            backend_fail_closed_root_cause_rows,
+            (
+                "backend_id",
+                "provider_stage",
+                "root_cause_stage",
+                "root_cause",
+                "event_kind",
+                "failure_count",
+                "example_model_id",
+                "example_request_id",
+                "example_generation_id",
+                "example_targetplan_op_id",
+                "example_failure_reason",
+            ),
+        ),
+        "debug_payload_artifact_summary_samples": _trace_report_samples(
+            debug_payload_artifact_summary_rows,
+            (
+                "artifact_kind",
+                "payload_summary_status",
+                "row_count",
+                "byte_count",
+                "sampling_policy",
+                "token_window",
+                "sensitivity",
+                "compile_features",
+                "report_section",
+                "debug_payload_boundary",
+                "claim_boundary",
+            ),
+        ),
+        "token_quality_summary_samples": _trace_report_samples(
+            token_quality_summary_rows,
+            (
+                "status",
+                "evidence_role",
+                "request_id",
+                "generation_id",
+                "token_index",
+                "selected_token_id",
+                "selected_topk_status",
+                "score_kind",
+                "top1_token_id",
+                "top1_score",
+                "runner_up_token_id",
+                "runner_up_score",
+                "top1_margin",
+                "temperature",
+                "top_p",
+                "top_k",
+                "num_logprobs",
+                "tokens_reused",
+                "runtime_request_token_count",
+                "oracle_reference",
+                "oracle_artifact_sha256",
+                "claim_boundary",
+            ),
+        ),
+        "oracle_reference_summary_samples": _trace_report_samples(
+            oracle_reference_summary_rows,
+            (
+                "status",
+                "evidence_role",
+                "request_id",
+                "generation_id",
+                "token_index",
+                "selected_token_id",
+                "oracle_reference_role",
+                "hf_cpu_oracle_artifact_path",
+                "hf_cpu_oracle_sha256",
+                "expected_oracle_source",
+                "oracle_reference_status",
+                "sut_classification",
+                "correctness_claim_status",
+                "claim_boundary",
+            ),
+        ),
+        "planning_decision_sidecar_samples": _trace_report_samples(
+            planning_decision_sidecar_rows,
+            (
+                "row_kind",
+                "status",
+                "process_kind",
+                "frontend",
+                "target_backend",
+                "selection_source",
+                "source",
+                "logical_command",
+                "dispatch_command",
+                "runner_count",
+                "exit_code",
+                "duration_us",
+                "artifact_role",
+                "artifact_kind",
+                "artifact_path",
+                "artifact_sha256",
+                "artifact_byte_count",
+                "planning_phase",
+                "event_name",
+                "category",
+                "start_ms",
+                "duration_ms",
+                "planning_output_bytes",
+                "targetplan_op_count",
+                "claim_boundary",
+            ),
+        ),
+        "token_quality_sidecar_samples": _trace_report_samples(
+            token_quality_sidecar_rows,
+            (
+                "status",
+                "evidence_role",
+                "request_id",
+                "generation_id",
+                "token_index",
+                "selected_token_id",
+                "topk_count",
+                "temperature",
+                "top_p",
+                "top_k",
+                "eos_policy",
+                "finish_reason",
+                "oracle_reference",
+            ),
+        ),
+        "topk_token_sidecar_samples": _trace_report_samples(
+            topk_token_sidecar_rows,
+            (
+                "status",
+                "evidence_role",
+                "request_id",
+                "generation_id",
+                "token_index",
+                "selected_token_id",
+                "candidate_token_id",
+                "candidate_rank",
+                "candidate_score",
+                "score_kind",
+                "selected_candidate_status",
+                "temperature",
+                "top_p",
+                "top_k",
+                "oracle_reference",
+                "claim_boundary",
+            ),
+        ),
+        "tensor_payload_sidecar_samples": _trace_report_samples(
+            tensor_payload_sidecar_rows,
+            (
+                "status",
+                "evidence_role",
+                "backend_id",
+                "request_id",
+                "generation_id",
+                "token_index",
+                "targetplan_op_id",
+                "targetplan_action",
+                "target_plan_statement_index",
+                "target_plan_statement_kind",
+                "target_plan_statement_name",
+                "layer",
+                "tensor_payload_kind",
+                "tensor_name",
+                "tensor_role",
+                "element_type",
+                "shape",
+                "element_count",
+                "digest_sha256",
+                "sample_value_count",
+                "sample_finite_count",
+                "sample_min",
+                "sample_max",
+                "sample_nan_count",
+                "sample_pos_inf_count",
+                "sample_neg_inf_count",
+                "sample_values",
+                "failure_reason",
+            ),
+        ),
+        "kv_payload_digest_sidecar_samples": _trace_report_samples(
+            kv_payload_digest_sidecar_rows,
+            (
+                "status",
+                "evidence_role",
+                "backend_id",
+                "request_id",
+                "generation_id",
+                "token_index",
+                "targetplan_op_id",
+                "targetplan_action",
+                "target_plan_statement_index",
+                "target_plan_statement_kind",
+                "target_plan_statement_name",
+                "layer",
+                "tensor_payload_kind",
+                "tensor_name",
+                "tensor_role",
+                "element_type",
+                "shape",
+                "element_count",
+                "digest_sha256",
+                "sample_value_count",
+                "sample_finite_count",
+                "sample_min",
+                "sample_max",
+                "sample_nan_count",
+                "sample_pos_inf_count",
+                "sample_neg_inf_count",
+                "sample_values",
+                "failure_reason",
+            ),
+        ),
+        "logit_slice_sidecar_samples": _trace_report_samples(
+            logit_slice_sidecar_rows,
+            (
+                "status",
+                "evidence_role",
+                "backend_id",
+                "request_id",
+                "generation_id",
+                "token_index",
+                "targetplan_op_id",
+                "targetplan_action",
+                "target_plan_statement_index",
+                "target_plan_statement_kind",
+                "target_plan_statement_name",
+                "layer",
+                "intrinsic",
+                "tensor_payload_kind",
+                "tensor_name",
+                "tensor_role",
+                "element_type",
+                "shape",
+                "element_count",
+                "digest_sha256",
+                "sample_start",
+                "sample_stride",
+                "sample_value_count",
+                "sample_finite_count",
+                "sample_min",
+                "sample_max",
+                "sample_nan_count",
+                "sample_pos_inf_count",
+                "sample_neg_inf_count",
+                "sample_values",
+                "failure_reason",
+            ),
+        ),
+        "activation_digest_sidecar_samples": _trace_report_samples(
+            activation_digest_sidecar_rows,
+            (
+                "status",
+                "evidence_role",
+                "backend_id",
+                "request_id",
+                "generation_id",
+                "token_index",
+                "targetplan_op_id",
+                "targetplan_action",
+                "target_plan_statement_index",
+                "target_plan_statement_kind",
+                "target_plan_statement_name",
+                "layer",
+                "intrinsic",
+                "tensor_payload_kind",
+                "tensor_name",
+                "tensor_role",
+                "element_type",
+                "shape",
+                "element_count",
+                "digest_sha256",
+                "sample_start",
+                "sample_stride",
+                "sample_value_count",
+                "sample_finite_count",
+                "sample_min",
+                "sample_max",
+                "sample_nan_count",
+                "sample_pos_inf_count",
+                "sample_neg_inf_count",
+                "sample_values",
+                "failure_reason",
+            ),
+        ),
+        "device_result_digest_sidecar_samples": _trace_report_samples(
+            device_result_digest_sidecar_rows,
+            (
+                "status",
+                "evidence_role",
+                "backend_id",
+                "request_id",
+                "generation_id",
+                "token_index",
+                "targetplan_op_id",
+                "targetplan_action",
+                "target_plan_statement_index",
+                "target_plan_statement_kind",
+                "target_plan_statement_name",
+                "layer",
+                "intrinsic",
+                "tensor_payload_kind",
+                "tensor_name",
+                "tensor_role",
+                "element_type",
+                "shape",
+                "element_count",
+                "digest_sha256",
+                "sample_start",
+                "sample_stride",
+                "sample_value_count",
+                "sample_finite_count",
+                "sample_min",
+                "sample_max",
+                "sample_nan_count",
+                "sample_pos_inf_count",
+                "sample_neg_inf_count",
+                "sample_values",
+                "failure_reason",
+            ),
+        ),
+        "scheduler_packet_lineage_sidecar_samples": _trace_report_samples(
+            scheduler_packet_lineage_sidecar_rows,
+            (
+                "status",
+                "evidence_role",
+                "request_id",
+                "generation_id",
+                "location_id",
+                "parent_location_id",
+                "executor_shape",
+                "executor_status",
+                "attention_mode",
+                "token_job_count",
+                "runtime_request_token_count",
+                "tokens_reused",
+                "visible_token_slots",
+                "kv_context_rows",
+                "kv_save_rows",
+                "kv_page_count",
+                "hw_shard_allocation_requests",
+                "hw_gof_page_infos",
+                "prior_host_gof_staging_status",
+                "prior_host_gof_dma_completions",
+                "listener_sparse_rows",
+                "listener_sparse_tokens",
+                "failure_reason",
+            ),
+        ),
+        "scheduler_kv_shard_lifecycle_sidecar_samples": _trace_report_samples(
+            scheduler_kv_shard_lifecycle_sidecar_rows,
+            (
+                "status",
+                "evidence_role",
+                "request_id",
+                "generation_id",
+                "location_id",
+                "parent_location_id",
+                "executor_shape",
+                "executor_status",
+                "attention_mode",
+                "kv_lifecycle_status",
+                "token_job_count",
+                "kv_job_count",
+                "runtime_request_token_count",
+                "visible_token_slots",
+                "kv_context_rows",
+                "kv_save_rows",
+                "kv_page_count",
+                "hw_shard_allocation_requests",
+                "hw_gof_page_infos",
+                "prior_host_gof_staging_status",
+                "prior_host_gof_dma_completions",
+                "failure_reason",
+            ),
+        ),
+        "scheduler_listener_sparse_logit_sidecar_samples": _trace_report_samples(
+            scheduler_listener_sparse_logit_sidecar_rows,
+            (
+                "status",
+                "listener_sparse_status",
+                "evidence_role",
+                "request_id",
+                "generation_id",
+                "location_id",
+                "executor_shape",
+                "executor_status",
+                "attention_mode",
+                "listener_sparse_rows",
+                "listener_sparse_tokens",
+                "sparse_topk_rows",
+                "sparse_topk_token_count",
+                "token_job_count",
+                "minibatch_count",
+                "runtime_request_token_count",
+                "tokens_reused",
+                "failure_reason",
+            ),
+        ),
+        "device_dma_lifecycle_sidecar_samples": _trace_report_samples(
+            device_dma_lifecycle_sidecar_rows,
+            (
+                "status",
+                "evidence_role",
+                "backend_id",
+                "request_id",
+                "generation_id",
+                "targetplan_op_id",
+                "targetplan_action",
+                "location_id",
+                "device_stage",
+                "queue_id",
+                "device_index",
+                "card_bus",
+                "dma_direction",
+                "descriptor_count",
+                "byte_count",
+                "counter_name",
+                "counter_value_delta",
+                "cacheblock_dma_shard_id",
+                "cacheblock_dma_gof_start_in_shard",
+                "cacheblock_dma_k_transfer_count",
+                "cacheblock_dma_v_transfer_count",
+                "cacheblock_dma_transfer_byte_count",
+                "cacheblock_gof_start_position",
+                "cacheblock_k_word_checksum",
+                "cacheblock_v_word_checksum",
+                "queue_depth_before",
+                "queue_depth_after",
+                "failure_reason",
+            ),
+        ),
+        "attention_page_trace_sidecar_samples": _trace_report_samples(
+            attention_page_trace_sidecar_rows,
+            (
+                "status",
+                "evidence_role",
+                "backend_id",
+                "request_id",
+                "generation_id",
+                "targetplan_op_id",
+                "targetplan_action",
+                "layer",
+                "head",
+                "kv_head",
+                "attention_row_index",
+                "batch",
+                "visible_tokens",
+                "page_start",
+                "page_count",
+                "page_v_count",
+                "scaled_score_count",
+                "exp_score_count",
+                "v_star_count",
+                "m_star",
+                "s_star",
+                "was_valid",
+                "failure_reason",
+            ),
+        ),
+        "introspection_capability_samples": _trace_report_samples(
+            introspection_capability_rows,
+            (
+                "capture_capability",
+                "capability_status",
+                "matching_artifact_count",
+                "claim_boundary",
+                "next_action",
+            ),
+        ),
+        "introspection_artifact_samples": _trace_report_samples(
+            introspection_artifact_rows,
+            (
+                "index",
+                "kind",
+                "artifact_kind",
+                "path",
+                "sha256",
+                "status",
+                "row_count",
+                "byte_count",
+                "token_window",
+                "sampling_policy",
+                "sensitivity",
+                "compile_features",
+            ),
+            limit=16,
+        ),
+        "introspection_artifact_summary_samples": _trace_report_samples(
+            introspection_artifact_summary_rows,
+            (
+                "artifact_kind",
+                "summary_status",
+                "artifact_count",
+                "local_present_count",
+                "local_missing_count",
+                "local_missing_path_count",
+                "row_count_total",
+                "report_sections",
+                "claim_boundaries",
+            ),
+        ),
+        "introspection_section_inventory_samples": _trace_report_samples(
+            introspection_section_inventory_rows,
+            (
+                "capture_capability",
+                "artifact_kind",
+                "heading",
+                "json_section",
+                "capability_present",
+                "artifact_count",
+                "section_status",
+                "claim_boundary",
+            ),
+            limit=16,
+        ),
+        "timeline_query_summary_samples": _trace_report_samples(
+            timeline_query_summary_rows,
+            (
+                "section",
+                "query",
+                "row_count",
+                "rendered_rows",
+                "native_sql",
+                "status",
+                "portable_command",
+                "native_sql_command",
+            ),
+        ),
+    }
+    return _validation(not errors, errors, detail)
+
+
 def _sha256_file(path: Path) -> str:
   digest = hashlib.sha256()
   with path.open("rb") as handle:
@@ -1729,6 +3920,257 @@ def _validate_model_provenance(
   return model_id if isinstance(model_id, str) and model_id.strip() else None
 
 
+def _validate_introspection_trace_context(
+    errors: list[str],
+    trace_context: Mapping[str, Any],
+    base_dir: Path | None,
+) -> None:
+    for field in ("autoagent_run_id", "request_id"):
+        if field in trace_context:
+            _require_non_empty_string(
+                errors,
+                trace_context.get(field),
+                f"trace_context.{field}",
+            )
+    labels = trace_context.get("trace_labels")
+    if labels is not None:
+        if not isinstance(labels, list):
+            errors.append("trace_context.trace_labels must be a list")
+        else:
+            for index, label in enumerate(labels):
+                _require_non_empty_string(
+                    errors,
+                    label,
+                    f"trace_context.trace_labels[{index}]",
+                )
+    for field in INTROSPECTION_TRACE_ARTIFACT_FIELDS:
+        refs = trace_context.get(field)
+        if refs is None:
+            continue
+        if not isinstance(refs, list):
+            errors.append(f"trace_context.{field} must be a list")
+            continue
+        if not refs:
+            errors.append(f"trace_context.{field} must not be empty when present")
+            continue
+        for index, ref in enumerate(refs):
+            _validate_introspection_trace_artifact_ref(
+                errors,
+                ref,
+                base_dir,
+                f"trace_context.{field}[{index}]",
+            )
+
+
+def _validate_introspection_trace_artifact_ref(
+    errors: list[str],
+    value: Any,
+    base_dir: Path | None,
+    label: str,
+) -> None:
+    if not isinstance(value, Mapping):
+        errors.append(f"{label} must be an object")
+        return
+    _require_non_empty_string(errors, value.get("path"), f"{label}.path")
+    _require_introspection_sha256(errors, value.get("sha256"), f"{label}.sha256")
+    for field in ("schema", "role", "profile"):
+        if field in value:
+            _require_non_empty_string(errors, value.get(field), f"{label}.{field}")
+    if "path" in value and "sha256" in value:
+        _validate_referenced_introspection_sha256(errors, value, base_dir, label)
+
+
+def _introspection_trace_context_detail(value: Mapping[str, Any]) -> dict[str, Any]:
+    detail: dict[str, Any] = {}
+    for field in ("autoagent_run_id", "request_id"):
+        item = value.get(field)
+        if isinstance(item, str) and item:
+            detail[field] = item
+    labels = value.get("trace_labels")
+    if isinstance(labels, list):
+        detail["trace_labels"] = [
+            label for label in labels if isinstance(label, str) and label
+        ]
+    for field in INTROSPECTION_TRACE_ARTIFACT_FIELDS:
+        refs = value.get(field)
+        if not isinstance(refs, list):
+            continue
+        normalized_refs = []
+        for ref in refs:
+            if not isinstance(ref, Mapping):
+                continue
+            normalized_ref: dict[str, Any] = {}
+            path = ref.get("path")
+            if isinstance(path, str) and path:
+                normalized_ref["path"] = path
+            digest = _normalize_introspection_sha256(ref.get("sha256"))
+            if digest is not None:
+                normalized_ref["sha256"] = f"sha256:{digest}"
+            for metadata_field in ("schema", "role", "profile"):
+                item = ref.get(metadata_field)
+                if isinstance(item, str) and item:
+                    normalized_ref[metadata_field] = item
+            if normalized_ref:
+                normalized_refs.append(normalized_ref)
+        if normalized_refs:
+            detail[field] = normalized_refs
+    return detail
+
+
+def _introspection_ladder_comparison_details(value: Any) -> list[dict[str, Any]]:
+    if not isinstance(value, list):
+        return []
+    return [
+        detail
+        for detail in (
+            _introspection_ladder_comparison_detail(comparison)
+            for comparison in value[:INTROSPECTION_COMPARISON_DETAIL_LIMIT]
+        )
+        if detail
+    ]
+
+
+def _introspection_first_failed_comparison_detail(value: Any) -> dict[str, Any] | None:
+    if not isinstance(value, list):
+        return None
+    for comparison in value:
+        if not isinstance(comparison, Mapping):
+            continue
+        if (
+            comparison.get("status") == "failed"
+            or comparison.get("result") == "diverged"
+        ):
+            return _introspection_ladder_comparison_detail(comparison)
+    return None
+
+
+def _introspection_ladder_comparison_detail(value: Any) -> dict[str, Any]:
+    if not isinstance(value, Mapping):
+        return {}
+    detail: dict[str, Any] = {}
+    for field in ("from_stage", "to_stage", "status", "result", "path"):
+        item = value.get(field)
+        if isinstance(item, str) and item:
+            detail[field] = item
+    digest = _normalize_introspection_sha256(value.get("sha256"))
+    if digest is not None:
+        detail["sha256"] = f"sha256:{digest}"
+    mismatch = value.get("first_mismatch")
+    if isinstance(mismatch, Mapping):
+        mismatch_detail = _introspection_first_mismatch_detail(mismatch)
+        if mismatch_detail:
+            detail["first_mismatch"] = mismatch_detail
+    return detail
+
+
+def _introspection_first_mismatch_detail(value: Mapping[str, Any]) -> dict[str, Any]:
+    detail: dict[str, Any] = {}
+    for field in INTROSPECTION_FIRST_MISMATCH_SCALAR_FIELDS:
+        item = value.get(field)
+        if _is_json_scalar(item):
+            detail[field] = item
+    return detail
+
+
+def _is_json_scalar(value: Any) -> bool:
+    if isinstance(value, str):
+        return bool(value)
+    if isinstance(value, bool):
+        return True
+    if isinstance(value, int):
+        return True
+    if isinstance(value, float):
+        return math.isfinite(value)
+    return False
+
+
+def _validate_introspection_comparison_ref(
+    errors: list[str],
+    value: Any,
+    base_dir: Path | None,
+    label: str,
+) -> None:
+    if not isinstance(value, Mapping):
+        errors.append(f"{label} must be an object")
+        return
+    if value.get("schema") != "ares.introspection.compare.v1":
+        errors.append(f"{label}.schema must be ares.introspection.compare.v1")
+    for field in ("from_stage", "to_stage"):
+        stage = value.get(field)
+        if not isinstance(stage, str) or stage not in INTROSPECTION_STAGES:
+            errors.append(f"{label}.{field} must be a known ladder stage")
+    status = value.get("status")
+    result = value.get("result")
+    if status not in {"passed", "failed"}:
+        errors.append(f"{label}.status must be passed or failed")
+    if status == "passed" and result != "matches":
+        errors.append(f"{label}.result must be matches when status is passed")
+    if status == "failed":
+        if result != "diverged":
+            errors.append(f"{label}.result must be diverged when status is failed")
+        mismatch = value.get("first_mismatch")
+        if not isinstance(mismatch, Mapping):
+            errors.append(f"{label}.first_mismatch must identify the divergence")
+        else:
+            _require_non_empty_string(
+                errors,
+                mismatch.get("id"),
+                f"{label}.first_mismatch.id",
+            )
+    _validate_introspection_artifact_ref(
+        errors,
+        value,
+        base_dir,
+        label,
+        expected_schema="ares.introspection.compare.v1",
+    )
+
+
+def _validate_introspection_artifact_ref(
+    errors: list[str],
+    value: Any,
+    base_dir: Path | None,
+    label: str,
+    *,
+    expected_schema: str,
+    verify_path: bool = True,
+) -> None:
+    if not isinstance(value, Mapping):
+        errors.append(f"{label} must be an object")
+        return
+    if value.get("schema") != expected_schema:
+        errors.append(f"{label}.schema must be {expected_schema}")
+    _require_introspection_sha256(errors, value.get("sha256"), f"{label}.sha256")
+    if verify_path and "path" in value:
+        _validate_referenced_introspection_sha256(errors, value, base_dir, label)
+
+
+def _validate_referenced_introspection_sha256(
+    errors: list[str],
+    value: Mapping[str, Any],
+    base_dir: Path | None,
+    label: str,
+) -> None:
+    if base_dir is None:
+        errors.append(
+            f"{label}.sha256 cannot be verified without evidence path context"
+        )
+        return
+    path_value = value.get("path")
+    digest_value = _normalize_introspection_sha256(value.get("sha256"))
+    if not isinstance(path_value, str) or digest_value is None:
+        return
+    path = Path(path_value)
+    if not path.is_absolute():
+        path = base_dir / path
+    if not path.is_file():
+        errors.append(f"{label}.path does not exist: {path}")
+        return
+    actual = _sha256_file(path)
+    if actual != digest_value:
+        errors.append(f"{label}.sha256 does not match referenced file")
+
+
 def _token_result_generated_count(payload: Mapping[str, Any]) -> int | None:
   explicit = payload.get("generated_tokens", payload.get("generated_token_count"))
   if isinstance(explicit, int):
@@ -1764,6 +4206,230 @@ def _validation(
   detail: dict[str, Any],
 ) -> ArtifactValidation:
   return ArtifactValidation(passed=passed, errors=tuple(errors), detail=detail)
+
+
+def _trace_report_section_rows(
+    errors: list[str],
+    sections: Mapping[str, Any],
+    name: str,
+    *,
+    required: bool = True,
+) -> list[dict[str, Any]]:
+    rows = sections.get(name)
+    if rows is None and not required:
+        return []
+    if not isinstance(rows, list):
+        errors.append(f"trace report sections.{name} must be a list")
+        return []
+    typed_rows: list[dict[str, Any]] = []
+    for index, row in enumerate(rows):
+        if isinstance(row, dict):
+            typed_rows.append(row)
+        else:
+            errors.append(f"trace report sections.{name}[{index}] must be an object")
+    return typed_rows
+
+
+def _validate_trace_report_triage_rows(
+    errors: list[str],
+    rows: list[dict[str, Any]],
+) -> None:
+    if not rows:
+        errors.append(
+            "trace report sections.report_triage must contain at least one row"
+        )
+        return
+    for index, row in enumerate(rows):
+        context = f"trace report sections.report_triage[{index}]"
+        _require_fields(errors, row, TRACE_REPORT_TRIAGE_REQUIRED_FIELDS, context)
+        for field in TRACE_REPORT_TRIAGE_REQUIRED_FIELDS:
+            if field in row and not isinstance(row.get(field), str):
+                errors.append(f"{context}.{field} must be a string")
+
+        triage_status = row.get("triage_status")
+        if isinstance(triage_status, str) and (
+            triage_status not in TRACE_REPORT_TRIAGE_STATUSES
+        ):
+            errors.append(
+                f"{context}.triage_status must be one of: "
+                + ", ".join(sorted(TRACE_REPORT_TRIAGE_STATUSES))
+            )
+
+        report_grade = row.get("report_grade")
+        if isinstance(report_grade, str) and report_grade not in TRACE_REPORT_GRADES:
+            errors.append(
+                f"{context}.report_grade must be one of: "
+                + ", ".join(sorted(TRACE_REPORT_GRADES))
+            )
+
+        proof_grade_status = row.get("proof_grade_status")
+        if (
+            isinstance(proof_grade_status, str)
+            and proof_grade_status != "not_established_by_report"
+        ):
+            errors.append(
+                f"{context}.proof_grade_status must be not_established_by_report"
+            )
+
+        first_useful_section = row.get("first_useful_section")
+        if isinstance(first_useful_section, str):
+            if re.fullmatch(r"sections\.[a-z0-9_]+", first_useful_section) is None:
+                errors.append(
+                    f"{context}.first_useful_section must match sections.<name>"
+                )
+
+        first_action = row.get("first_action")
+        if isinstance(first_action, str) and not first_action.strip():
+            errors.append(f"{context}.first_action must be a non-empty string")
+
+        claim_boundary = row.get("claim_boundary")
+        if (
+            isinstance(claim_boundary, str)
+            and claim_boundary != "diagnostic_routing_not_evidence"
+        ):
+            errors.append(
+                f"{context}.claim_boundary must be diagnostic_routing_not_evidence"
+            )
+
+
+def _trace_report_string_rows(
+    errors: list[str],
+    sections: Mapping[str, Any],
+    name: str,
+    *,
+    required: bool = True,
+) -> list[str]:
+    rows = sections.get(name)
+    if rows is None and not required:
+        return []
+    if not isinstance(rows, list):
+        errors.append(f"trace report sections.{name} must be a list")
+        return []
+    typed_rows: list[str] = []
+    for index, row in enumerate(rows):
+        if isinstance(row, str):
+            typed_rows.append(row)
+        else:
+            errors.append(f"trace report sections.{name}[{index}] must be a string")
+    return typed_rows
+
+
+def _trace_report_value_counts(
+    rows: list[dict[str, Any]],
+    key: str,
+) -> dict[str, int]:
+    counts: dict[str, int] = {}
+    for row in rows:
+        value = row.get(key)
+        if isinstance(value, str) and value:
+            counts[value] = counts.get(value, 0) + 1
+        elif isinstance(value, (int, float, bool)):
+            label = str(value)
+            counts[label] = counts.get(label, 0) + 1
+    return dict(sorted(counts.items()))
+
+
+def _trace_report_comma_value_counts(
+    rows: list[dict[str, Any]],
+    key: str,
+) -> dict[str, int]:
+    counts: dict[str, int] = {}
+    for row in rows:
+        value = row.get(key)
+        if not isinstance(value, str):
+            continue
+        for item in value.split(","):
+            item = item.strip()
+            if item:
+                counts[item] = counts.get(item, 0) + 1
+    return dict(sorted(counts.items()))
+
+
+def _trace_report_int(value: Any) -> int:
+    if isinstance(value, int):
+        return value
+    if isinstance(value, str):
+        try:
+            return int(value)
+        except ValueError:
+            return 0
+    return 0
+
+
+def _trace_report_optional_count(errors: list[str], value: Any, label: str) -> int:
+    if value is None or value == "":
+        return 0
+    if isinstance(value, bool):
+        errors.append(f"{label} must be a non-negative integer")
+        return 0
+    if isinstance(value, int):
+        if value < 0:
+            errors.append(f"{label} must be a non-negative integer")
+            return 0
+        return value
+    if isinstance(value, str):
+        try:
+            parsed = int(value)
+        except ValueError:
+            errors.append(f"{label} must be a non-negative integer")
+            return 0
+        if parsed < 0:
+            errors.append(f"{label} must be a non-negative integer")
+            return 0
+        return parsed
+    errors.append(f"{label} must be a non-negative integer")
+    return 0
+
+
+def _trace_report_samples(
+    rows: list[dict[str, Any]],
+    keys: tuple[str, ...],
+    *,
+    limit: int = 3,
+) -> list[dict[str, str]]:
+    samples: list[dict[str, str]] = []
+    for row in rows[:limit]:
+        sample: dict[str, str] = {}
+        for key in keys:
+            value = row.get(key)
+            if isinstance(value, str) and value.strip():
+                sample[key] = value.strip()
+            elif isinstance(value, (int, float, bool)):
+                sample[key] = str(value)
+        if sample:
+            samples.append(sample)
+    return samples
+
+
+def _trace_report_string_samples(rows: list[str], *, limit: int = 3) -> list[str]:
+    return [row.strip() for row in rows[:limit] if row.strip()]
+
+
+def _trace_report_string_prefix_counts(rows: list[str]) -> dict[str, int]:
+    counts: dict[str, int] = {}
+    for row in rows:
+        text = row.strip()
+        if not text:
+            continue
+        prefix, separator, _ = text.partition(":")
+        label = prefix.strip() if separator and prefix.strip() else "other"
+        counts[label] = counts.get(label, 0) + 1
+    return dict(sorted(counts.items()))
+
+
+def _trace_report_provider_payload_lanes(rows: list[dict[str, Any]]) -> list[str]:
+    lanes: set[str] = set()
+    for row in rows:
+        provider_id = row.get("provider_id")
+        payload_lane = row.get("payload_lane")
+        if (
+            isinstance(provider_id, str)
+            and provider_id.strip()
+            and isinstance(payload_lane, str)
+            and payload_lane.strip()
+        ):
+            lanes.add(f"{provider_id.strip()}/{payload_lane.strip()}")
+    return sorted(lanes)
 
 
 def _read_json_or_jsonl(path: Path) -> Any:
@@ -1862,6 +4528,24 @@ def _event_name(row: dict[str, Any]) -> str | None:
 def _require_sha256(errors: list[str], value: Any, label: str) -> None:
   if not isinstance(value, str) or SHA256_RE.fullmatch(value) is None:
     errors.append(f"{label} SHA-256 must be a 64-character hex string")
+
+
+def _require_introspection_sha256(
+    errors: list[str],
+    value: Any,
+    label: str,
+) -> None:
+    if _normalize_introspection_sha256(value) is None:
+        errors.append(f"{label} must be a SHA-256 hex string or sha256:<hex> digest")
+
+
+def _normalize_introspection_sha256(value: Any) -> str | None:
+    if not isinstance(value, str):
+        return None
+    digest = value[7:] if value.startswith("sha256:") else value
+    if SHA256_RE.fullmatch(digest) is None:
+        return None
+    return digest.lower()
 
 
 def _require_git_sha(errors: list[str], value: Any, label: str) -> None:
