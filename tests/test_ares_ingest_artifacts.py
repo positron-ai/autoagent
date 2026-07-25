@@ -2,11 +2,13 @@ from __future__ import annotations
 
 import json
 import hashlib
+import shutil
 import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
 from ares_ingest_autoagent.artifacts import (
+    SCHEDULER_REPORT_COMMON_FIELDS,
     artifact_consistency_gate,
     backend_open_gate,
     build_greedy_token_evidence,
@@ -26,6 +28,7 @@ SHA_A = "a" * 64
 SHA_B = "b" * 64
 SHA_C = "c" * 64
 FIXTURE_DIR = Path(__file__).resolve().parent / "fixtures"
+ARES_REPO_ROOT = Path(__file__).resolve().parents[3]
 
 
 def sha256_file(path: Path) -> str:
@@ -37,6 +40,25 @@ def sha256_file(path: Path) -> str:
 def write_json_artifact(path: Path, payload: dict) -> dict[str, str]:
   path.write_text(json.dumps(payload, sort_keys=True) + "\n")
   return {"path": path.name, "sha256": sha256_file(path)}
+
+
+def write_bound_trace_report(root: Path, payload: dict[str, object]) -> Path:
+  path = root / "trace-report.json"
+  path.write_text(json.dumps(payload))
+  shutil.copytree(
+    FIXTURE_DIR / "ares_trace_report_introspection_real",
+    root / "ares_trace_report_introspection_real",
+  )
+  return path
+
+
+def missing_scheduler_lineage_report_row() -> dict[str, object]:
+  row: dict[str, object] = {
+    field: "" for field in SCHEDULER_REPORT_COMMON_FIELDS
+  }
+  row["artifact_index"] = 0
+  row["status"] = "missing_sidecar"
+  return row
 
 
 def file_record(path: Path, rows: int | None = None) -> dict[str, object]:
@@ -1641,7 +1663,7 @@ class AresIngestArtifactTest(unittest.TestCase):
           path.write_text(
               json.dumps(
                   {
-                      "schema_version": 1,
+                      "schema_version": 2,
                       "title": "Synthetic Ares Trace Report",
                       "summary": "diagnostic trace report",
                       "inputs": {
@@ -2774,36 +2796,7 @@ class AresIngestArtifactTest(unittest.TestCase):
                               }
                           ],
                           "scheduler_packet_lineage_sidecar_rows": [
-                              {
-                                  "status": "ok",
-                                  "evidence_role": "system_under_test",
-                                  "request_id": "7002",
-                                  "generation_id": "rinzler-7002",
-                                  "location_id": "4",
-                                  "parent_location_id": "3",
-                                  "executor_shape": (
-                                      "fullscheduler_forward_batch_v1"
-                                  ),
-                                  "executor_status": (
-                                      "executed_fullscheduler_forward_batch_v1"
-                                  ),
-                                  "attention_mode": "software_attention",
-                                  "token_job_count": "2",
-                                  "runtime_request_token_count": "2",
-                                  "tokens_reused": "5",
-                                  "visible_token_slots": "2",
-                                  "kv_context_rows": "64",
-                                  "kv_save_rows": "64",
-                                  "kv_page_count": "1",
-                                  "hw_shard_allocation_requests": "1",
-                                  "hw_gof_page_infos": "1",
-                                  "prior_host_gof_staging_status": (
-                                      "page_info_published"
-                                  ),
-                                  "prior_host_gof_dma_completions": "1",
-                                  "listener_sparse_rows": "1",
-                                  "listener_sparse_tokens": "3",
-                              }
+                              missing_scheduler_lineage_report_row()
                           ],
                           "scheduler_kv_shard_lifecycle_sidecar_rows": [
                               {
@@ -3100,7 +3093,7 @@ class AresIngestArtifactTest(unittest.TestCase):
 
           gate = trace_report_gate(path)
 
-          self.assertTrue(gate["passed"])
+          self.assertTrue(gate["passed"], gate.get("errors"))
           self.assertEqual(gate["artifact_validator"], "trace_report")
           self.assertEqual(gate["detail"]["report_grade"], "diagnostic")
           self.assertEqual(
@@ -3509,11 +3502,11 @@ class AresIngestArtifactTest(unittest.TestCase):
           )
           self.assertEqual(
               gate["detail"]["scheduler_packet_lineage_sidecar_status_counts"],
-              {"ok": 1},
+              {"missing_sidecar": 1},
           )
           self.assertEqual(
               gate["detail"]["scheduler_packet_lineage_sidecar_executor_counts"],
-              {"executed_fullscheduler_forward_batch_v1": 1},
+              {},
           )
           self.assertEqual(
               gate["detail"]["scheduler_kv_shard_lifecycle_sidecar_status_counts"],
@@ -3870,15 +3863,9 @@ class AresIngestArtifactTest(unittest.TestCase):
           )
           self.assertEqual(
               gate["detail"]["scheduler_packet_lineage_sidecar_samples"][0][
-                  "executor_status"
+                  "status"
               ],
-              "executed_fullscheduler_forward_batch_v1",
-          )
-          self.assertEqual(
-              gate["detail"]["scheduler_packet_lineage_sidecar_samples"][0][
-                  "listener_sparse_rows"
-              ],
-              "1",
+              "missing_sidecar",
           )
           self.assertEqual(
               gate["detail"]["scheduler_kv_shard_lifecycle_sidecar_samples"][0][
@@ -3950,8 +3937,9 @@ class AresIngestArtifactTest(unittest.TestCase):
 
   def test_trace_report_gate_accepts_real_ares_trace_report_fixture(self) -> None:
       path = FIXTURE_DIR / "ares_trace_report_introspection_real.json"
+      fixture_payload = json.loads(path.read_text())
 
-      gate = trace_report_gate(path)
+      gate = trace_report_gate(path, authority_root=ARES_REPO_ROOT)
 
       self.assertTrue(gate["passed"], gate.get("errors"))
       self.assertEqual(gate["artifact_validator"], "trace_report")
@@ -3965,7 +3953,7 @@ class AresIngestArtifactTest(unittest.TestCase):
           gate["detail"]["report_grade_promotion_gate"],
       )
       self.assertEqual(gate["detail"]["preflight_status"], "pass")
-      self.assertEqual(gate["detail"]["preflight_ok_count"], 41)
+      self.assertEqual(gate["detail"]["preflight_ok_count"], 45)
       self.assertEqual(gate["detail"]["preflight_warn_count"], 1)
       self.assertEqual(gate["detail"]["preflight_fail_count"], 0)
       self.assertEqual(gate["detail"]["section_count"], 53)
@@ -4049,7 +4037,7 @@ class AresIngestArtifactTest(unittest.TestCase):
       )
       self.assertEqual(
           gate["detail"]["capture_backend_counts"],
-          {"fpga": 1},
+          {},
       )
       self.assertEqual(
           gate["detail"]["capture_trace_mode_counts"],
@@ -4110,7 +4098,7 @@ class AresIngestArtifactTest(unittest.TestCase):
       )
       self.assertEqual(
           gate["detail"]["introspection_artifact_byte_count_total"],
-          60321,
+          61589,
       )
       self.assertEqual(
           gate["detail"]["introspection_artifact_samples"][0]["kind"],
@@ -4320,7 +4308,7 @@ class AresIngestArtifactTest(unittest.TestCase):
       )
       self.assertEqual(
           gate["detail"]["debug_payload_artifact_summary_status_counts"],
-          {"recorded": 1},
+          {"recorded": 5},
       )
       self.assertEqual(
           gate["detail"]["token_quality_summary_status_counts"],
@@ -4349,31 +4337,44 @@ class AresIngestArtifactTest(unittest.TestCase):
       )
       self.assertEqual(
           gate["detail"]["topk_token_sidecar_selected_status_counts"],
-          {"selected_token": 1},
+          {"candidate_only": 1, "selected_token": 1},
       )
       self.assertEqual(
           gate["detail"]["topk_token_sidecar_score_kind_counts"],
-          {"logprob": 1},
+          {"logprob": 2},
       )
       self.assertEqual(
           gate["detail"]["tensor_payload_sidecar_status_counts"],
-          {"ok": 1},
+          {"ok": 6},
       )
       self.assertEqual(
           gate["detail"]["tensor_payload_sidecar_kind_counts"],
-          {"logit_slice": 1},
+          {
+              "activation_digest": 1,
+              "device_result_digest": 1,
+              "kv_payload_digest": 2,
+              "logit_slice": 1,
+              "tensor_payload": 1,
+          },
       )
       self.assertEqual(
           gate["detail"]["tensor_payload_sidecar_role_counts"],
-          {"logits": 1},
+          {
+              "activation": 1,
+              "kv_key": 1,
+              "kv_value": 1,
+              "logits": 1,
+              "provider_device_payload": 1,
+              "scheduler_device_result": 1,
+          },
       )
       self.assertEqual(
           gate["detail"]["kv_payload_digest_sidecar_status_counts"],
-          {"ok": 1},
+          {"ok": 2},
       )
       self.assertEqual(
           gate["detail"]["kv_payload_digest_sidecar_role_counts"],
-          {"kv_key": 1},
+          {"kv_key": 1, "kv_value": 1},
       )
       self.assertEqual(
           gate["detail"]["logit_slice_sidecar_role_counts"],
@@ -4409,7 +4410,18 @@ class AresIngestArtifactTest(unittest.TestCase):
       )
       self.assertEqual(
           gate["detail"]["scheduler_packet_lineage_sidecar_status_counts"],
-          {"ok": 1},
+          {"ok": 1, "present": 3},
+      )
+      self.assertEqual(gate["detail"]["scheduler_packet_lineage_sidecar_count"], 4)
+      scheduler_rows = fixture_payload["sections"][
+          "scheduler_packet_lineage_sidecar_rows"
+      ]
+      self.assertTrue(
+          any(
+              row.get("row_kind") == "generated_state_publication_batch"
+              and row.get("publication_lanes")
+              for row in scheduler_rows
+          )
       )
       self.assertEqual(
           gate["detail"]["scheduler_packet_lineage_sidecar_executor_counts"],
@@ -4435,15 +4447,23 @@ class AresIngestArtifactTest(unittest.TestCase):
       )
       self.assertEqual(
           gate["detail"]["device_dma_lifecycle_sidecar_status_counts"],
-          {"ok": 1},
+          {"deferred": 1, "ok": 2},
       )
       self.assertEqual(
           gate["detail"]["device_dma_lifecycle_sidecar_stage_counts"],
-          {"dma_completion": 1},
+          {
+              "dma_completion": 1,
+              "queue_backpressure": 1,
+              "resident_matmul_execution": 1,
+          },
       )
       self.assertEqual(
           gate["detail"]["device_dma_lifecycle_sidecar_queue_counts"],
-          {"load_weight_q": 1},
+          {
+              "attention_tile_q": 1,
+              "load_weight_q": 1,
+              "resident_matmul_q": 1,
+          },
       )
       self.assertEqual(
           gate["detail"]["attention_page_trace_sidecar_status_counts"],
@@ -4767,6 +4787,299 @@ class AresIngestArtifactTest(unittest.TestCase):
       self.assertIn("device_dma_lifecycle_sidecar_rows", introspection_sections)
       self.assertIn("attention_page_trace_sidecar_rows", introspection_sections)
       self.assertIn("kv_payload_digest_sidecar_rows", introspection_sections)
+
+  def test_trace_report_gate_requires_complete_scheduler_projection(self) -> None:
+      fixture_path = FIXTURE_DIR / "ares_trace_report_introspection_real.json"
+      payload = json.loads(fixture_path.read_text())
+      del payload["sections"]["scheduler_packet_lineage_sidecar_rows"][0]
+
+      with TemporaryDirectory() as tmp:
+          path = write_bound_trace_report(Path(tmp), payload)
+          gate = trace_report_gate(path, authority_root=ARES_REPO_ROOT)
+
+      self.assertFalse(gate["passed"])
+      self.assertIn(
+          "report projection is not complete and contiguous",
+          " ".join(gate["errors"]),
+      )
+
+  def test_trace_report_gate_requires_scheduler_projection_order(self) -> None:
+      fixture_path = FIXTURE_DIR / "ares_trace_report_introspection_real.json"
+      payload = json.loads(fixture_path.read_text())
+      payload["sections"]["scheduler_packet_lineage_sidecar_rows"].reverse()
+
+      with TemporaryDirectory() as tmp:
+          path = write_bound_trace_report(Path(tmp), payload)
+          gate = trace_report_gate(path, authority_root=ARES_REPO_ROOT)
+
+      self.assertFalse(gate["passed"])
+      self.assertIn(
+          "report projection is not complete and contiguous",
+          " ".join(gate["errors"]),
+      )
+
+  def test_trace_report_gate_rejects_coordinated_lean_authority_forgery(
+      self,
+  ) -> None:
+      fixture_path = FIXTURE_DIR / "ares_trace_report_introspection_real.json"
+      payload = json.loads(fixture_path.read_text())
+
+      def forge_legacy_digest(value: object) -> None:
+          if isinstance(value, dict):
+              for key, child in value.items():
+                  if key == "legacy_core_sha256":
+                      value[key] = "0" * 64
+                  else:
+                      forge_legacy_digest(child)
+          elif isinstance(value, list):
+              for child in value:
+                  forge_legacy_digest(child)
+
+      with TemporaryDirectory() as tmp:
+          root = Path(tmp)
+          path = write_bound_trace_report(root, payload)
+          bundle = root / "ares_trace_report_introspection_real"
+          sidecar_path = bundle / "introspection_scheduler_packet_lineage_sidecar.jsonl"
+          raw_rows = [json.loads(line) for line in sidecar_path.read_text().splitlines()]
+          forge_legacy_digest(raw_rows)
+          sidecar_data = "".join(
+              json.dumps(row, sort_keys=True, separators=(",", ":")) + "\n"
+              for row in raw_rows
+          ).encode()
+          sidecar_path.write_bytes(sidecar_data)
+          sidecar_sha = hashlib.sha256(sidecar_data).hexdigest()
+
+          metadata_path = bundle / "trace-meta.json"
+          metadata = json.loads(metadata_path.read_text())
+          artifact = metadata["introspection_artifacts"][1]
+          artifact["sha256"] = sidecar_sha
+          artifact["byte_count"] = len(sidecar_data)
+          metadata_path.write_text(json.dumps(metadata))
+
+          report_rows = payload["sections"]["scheduler_packet_lineage_sidecar_rows"]
+          transport = report_rows[2]
+          transport_source = json.loads(transport["source_authority_json"])
+          forge_legacy_digest(transport_source)
+          transport["source_authority_json"] = json.dumps(
+              transport_source, sort_keys=True, separators=(",", ":")
+          )
+          transport["qualified_rows_sha256"] = hashlib.sha256(
+              json.dumps(
+                  raw_rows[2]["rows"], sort_keys=True, separators=(",", ":")
+              ).encode()
+          ).hexdigest()
+
+          publication = report_rows[3]
+          forge_legacy_digest(publication["publication_lanes"])
+          for lane, raw_lane in zip(
+              publication["publication_lanes"], raw_rows[3]["lanes"], strict=True
+          ):
+              lane["qualified_rows_sha256"] = hashlib.sha256(
+                  json.dumps(
+                      raw_lane["rows"], sort_keys=True, separators=(",", ":")
+                  ).encode()
+              ).hexdigest()
+          publication["publication_lanes_json"] = json.dumps(
+              publication["publication_lanes"],
+              sort_keys=True,
+              separators=(",", ":"),
+          )
+          publication["source_authority_json"] = json.dumps(
+              [lane["source_authority"] for lane in publication["publication_lanes"]],
+              sort_keys=True,
+              separators=(",", ":"),
+          )
+          report_artifact = payload["sections"]["introspection_artifacts"][1]
+          report_artifact["sha256"] = sidecar_sha
+          report_artifact["byte_count"] = str(len(sidecar_data))
+          path.write_text(json.dumps(payload))
+
+          gate = trace_report_gate(path, authority_root=ARES_REPO_ROOT)
+
+      self.assertFalse(gate["passed"])
+      self.assertIn(
+          "0 exact provider-manifest matches",
+          " ".join(gate["errors"]),
+      )
+
+  def test_trace_report_gate_rejects_scheduler_publication_contract_drift(
+      self,
+  ) -> None:
+      fixture_path = FIXTURE_DIR / "ares_trace_report_introspection_real.json"
+      fixture = json.loads(fixture_path.read_text())
+
+      def reencode_publication_lanes(row: dict[str, object]) -> None:
+          row["publication_lanes_json"] = json.dumps(
+              row["publication_lanes"], sort_keys=True, separators=(",", ":")
+          )
+
+      def mutate_lane_source(row: dict[str, object]) -> None:
+          row["publication_lanes"][0]["source_authority"][
+              "legacy_core_sha256"
+          ] = "0" * 64
+          reencode_publication_lanes(row)
+
+      def mutate_lane_plan(row: dict[str, object]) -> None:
+          row["publication_lanes"][0]["ares_plan_sha256"] = "0" * 64
+          reencode_publication_lanes(row)
+
+      mutations = [
+          (
+              "missing lane authority",
+              lambda row: row["publication_lanes"][0].pop("publication_authority"),
+              "publication lane projection missing required fields",
+          ),
+          (
+              "invalid canonical mirror",
+              lambda row: row.__setitem__("publication_lanes_json", "[garbage]"),
+              "publication_lanes_json is not valid bounded JSON",
+          ),
+          (
+              "wrong lane count",
+              lambda row: row.__setitem__("publication_lane_count", "9"),
+              "publication_lane_count does not match",
+          ),
+          (
+              "wrong source summary",
+              lambda row: row.__setitem__("source_authority_json", "[]"),
+              "source_authority_json does not match",
+          ),
+          (
+              "wrong publication summary",
+              lambda row: row.__setitem__("publication_authority_json", "[]"),
+              "publication_authority_json does not match",
+          ),
+          (
+              "wrong batch id",
+              lambda row: row.__setitem__(
+                  "publication_batch_id_json",
+                  '{"arena_id":1,"batch_id":99}',
+              ),
+              "publication_batch_id_json does not match",
+          ),
+          (
+              "wrong generation",
+              lambda row: row.__setitem__("publication_batch_generation", "99"),
+              "publication_batch_generation does not match",
+          ),
+          (
+              "wrong event summary",
+              lambda row: row.__setitem__("generated_state_event", "checkpoint"),
+              "generated_state_event does not match",
+          ),
+          (
+              "wrong transport schema summary",
+              lambda row: row.__setitem__(
+                  "generated_state_transport_schema",
+                  "ares.scheduler.generated_state_transport.v2",
+              ),
+              "generated_state_transport_schema does not match",
+          ),
+          (
+              "wrong AresPlan summary",
+              lambda row: row.__setitem__("ares_plan_sha256", "0" * 64),
+              "ares_plan_sha256 does not match",
+          ),
+          (
+              "wrong TargetPlan summary",
+              lambda row: row.__setitem__("target_plan_sha256", "0" * 64),
+              "target_plan_sha256 does not match",
+          ),
+          (
+              "lane-local source drift",
+              mutate_lane_source,
+              "source_authority_json does not match",
+          ),
+          (
+              "lane-local plan drift",
+              mutate_lane_plan,
+              "ares_plan_sha256 does not match",
+          ),
+      ]
+      for label, mutation, expected in mutations:
+          with self.subTest(label=label), TemporaryDirectory() as tmp:
+              payload = json.loads(json.dumps(fixture))
+              publication = next(
+                  row
+                  for row in payload["sections"][
+                      "scheduler_packet_lineage_sidecar_rows"
+                  ]
+                  if row.get("row_kind") == "generated_state_publication_batch"
+              )
+              mutation(publication)
+              path = write_bound_trace_report(Path(tmp), payload)
+
+              gate = trace_report_gate(path)
+
+              self.assertFalse(gate["passed"])
+              self.assertIn(expected, " ".join(gate["errors"]))
+
+  def test_trace_report_gate_rejects_scheduler_row_relabel_and_role_drift(
+      self,
+  ) -> None:
+      fixture_path = FIXTURE_DIR / "ares_trace_report_introspection_real.json"
+      fixture = json.loads(fixture_path.read_text())
+
+      def relabel_publication_as_forward(row: dict[str, object]) -> None:
+          row["row_kind"] = "scheduler_forward_batch"
+          row["status"] = "ok"
+
+      def relabel_transport_as_sentinel(row: dict[str, object]) -> None:
+          row["row_kind"] = ""
+          row["status"] = "missing_sidecar"
+          row["evidence_role"] = ""
+
+      mutations = [
+          (
+              "publication relabeled forward",
+              3,
+              relabel_publication_as_forward,
+              "contains generated-state fields",
+          ),
+          (
+              "transport relabeled sentinel",
+              1,
+              relabel_transport_as_sentinel,
+              "contains generated-state fields",
+          ),
+          (
+              "unknown row kind",
+              1,
+              lambda row: row.__setitem__("row_kind", "bogus"),
+              "unsupported scheduler lineage report row kind",
+          ),
+          (
+              "invalid status",
+              1,
+              lambda row: row.__setitem__("status", "proof_grade"),
+              "generated-state transport report status is not present",
+          ),
+          (
+              "invalid evidence role",
+              1,
+              lambda row: row.__setitem__("evidence_role", "oracle"),
+              "generated-state transport report evidence role is not system_under_test",
+          ),
+          (
+              "error without reason",
+              0,
+              lambda row: row.__setitem__("status", "error"),
+              "scheduler-forward error report has no failure reason",
+          ),
+      ]
+      for label, row_index, mutation, expected in mutations:
+          with self.subTest(label=label), TemporaryDirectory() as tmp:
+              payload = json.loads(json.dumps(fixture))
+              row = payload["sections"]["scheduler_packet_lineage_sidecar_rows"][
+                  row_index
+              ]
+              mutation(row)
+              path = write_bound_trace_report(Path(tmp), payload)
+
+              gate = trace_report_gate(path)
+
+              self.assertFalse(gate["passed"])
+              self.assertIn(expected, " ".join(gate["errors"]))
 
   def test_trace_report_gate_rejects_malformed_introspection_artifact_counts(
       self,

@@ -3385,14 +3385,67 @@ def trace_report_handoff_section(state: Mapping[str, Any] | None) -> str:
     return "\n".join(lines)
 
 
+_TRACE_REPORT_PROMPT_STRING_FIELDS = frozenset(
+    {
+        "artifact_validator",
+        "preflight_status",
+        "proof_grade_status",
+        "report_grade",
+    }
+)
+_TRACE_REPORT_PROMPT_TOKEN_RE = re.compile(r"^[a-z0-9_.:-]{1,64}$")
+_TRACE_REPORT_PROMPT_COUNT_MAP_RE = re.compile(r"^[a-z0-9_.:-]{1,64}$")
+
+
+def _trace_report_prompt_projection(value: Any) -> Any:
+    """Project validated report summary into a typed, non-narrative prompt view."""
+    if not isinstance(value, Mapping):
+        return {}
+    projected: dict[str, Any] = {}
+    for key, child in value.items():
+        if isinstance(child, bool) or (
+            isinstance(child, int) and not isinstance(child, bool) and child >= 0
+        ):
+            projected[key] = child
+            continue
+        if (
+            key == "sha256"
+            and isinstance(child, str)
+            and re.fullmatch(r"[0-9a-f]{64}", child)
+        ):
+            projected[key] = child
+            continue
+        if (
+            key in _TRACE_REPORT_PROMPT_STRING_FIELDS
+            and isinstance(child, str)
+            and _TRACE_REPORT_PROMPT_TOKEN_RE.fullmatch(child)
+        ):
+            projected[key] = child
+            continue
+        if key.endswith("_counts") and isinstance(child, Mapping):
+            counts = {
+                str(count_key): count
+                for count_key, count in child.items()
+                if isinstance(count_key, str)
+                and _TRACE_REPORT_PROMPT_COUNT_MAP_RE.fullmatch(count_key)
+                and isinstance(count, int)
+                and not isinstance(count, bool)
+                and count >= 0
+            }
+            if counts:
+                projected[key] = counts
+    return projected
+
+
 def trace_report_prompt_section(spec: Mapping[str, Any]) -> list[str]:
     summary = trace_report_summary_from_spec(spec)
     if not summary:
         return []
+    prompt_summary = _trace_report_prompt_projection(summary)
     return [
         "## Trace Report Summary",
         "",
-        *render_trace_report_lines(summary),
+        *render_trace_report_lines(prompt_summary),
         "",
         "Prefer the report's `sections.report_grade`, `sections.report_triage`,",
         "`sections.answerability`, `sections.unsupported_claims`,",
@@ -4454,7 +4507,8 @@ def evaluate_run(cfg: AresIngestConfig) -> tuple[dict[str, Any], dict[str, Any]]
       if not isinstance(trace_report_spec, str):
           raise AresIngestError("model_spec trace_report_json must be a string path")
       validated_gates["trace_report"] = trace_report_gate(
-          resolve_run_path(trace_report_spec, cfg)
+          resolve_run_path(trace_report_spec, cfg),
+          authority_root=cfg.ares_repo,
       )
   command_wrapper_plan = build_command_wrapper_plan(
     spec,

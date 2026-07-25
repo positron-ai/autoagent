@@ -5,8 +5,11 @@ from __future__ import annotations
 import hashlib
 import json
 import math
+import os
 import re
 import shlex
+import stat
+import unicodedata
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Iterable, Mapping
@@ -95,6 +98,7 @@ TRACE_REPORT_REQUIRED_SECTIONS = (
     "answerability",
     "unsupported_claims",
     "next_measurements",
+    "scheduler_packet_lineage_sidecar_rows",
 )
 TRACE_REPORT_TRIAGE_REQUIRED_FIELDS = (
     "triage_status",
@@ -120,6 +124,123 @@ TRACE_REPORT_TRIAGE_STATUSES = {
     "inspect_report_grade",
 }
 TRACE_REPORT_GRADES = {"inconclusive", "diagnostic", "comparison-grade"}
+TRACE_REPORT_SCHEMA_VERSION = 2
+MAX_TRACE_REPORT_BYTES = 64 * 1024 * 1024
+MAX_TRACE_REPORT_JSON_ITEMS = 1_048_576
+MAX_TRACE_METADATA_BYTES = 16 * 1024 * 1024
+MAX_TRACE_METADATA_JSON_ITEMS = 262_144
+MAX_SCHEDULER_LINEAGE_JSONL_BYTES = 64 * 1024 * 1024
+MAX_SCHEDULER_LINEAGE_JSONL_LINE_BYTES = 4 * 1024 * 1024
+MAX_SCHEDULER_LINEAGE_JSONL_ROWS = 65_536
+MAX_SCHEDULER_LINEAGE_JSON_ITEMS_PER_ROW = 262_144
+MAX_SCHEDULER_LINEAGE_JSON_ITEMS = 1_048_576
+MAX_JSON_NESTING_DEPTH = 64
+MAX_SCHEDULER_STRING_CHARS = 4096
+PROVIDER_ADMISSION_MANIFEST_RELATIVE = Path(
+  "runtime/core/crates/ares-plan-exec/fixtures/provider-admission-manifest.v1.json"
+)
+SCHEDULER_GENERATED_STATE_TRANSPORT_SCHEMA = (
+    "ares.scheduler.generated_state_transport.v3"
+)
+SCHEDULER_I64_MAX = (1 << 63) - 1
+SCHEDULER_U64_MAX = (1 << 64) - 1
+SCHEDULER_PUBLICATION_LANE_PROJECTION_FIELDS = (
+    "publication_index",
+    "publication_lane_id",
+    "publication_owner_indices",
+    "state_checkpoint_id",
+    "state_branch_id",
+    "state_parent_checkpoint_id",
+    "state_parent_branch_id",
+    "generated_state_transport_schema",
+    "event",
+    "model_id",
+    "backend_id",
+    "ares_plan_sha256",
+    "target_plan_sha256",
+    "source_authority",
+    "publication_authority",
+    "targetplan_op_ids",
+    "qualified_row_count",
+    "qualified_rows_sha256",
+)
+SCHEDULER_TRANSPORT_REPORT_FIELDS = frozenset(
+    {
+        "generated_state_transport_schema",
+        "generated_state_event",
+        "ares_plan_sha256",
+        "target_plan_sha256",
+        "source_authority_json",
+        "publication_authority_json",
+        "targetplan_op_ids",
+    }
+)
+SCHEDULER_DIRECT_TRANSPORT_REPORT_FIELDS = frozenset(
+    {
+        "state_checkpoint_id",
+        "state_branch_id",
+        "state_parent_checkpoint_id",
+        "state_parent_branch_id",
+        "qualified_row_count",
+        "qualified_rows_sha256",
+    }
+)
+SCHEDULER_PUBLICATION_REPORT_FIELDS = frozenset(
+    SCHEDULER_TRANSPORT_REPORT_FIELDS
+    | {
+        "publication_lanes",
+        "publication_lanes_json",
+        "publication_batch_id_json",
+        "publication_batch_generation",
+        "publication_lane_count",
+        "publication_record_count",
+        "publication_route_owner_index",
+    }
+)
+SCHEDULER_REPORT_COMMON_FIELDS = frozenset(
+    {
+        "artifact_index",
+        "row_index",
+        "row_kind",
+        "status",
+        "evidence_role",
+        "trace_run_id",
+        "process_kind",
+        "model_id",
+        "backend_id",
+        "request_id",
+        "generation_id",
+        "parent_location_id",
+        "location_id",
+        "executor_shape",
+        "executor_status",
+        "attention_mode",
+        "runtime_request_token_count",
+        "tokens_reused",
+        "token_job_count",
+        "kv_job_count",
+        "listener_sparse_rows",
+        "listener_sparse_tokens",
+        "kv_save_rows",
+        "kv_context_rows",
+        "visible_token_slots",
+        "kv_page_count",
+        "hw_shard_allocation_requests",
+        "hw_gof_page_infos",
+        "minibatch_count",
+        "sparse_topk_rows",
+        "sparse_topk_token_count",
+        "prior_hw_shard_allocation_requests",
+        "prior_host_gof_ready_rows",
+        "prior_host_gof_pending_dma_rows",
+        "prior_host_gof_cacheblock_dma_plans",
+        "prior_host_gof_materialized_cacheblocks",
+        "prior_host_gof_dma_completions",
+        "prior_host_gof_page_infos",
+        "prior_host_gof_staging_status",
+        "failure_reason",
+    }
+)
 TRACE_REPORT_JSON_SECTION_SAMPLE_KEYS = (
     "preflight",
     "analysis_commands",
@@ -484,9 +605,18 @@ def introspection_ladder_gate(
 
 
 def trace_report_gate(
-    path: Path, *, label: str = "Ares trace report JSON"
+    path: Path,
+    *,
+    label: str = "Ares trace report JSON",
+    authority_root: Path | None = None,
 ) -> dict[str, Any]:
-    if not path.is_file():
+    try:
+        data = _read_regular_file_bytes(
+            path,
+            maximum_bytes=MAX_TRACE_REPORT_BYTES,
+            label="trace report JSON",
+        )
+    except ValueError as exc:
         return {
             "label": label,
             "artifact_validator": "trace_report",
@@ -494,12 +624,16 @@ def trace_report_gate(
             "exists": path.exists(),
             "passed": False,
             "score": 0.0,
-            "errors": ["trace report JSON file is missing"],
+            "errors": [str(exc)],
         }
-    digest = _sha256_file(path)
+    digest = hashlib.sha256(data).hexdigest()
     try:
-        payload = json.loads(path.read_text())
-    except json.JSONDecodeError as exc:
+        payload = _strict_json_loads_bytes(
+            data,
+            label="trace report JSON",
+            maximum_items=MAX_TRACE_REPORT_JSON_ITEMS,
+        )
+    except ValueError as exc:
         return {
             "label": label,
             "artifact_validator": "trace_report",
@@ -510,7 +644,11 @@ def trace_report_gate(
             "detail": {"sha256": digest},
             "errors": [f"invalid JSON: {exc}"],
         }
-    validation = validate_trace_report_json(payload)
+    validation = validate_trace_report_json(
+        payload,
+        report_path=path,
+        authority_root=authority_root,
+    )
     gate = validation.as_gate(
         label=label,
         validator_name="trace_report",
@@ -1827,13 +1965,20 @@ def validate_artifact_consistency(
   return _validation(not errors, errors, detail)
 
 
-def validate_trace_report_json(report: Any) -> ArtifactValidation:
+def validate_trace_report_json(
+    report: Any,
+    *,
+    report_path: Path | None = None,
+    authority_root: Path | None = None,
+) -> ArtifactValidation:
     errors: list[str] = []
     if not isinstance(report, dict):
         return _validation(False, ["trace report must be a JSON object"], {})
 
-    if report.get("schema_version") != 1:
-        errors.append("trace report schema_version must be 1")
+    if report.get("schema_version") != TRACE_REPORT_SCHEMA_VERSION:
+        errors.append(
+            f"trace report schema_version must be {TRACE_REPORT_SCHEMA_VERSION}"
+        )
     _require_non_empty_string(errors, report.get("title"), "trace report title")
     inputs = _expect_object(errors, report.get("inputs"), "trace report inputs")
     sections = _expect_object(errors, report.get("sections"), "trace report sections")
@@ -2137,7 +2282,17 @@ def validate_trace_report_json(report: Any) -> ArtifactValidation:
             errors,
             sections,
             "scheduler_packet_lineage_sidecar_rows",
-            required=False,
+        )
+        _validate_scheduler_packet_lineage_report_rows(
+            errors,
+            scheduler_packet_lineage_sidecar_rows,
+        )
+        _validate_scheduler_packet_lineage_artifact_binding(
+            errors,
+            report,
+            scheduler_packet_lineage_sidecar_rows,
+            report_path,
+            authority_root,
         )
         scheduler_kv_shard_lifecycle_sidecar_rows = _trace_report_section_rows(
             errors,
@@ -2207,6 +2362,11 @@ def validate_trace_report_json(report: Any) -> ArtifactValidation:
     if not answerability_rows:
         errors.append(
             "trace report sections.answerability must include at least one row"
+        )
+    if not scheduler_packet_lineage_sidecar_rows:
+        errors.append(
+            "trace report sections.scheduler_packet_lineage_sidecar_rows "
+            "must include at least one row"
         )
 
     first_grade = report_grade_rows[0] if report_grade_rows else {}
@@ -4206,6 +4366,1389 @@ def _validation(
   detail: dict[str, Any],
 ) -> ArtifactValidation:
   return ArtifactValidation(passed=passed, errors=tuple(errors), detail=detail)
+
+
+def _read_regular_file_bytes(
+  path: Path,
+  *,
+  maximum_bytes: int,
+  label: str,
+) -> bytes:
+  """Read one immutable regular-file snapshot without following a final symlink."""
+  flags = os.O_RDONLY | os.O_NONBLOCK | getattr(os, "O_CLOEXEC", 0)
+  flags |= getattr(os, "O_NOFOLLOW", 0)
+  try:
+    descriptor = os.open(path, flags)
+    with os.fdopen(descriptor, "rb") as handle:
+      before = os.fstat(handle.fileno())
+      if not stat.S_ISREG(before.st_mode):
+        raise ValueError(f"{label} is not a regular file")
+      if before.st_size > maximum_bytes:
+        raise ValueError(f"{label} exceeds {maximum_bytes} bytes")
+      data = handle.read(before.st_size + 1)
+      after = os.fstat(handle.fileno())
+  except OSError as exc:
+    raise ValueError(f"could not read {label}: {exc}") from exc
+  if len(data) > maximum_bytes:
+    raise ValueError(f"{label} exceeds {maximum_bytes} bytes")
+  if (
+    not stat.S_ISREG(after.st_mode)
+    or after.st_dev != before.st_dev
+    or after.st_ino != before.st_ino
+    or after.st_size != before.st_size
+    or after.st_mtime_ns != before.st_mtime_ns
+    or after.st_ctime_ns != before.st_ctime_ns
+    or len(data) != before.st_size
+  ):
+    raise ValueError(f"{label} changed while being read")
+  return data
+
+
+def _json_structural_item_count(data: bytes, maximum_items: int) -> int:
+  item_count = 1
+  in_string = False
+  escaped = False
+  for byte in data:
+    if in_string:
+      if escaped:
+        escaped = False
+      elif byte == 0x5C:
+        escaped = True
+      elif byte == 0x22:
+        in_string = False
+    elif byte == 0x22:
+      in_string = True
+    elif byte in {0x2C, 0x3A}:
+      item_count += 1
+      if item_count > maximum_items:
+        break
+  return item_count
+
+
+def _json_object_without_duplicate_keys(
+  pairs: list[tuple[str, Any]],
+) -> dict[str, Any]:
+  value: dict[str, Any] = {}
+  for key, item in pairs:
+    if key in value:
+      raise ValueError(f"duplicate JSON object key {key!r}")
+    value[key] = item
+  return value
+
+
+def _reject_nonstandard_json_constant(value: str) -> Any:
+  raise ValueError(f"non-standard JSON constant {value!r}")
+
+
+def _json_nesting_error(value: Any) -> str | None:
+  stack: list[tuple[Any, int]] = [(value, 1)]
+  while stack:
+    item, depth = stack.pop()
+    if depth > MAX_JSON_NESTING_DEPTH:
+      return f"JSON nesting exceeds {MAX_JSON_NESTING_DEPTH} levels"
+    if isinstance(item, dict):
+      stack.extend((child, depth + 1) for child in item.values())
+    elif isinstance(item, list):
+      stack.extend((child, depth + 1) for child in item)
+    elif isinstance(item, float) and not math.isfinite(item):
+      return "JSON number is not finite"
+  return None
+
+
+def _strict_json_loads_bytes(
+  data: bytes,
+  *,
+  label: str,
+  maximum_items: int,
+) -> Any:
+  item_count = _json_structural_item_count(data, maximum_items)
+  if item_count > maximum_items:
+    raise ValueError(f"{label} exceeds {maximum_items} structural JSON items")
+  try:
+    encoded = data.decode("utf-8")
+  except UnicodeDecodeError as exc:
+    raise ValueError(f"{label} is not UTF-8 at byte {exc.start}") from exc
+  try:
+    value = json.loads(
+      encoded,
+      object_pairs_hook=_json_object_without_duplicate_keys,
+      parse_constant=_reject_nonstandard_json_constant,
+    )
+  except json.JSONDecodeError as exc:
+    raise ValueError(exc.msg) from exc
+  nesting_error = _json_nesting_error(value)
+  if nesting_error:
+    raise ValueError(nesting_error)
+  return value
+
+
+def _scheduler_canonical_json(value: Any) -> str:
+  return json.dumps(value, sort_keys=True, separators=(",", ":"))
+
+
+def _scheduler_nonnegative_u64(value: Any) -> bool:
+  return (
+    isinstance(value, int)
+    and not isinstance(value, bool)
+    and 0 <= value <= SCHEDULER_U64_MAX
+  )
+
+
+def _scheduler_positive_u64(value: Any) -> bool:
+  return _scheduler_nonnegative_u64(value) and value > 0
+
+
+def _scheduler_bounded_string(value: Any) -> bool:
+  return (
+    isinstance(value, str)
+    and len(value) <= MAX_SCHEDULER_STRING_CHARS
+    and not any(
+      unicodedata.category(character) in {"Cc", "Cf", "Cs", "Zl", "Zp"}
+      for character in value
+    )
+  )
+
+
+def _scheduler_nonempty_string(value: Any) -> bool:
+  return _scheduler_bounded_string(value) and bool(value)
+
+
+def _scheduler_canonical_report_integer(
+  value: Any,
+  *,
+  maximum: int,
+  allow_empty: bool = False,
+  positive: bool = False,
+) -> bool:
+  if allow_empty and value == "":
+    return True
+  if not isinstance(value, str) or re.fullmatch(r"0|[1-9][0-9]{0,19}", value) is None:
+    return False
+  parsed = int(value)
+  return (parsed > 0 if positive else parsed >= 0) and parsed <= maximum
+
+
+def _scheduler_qualified_id(value: Any, field: str) -> bool:
+  return (
+    isinstance(value, dict)
+    and set(value) == {"arena_id", field}
+    and _scheduler_positive_u64(value.get("arena_id"))
+    and _scheduler_positive_u64(value.get(field))
+  )
+
+
+def _scheduler_unexpected_keys(
+  value: Mapping[str, Any], expected: set[str]
+) -> str | None:
+  missing = sorted(expected - set(value))
+  unexpected = sorted(set(value) - expected)
+  if missing:
+    return f"missing required fields {missing!r}"
+  if unexpected:
+    return f"contains unsupported fields {unexpected!r}"
+  return None
+
+
+def _scheduler_source_authority_error(value: Any) -> str | None:
+  if not isinstance(value, dict):
+    return "source authority is not an object"
+  kind = value.get("kind")
+  expected_keys = {
+    "hf_export": {
+      "kind",
+      "manifest_sha256",
+      "decode_state_contract_sha256",
+    },
+    "lean_fixture_synthetic_typed": {
+      "kind",
+      "legacy_core_sha256",
+      "typed_attention_view_sha256",
+    },
+  }.get(kind)
+  if expected_keys is None:
+    return f"unsupported source authority kind {kind!r}"
+  if set(value) != expected_keys:
+    return f"source authority keys do not match {kind!r}"
+  if any(
+    key != "kind"
+    and (
+      not isinstance(digest, str)
+      or digest != digest.lower()
+      or SHA256_RE.fullmatch(digest) is None
+    )
+    for key, digest in value.items()
+  ):
+    return f"source authority {kind!r} has a malformed digest"
+  return None
+
+
+def _scheduler_publication_authority_error(value: Any) -> str | None:
+  if (
+    not isinstance(value, dict)
+    or set(value) != {"lane_id", "batch_id", "generation"}
+    or not _scheduler_qualified_id(value.get("lane_id"), "lane_id")
+    or not _scheduler_qualified_id(value.get("batch_id"), "batch_id")
+    or not _scheduler_positive_u64(value.get("generation"))
+  ):
+    return "publication authority is invalid"
+  if value["lane_id"]["arena_id"] != value["batch_id"]["arena_id"]:
+    return "publication authority crosses arenas"
+  if value["batch_id"]["batch_id"] != value["generation"]:
+    return "publication batch id does not match publication generation"
+  return None
+
+
+def _scheduler_parse_canonical_json(
+  fields: Mapping[str, Any], field: str, expected_type: type
+) -> tuple[Any | None, str | None]:
+  encoded = fields.get(field)
+  if not isinstance(encoded, str):
+    return None, f"{field} is not a string"
+  try:
+    value = json.loads(
+      encoded,
+      object_pairs_hook=_json_object_without_duplicate_keys,
+      parse_constant=_reject_nonstandard_json_constant,
+    )
+  except (ValueError, RecursionError) as exc:
+    return None, f"{field} is not valid bounded JSON: {exc}"
+  nesting_error = _json_nesting_error(value)
+  if nesting_error:
+    return None, f"{field} is not valid bounded JSON: {nesting_error}"
+  if not isinstance(value, expected_type):
+    return None, f"{field} does not encode a {expected_type.__name__}"
+  if encoded != _scheduler_canonical_json(value):
+    return None, f"{field} is not canonical JSON"
+  return value, None
+
+
+def _scheduler_transport_report_error(fields: Mapping[str, Any]) -> str | None:
+  missing = sorted(SCHEDULER_TRANSPORT_REPORT_FIELDS - set(fields))
+  if missing:
+    return f"generated-state transport report is missing fields {missing!r}"
+  if (
+    fields.get("generated_state_transport_schema")
+    != SCHEDULER_GENERATED_STATE_TRANSPORT_SCHEMA
+  ):
+    return "generated_state_transport_schema is not v3"
+  if fields.get("generated_state_event") != "publish":
+    return "generated_state_event is not publish"
+  for digest_key in ("ares_plan_sha256", "target_plan_sha256"):
+    digest = fields.get(digest_key)
+    if (
+      not isinstance(digest, str)
+      or digest != digest.lower()
+      or SHA256_RE.fullmatch(digest) is None
+    ):
+      return f"{digest_key} is malformed"
+  targetplan_op_ids = fields.get("targetplan_op_ids")
+  if (
+    not isinstance(targetplan_op_ids, list)
+    or not targetplan_op_ids
+    or not all(_scheduler_nonempty_string(op_id) for op_id in targetplan_op_ids)
+    or len(set(targetplan_op_ids)) != len(targetplan_op_ids)
+  ):
+    return "targetplan_op_ids is not a non-empty unique identifier array"
+  source, error = _scheduler_parse_canonical_json(
+    fields, "source_authority_json", dict
+  )
+  if error:
+    return error
+  source_error = _scheduler_source_authority_error(source)
+  if source_error:
+    return f"source_authority_json: {source_error}"
+  authority, error = _scheduler_parse_canonical_json(
+    fields, "publication_authority_json", dict
+  )
+  if error:
+    return error
+  authority_error = _scheduler_publication_authority_error(authority)
+  if authority_error:
+    return f"publication_authority_json: {authority_error}"
+  return None
+
+
+def _scheduler_publication_lane_error(lane: Any) -> str | None:
+  if not isinstance(lane, dict):
+    return "publication lane projection is not an object"
+  expected_fields = set(SCHEDULER_PUBLICATION_LANE_PROJECTION_FIELDS)
+  shape_error = _scheduler_unexpected_keys(lane, expected_fields)
+  if shape_error:
+    return f"publication lane projection {shape_error}"
+  if not _scheduler_nonnegative_u64(lane.get("publication_index")):
+    return "publication lane projection index is not a u64"
+  lane_id = lane.get("publication_lane_id")
+  if not _scheduler_qualified_id(lane_id, "lane_id"):
+    return "publication lane projection id is invalid"
+  owners = lane.get("publication_owner_indices")
+  if (
+    not isinstance(owners, list)
+    or not owners
+    or not all(_scheduler_nonnegative_u64(owner) for owner in owners)
+    or owners != sorted(set(owners))
+  ):
+    return "publication lane projection owners are not sorted unique u64 values"
+  if (
+    lane.get("generated_state_transport_schema")
+    != SCHEDULER_GENERATED_STATE_TRANSPORT_SCHEMA
+  ):
+    return "publication lane projection transport schema is not v3"
+  if lane.get("event") != "publish":
+    return "publication lane projection event is not publish"
+  for field in ("state_checkpoint_id", "state_branch_id"):
+    if not _scheduler_positive_u64(lane.get(field)):
+      return f"publication lane projection {field} is not a positive u64"
+  parents = (
+    lane.get("state_parent_checkpoint_id"),
+    lane.get("state_parent_branch_id"),
+  )
+  if any(value is None for value in parents) != all(value is None for value in parents):
+    return "publication lane projection parent checkpoint/branch presence differs"
+  if any(value is not None and not _scheduler_positive_u64(value) for value in parents):
+    return "publication lane projection parent identity is not null or positive u64"
+  for field in ("model_id", "backend_id"):
+    if not _scheduler_nonempty_string(lane.get(field)):
+      return f"publication lane projection {field} is missing or empty"
+  for digest_key in ("ares_plan_sha256", "target_plan_sha256"):
+    digest = lane.get(digest_key)
+    if (
+      not isinstance(digest, str)
+      or digest != digest.lower()
+      or SHA256_RE.fullmatch(digest) is None
+    ):
+      return f"publication lane projection {digest_key} is malformed"
+  targetplan_op_ids = lane.get("targetplan_op_ids")
+  if (
+    not isinstance(targetplan_op_ids, list)
+    or not targetplan_op_ids
+    or not all(_scheduler_nonempty_string(op_id) for op_id in targetplan_op_ids)
+    or len(set(targetplan_op_ids)) != len(targetplan_op_ids)
+  ):
+    return "publication lane projection TargetPlan operation ids are invalid"
+  if not _scheduler_positive_u64(lane.get("qualified_row_count")):
+    return "publication lane projection qualified row count is not positive"
+  qualified_digest = lane.get("qualified_rows_sha256")
+  if (
+    not isinstance(qualified_digest, str)
+    or qualified_digest != qualified_digest.lower()
+    or SHA256_RE.fullmatch(qualified_digest) is None
+  ):
+    return "publication lane projection qualified rows digest is malformed"
+  source_error = _scheduler_source_authority_error(lane.get("source_authority"))
+  if source_error:
+    return f"publication lane projection {source_error}"
+  authority = lane.get("publication_authority")
+  authority_error = _scheduler_publication_authority_error(authority)
+  if authority_error:
+    return f"publication lane projection {authority_error}"
+  if authority["lane_id"] != lane_id:
+    return "publication lane projection id does not match publication authority"
+  return None
+
+
+def _scheduler_publication_report_error(fields: Mapping[str, Any]) -> str | None:
+  missing = sorted(SCHEDULER_PUBLICATION_REPORT_FIELDS - set(fields))
+  if missing:
+    return f"publication report is missing fields {missing!r}"
+  lanes = fields.get("publication_lanes")
+  if not isinstance(lanes, list) or not lanes:
+    return "publication_lanes is not a non-empty array"
+  publication_identities: dict[tuple[int, int, int, int], int] = {}
+  physical_lane_ids: set[tuple[int, int]] = set()
+  physical_lane_records: dict[tuple[int, int], list[tuple[int, dict[str, Any]]]] = {}
+  shared_plan_identity: str | None = None
+  for index, lane in enumerate(lanes):
+    lane_error = _scheduler_publication_lane_error(lane)
+    if lane_error:
+      return f"publication_lanes[{index}]: {lane_error}"
+    if lane["publication_index"] != index:
+      return f"publication_lanes[{index}] has a non-sequential publication index"
+    lane_id = lane["publication_lane_id"]
+    lane_key = (lane_id["arena_id"], lane_id["lane_id"])
+    physical_lane_ids.add(lane_key)
+    physical_lane_records.setdefault(lane_key, []).append((index, lane))
+    publication_identity = (
+      *lane_key,
+      lane["state_checkpoint_id"],
+      lane["state_branch_id"],
+    )
+    if publication_identity in publication_identities:
+      return f"publication_lanes[{index}] duplicates a publication identity"
+    publication_identities[publication_identity] = index
+    plan_identity = _scheduler_canonical_json(
+      {
+        "model_id": lane["model_id"],
+        "backend_id": lane["backend_id"],
+        "ares_plan_sha256": lane["ares_plan_sha256"],
+        "target_plan_sha256": lane["target_plan_sha256"],
+        "source_authority": lane["source_authority"],
+        "targetplan_op_ids": lane["targetplan_op_ids"],
+      }
+    )
+    if shared_plan_identity is None:
+      shared_plan_identity = plan_identity
+    elif shared_plan_identity != plan_identity:
+      return f"publication_lanes[{index}] has a different batch plan identity"
+  for index, lane in enumerate(lanes):
+    parent_checkpoint = lane["state_parent_checkpoint_id"]
+    if parent_checkpoint is None:
+      continue
+    lane_id = lane["publication_lane_id"]
+    parent_identity = (
+      lane_id["arena_id"],
+      lane_id["lane_id"],
+      parent_checkpoint,
+      lane["state_parent_branch_id"],
+    )
+    parent_index = publication_identities.get(parent_identity)
+    if parent_index is not None and parent_index >= index:
+      return f"publication_lanes[{index}] parent publication is not prior"
+  for lane_records in physical_lane_records.values():
+    root_indices = [
+      index
+      for index, lane in lane_records
+      if lane["state_parent_checkpoint_id"] is None
+    ]
+    if len(root_indices) > 1:
+      return "publication_lanes has multiple roots for one physical lane"
+    if root_indices and root_indices[0] != lane_records[0][0]:
+      return "publication_lanes physical lane root is not first"
+    prior_identities: set[tuple[int, int]] = set()
+    for record_index, (index, lane) in enumerate(lane_records):
+      if record_index:
+        parent_identity = (
+          lane["state_parent_checkpoint_id"],
+          lane["state_parent_branch_id"],
+        )
+        if parent_identity not in prior_identities:
+          return (
+            "publication_lanes physical lane has a non-prior parent "
+            f"at index {index}"
+          )
+      prior_identities.add((lane["state_checkpoint_id"], lane["state_branch_id"]))
+  lane_count = fields.get("publication_lane_count")
+  if not isinstance(lane_count, str) or re.fullmatch(r"[1-9][0-9]*", lane_count) is None:
+    return "publication_lane_count is not an integer string"
+  if lane_count != str(len(physical_lane_ids)):
+    return "publication_lane_count does not match distinct publication lanes"
+  record_count = fields.get("publication_record_count")
+  if not isinstance(record_count, str) or re.fullmatch(r"[1-9][0-9]*", record_count) is None:
+    return "publication_record_count is not an integer string"
+  if record_count != str(len(lanes)):
+    return "publication_record_count does not match publication_lanes"
+  parsed_lanes, error = _scheduler_parse_canonical_json(
+    fields, "publication_lanes_json", list
+  )
+  if error:
+    return error
+  if parsed_lanes != lanes:
+    return "publication_lanes_json does not match publication_lanes"
+  expected_summaries = {
+    "generated_state_transport_schema": lanes[0]["generated_state_transport_schema"],
+    "generated_state_event": lanes[0]["event"],
+    "ares_plan_sha256": lanes[0]["ares_plan_sha256"],
+    "target_plan_sha256": lanes[0]["target_plan_sha256"],
+    "targetplan_op_ids": lanes[0]["targetplan_op_ids"],
+    "source_authority_json": _scheduler_canonical_json(
+      [lane["source_authority"] for lane in lanes]
+    ),
+    "publication_authority_json": _scheduler_canonical_json(
+      [lane["publication_authority"] for lane in lanes]
+    ),
+  }
+  for field, expected in expected_summaries.items():
+    if fields.get(field) != expected:
+      return f"{field} does not match publication_lanes"
+  if fields.get("model_id") != lanes[0]["model_id"]:
+    return "publication model_id does not match publication_lanes"
+  if fields.get("backend_id") != lanes[0]["backend_id"]:
+    return "publication backend_id does not match publication_lanes"
+  batch_ids = {
+    _scheduler_canonical_json(lane["publication_authority"]["batch_id"])
+    for lane in lanes
+  }
+  if len(batch_ids) != 1:
+    return "publication_lanes do not share one publication batch id"
+  batch_id, error = _scheduler_parse_canonical_json(
+    fields, "publication_batch_id_json", dict
+  )
+  if error:
+    return error
+  if not _scheduler_qualified_id(batch_id, "batch_id"):
+    return "publication_batch_id_json is not a qualified batch id"
+  if batch_id != lanes[0]["publication_authority"]["batch_id"]:
+    return "publication_batch_id_json does not match publication_lanes"
+  generations = {lane["publication_authority"]["generation"] for lane in lanes}
+  if len(generations) != 1:
+    return "publication_lanes do not share one publication generation"
+  generation = next(iter(generations))
+  if fields.get("publication_batch_generation") != str(generation):
+    return "publication_batch_generation does not match publication_lanes"
+  if batch_id["batch_id"] != generation:
+    return "publication_batch_id_json does not match publication generation"
+  route_owner = fields.get("publication_route_owner_index")
+  if not isinstance(route_owner, str) or re.fullmatch(
+    r"(?:|0|[1-9][0-9]*)", route_owner
+  ) is None:
+    return "publication_route_owner_index is not empty or a nonnegative integer string"
+  if route_owner and any(
+    int(route_owner) not in lane["publication_owner_indices"] for lane in lanes
+  ):
+    return "publication_route_owner_index is absent from a publication lane"
+  return None
+
+
+def _scheduler_lineage_report_row_error(row: Any) -> str | None:
+  if not isinstance(row, dict):
+    return "scheduler lineage report row is not an object"
+  row_kind = row.get("row_kind")
+  status = row.get("status")
+  evidence_role = row.get("evidence_role")
+  failure_reason = row.get("failure_reason", "")
+  if not isinstance(failure_reason, str):
+    return "scheduler lineage report failure_reason is not a string"
+  if failure_reason and not _scheduler_bounded_string(failure_reason):
+    return "scheduler lineage report failure_reason contains unsupported text"
+  generated_fields = SCHEDULER_TRANSPORT_REPORT_FIELDS & set(row)
+  publication_fields = (
+    SCHEDULER_PUBLICATION_REPORT_FIELDS - SCHEDULER_TRANSPORT_REPORT_FIELDS
+  ) & set(row)
+  direct_fields = SCHEDULER_DIRECT_TRANSPORT_REPORT_FIELDS & set(row)
+  if row_kind in {"", "scheduler_forward_batch"}:
+    expected_fields = SCHEDULER_REPORT_COMMON_FIELDS
+  elif row_kind == "generated_state_transport":
+    expected_fields = (
+      SCHEDULER_REPORT_COMMON_FIELDS
+      | SCHEDULER_TRANSPORT_REPORT_FIELDS
+      | SCHEDULER_DIRECT_TRANSPORT_REPORT_FIELDS
+    )
+  elif row_kind == "generated_state_publication_batch":
+    expected_fields = SCHEDULER_REPORT_COMMON_FIELDS | SCHEDULER_PUBLICATION_REPORT_FIELDS
+  else:
+    return f"unsupported scheduler lineage report row kind {row_kind!r}"
+  if row_kind in {"", "scheduler_forward_batch"} and (
+    generated_fields or publication_fields or direct_fields
+  ):
+    return f"{row_kind or 'scheduler lineage sentinel'} contains generated-state fields"
+  shape_error = _scheduler_unexpected_keys(row, set(expected_fields))
+  if shape_error:
+    return f"scheduler lineage report {shape_error}"
+  if row_kind == "":
+    if status not in {"missing_sidecar", "invalid_metadata", "invalid_jsonl"}:
+      return "scheduler lineage sentinel status is invalid"
+    if evidence_role != "":
+      return "scheduler lineage sentinel evidence role is not empty"
+    empty_fields = SCHEDULER_REPORT_COMMON_FIELDS - {
+      "artifact_index",
+      "status",
+      "failure_reason",
+    }
+    if any(row.get(field) != "" for field in empty_fields):
+      return "scheduler lineage sentinel contains nonempty projected evidence"
+    if status in {"invalid_metadata", "invalid_jsonl"} and not failure_reason:
+      return "scheduler lineage invalid sentinel has no failure reason"
+    return None
+  for field in ("artifact_index", "row_index"):
+    if not _scheduler_nonnegative_u64(row.get(field)):
+      return f"scheduler lineage report {field} is not a u64"
+  for field in ("trace_run_id", "process_kind", "model_id", "request_id"):
+    if not _scheduler_nonempty_string(row.get(field)):
+      return f"scheduler lineage report {field} is missing or invalid"
+  if row.get("process_kind") != "rinzler":
+    return "scheduler lineage report process_kind is not rinzler"
+  request_id = row.get("request_id")
+  if (
+    not isinstance(request_id, str)
+    or re.fullmatch(r"0|[1-9][0-9]{0,19}", request_id) is None
+    or int(request_id) > SCHEDULER_U64_MAX
+  ):
+    return "scheduler lineage report request_id is not canonical"
+  if row.get("generation_id") != f"rinzler-{request_id}":
+    return "scheduler lineage report generation_id does not match request_id"
+  backend_id = row.get("backend_id")
+  if not isinstance(backend_id, str) or (backend_id and not _scheduler_nonempty_string(backend_id)):
+    return "scheduler lineage report backend_id is invalid"
+  if row_kind != "scheduler_forward_batch" and not backend_id:
+    return "generated-state report backend_id is empty"
+  if row_kind == "scheduler_forward_batch":
+    if status not in {"ok", "error"}:
+      return "scheduler-forward report status is not ok or error"
+    if evidence_role != "system_under_test":
+      return "scheduler-forward report evidence role is not system_under_test"
+    if status == "ok" and failure_reason:
+      return "scheduler-forward ok report has a failure reason"
+    if status == "error" and not failure_reason:
+      return "scheduler-forward error report has no failure reason"
+    for field in ("parent_location_id", "location_id"):
+      if not _scheduler_canonical_report_integer(
+        row.get(field), maximum=SCHEDULER_U64_MAX, allow_empty=True
+      ):
+        return f"scheduler-forward report {field} is not empty or a canonical u64"
+    if status == "ok" and not row.get("location_id"):
+      return "scheduler-forward ok report has no location id"
+    if status == "error" and row.get("location_id"):
+      return "scheduler-forward error report has a location id"
+    for field in ("executor_shape", "executor_status", "attention_mode"):
+      value = row.get(field)
+      if value and (
+        not isinstance(value, str)
+        or len(value) > 256
+        or re.fullmatch(r"[a-z0-9][a-z0-9_.:-]*", value) is None
+      ):
+        return f"scheduler-forward report {field} is not a bounded identifier"
+    u64_fields = {
+      "runtime_request_token_count",
+      "token_job_count",
+      "kv_job_count",
+      "listener_sparse_rows",
+      "listener_sparse_tokens",
+      "kv_save_rows",
+      "kv_context_rows",
+      "visible_token_slots",
+      "kv_page_count",
+      "hw_shard_allocation_requests",
+      "hw_gof_page_infos",
+      "minibatch_count",
+      "sparse_topk_rows",
+      "sparse_topk_token_count",
+      "prior_hw_shard_allocation_requests",
+      "prior_host_gof_ready_rows",
+      "prior_host_gof_pending_dma_rows",
+      "prior_host_gof_cacheblock_dma_plans",
+      "prior_host_gof_materialized_cacheblocks",
+      "prior_host_gof_dma_completions",
+      "prior_host_gof_page_infos",
+    }
+    for field in u64_fields:
+      if not _scheduler_canonical_report_integer(
+        row.get(field),
+        maximum=SCHEDULER_U64_MAX,
+        allow_empty=field != "runtime_request_token_count",
+      ):
+        return f"scheduler-forward report {field} is not empty or a canonical u64"
+    if not _scheduler_canonical_report_integer(
+      row.get("tokens_reused"), maximum=SCHEDULER_I64_MAX
+    ):
+      return "scheduler-forward report tokens_reused is not a canonical nonnegative i64"
+    staging_status = row.get("prior_host_gof_staging_status")
+    if staging_status and (
+      not isinstance(staging_status, str)
+      or len(staging_status) > 256
+      or re.fullmatch(r"[a-z0-9][a-z0-9_.:-]*", staging_status) is None
+    ):
+      return "scheduler-forward report prior_host_gof_staging_status is invalid"
+    if status == "error":
+      zero_fields = {
+        "listener_sparse_tokens",
+        "tokens_reused",
+        "sparse_topk_rows",
+        "sparse_topk_token_count",
+      }
+      empty_fields = (
+        u64_fields - {"runtime_request_token_count"} - zero_fields
+      ) | {
+        "executor_shape",
+        "executor_status",
+        "attention_mode",
+        "prior_host_gof_staging_status",
+      }
+      if any(row.get(field) != "0" for field in zero_fields) or any(
+        row.get(field) != "" for field in empty_fields
+      ):
+        return "scheduler-forward error report contains successful result metadata"
+    return None
+  if row_kind == "generated_state_transport":
+    if status != "present":
+      return "generated-state transport report status is not present"
+    if evidence_role != "system_under_test":
+      return "generated-state transport report evidence role is not system_under_test"
+    if publication_fields:
+      return "generated-state transport report contains publication-batch fields"
+    if failure_reason:
+      return "generated-state transport report has a failure reason"
+    shared_error = _scheduler_transport_report_error(row)
+    if shared_error:
+      return shared_error
+    for field in ("state_checkpoint_id", "state_branch_id", "qualified_row_count"):
+      if not _scheduler_canonical_report_integer(
+        row.get(field), maximum=SCHEDULER_U64_MAX, positive=True
+      ):
+        return f"generated-state transport report {field} is not positive"
+    parents = (
+      row.get("state_parent_checkpoint_id"),
+      row.get("state_parent_branch_id"),
+    )
+    if any(value == "" for value in parents) != all(value == "" for value in parents):
+      return "generated-state transport report parent presence differs"
+    if any(
+      not _scheduler_canonical_report_integer(
+        value,
+        maximum=SCHEDULER_U64_MAX,
+        allow_empty=True,
+        positive=True,
+      )
+      for value in parents
+    ):
+      return "generated-state transport report parent identity is invalid"
+    digest = row.get("qualified_rows_sha256")
+    if (
+      not isinstance(digest, str)
+      or digest != digest.lower()
+      or SHA256_RE.fullmatch(digest) is None
+    ):
+      return "generated-state transport report qualified rows digest is malformed"
+    return None
+  if status != "present":
+    return "publication report status is not present"
+  if evidence_role != "system_under_test":
+    return "publication report evidence role is not system_under_test"
+  if failure_reason:
+    return "publication report has a failure reason"
+  return _scheduler_publication_report_error(row)
+
+
+def _validate_scheduler_packet_lineage_report_rows(
+  errors: list[str], rows: list[dict[str, Any]]
+) -> None:
+  for index, row in enumerate(rows):
+    error = _scheduler_lineage_report_row_error(row)
+    if error:
+      errors.append(
+        "trace report sections.scheduler_packet_lineage_sidecar_rows"
+        f"[{index}]: {error}"
+      )
+
+
+def _scheduler_as_string(value: Any) -> str:
+  if value is None:
+    return ""
+  if isinstance(value, (str, int, float, bool)):
+    return str(value)
+  return json.dumps(value, sort_keys=True)
+
+
+def _scheduler_common_projection(
+  raw_row: Mapping[str, Any], artifact_index: int, row_index: int
+) -> dict[str, Any]:
+  failure_reason = json.dumps(
+    _scheduler_as_string(raw_row.get("failure_reason")), ensure_ascii=True
+  )[1:-1][:MAX_SCHEDULER_STRING_CHARS]
+  return {
+    "artifact_index": artifact_index,
+    "row_index": row_index,
+    "row_kind": _scheduler_as_string(raw_row.get("row_kind")),
+    "status": _scheduler_as_string(raw_row.get("status")) or "present",
+    "evidence_role": _scheduler_as_string(raw_row.get("evidence_role")),
+    "trace_run_id": _scheduler_as_string(raw_row.get("trace_run_id")),
+    "process_kind": _scheduler_as_string(raw_row.get("process_kind")),
+    "model_id": _scheduler_as_string(raw_row.get("model_id")),
+    "backend_id": _scheduler_as_string(raw_row.get("backend_id")),
+    "request_id": _scheduler_as_string(raw_row.get("request_id")),
+    "generation_id": _scheduler_as_string(raw_row.get("generation_id")),
+    "parent_location_id": _scheduler_as_string(raw_row.get("parent_location_id")),
+    "location_id": _scheduler_as_string(raw_row.get("location_id")),
+    "executor_shape": _scheduler_as_string(
+      raw_row.get("scheduler_executor_shape")
+    ),
+    "executor_status": _scheduler_as_string(
+      raw_row.get("scheduler_batch_executor_status")
+    ),
+    "attention_mode": _scheduler_as_string(
+      raw_row.get("scheduler_batch_attention_mode")
+    ),
+    "runtime_request_token_count": _scheduler_as_string(
+      raw_row.get("runtime_request_token_count")
+    ),
+    "tokens_reused": _scheduler_as_string(raw_row.get("tokens_reused")),
+    "token_job_count": _scheduler_as_string(
+      raw_row.get("scheduler_batch_token_job_count")
+    ),
+    "kv_job_count": _scheduler_as_string(
+      raw_row.get("scheduler_batch_kv_job_count")
+    ),
+    "listener_sparse_rows": _scheduler_as_string(
+      raw_row.get("scheduler_batch_listener_sparse_logit_row_count")
+    )
+    or _scheduler_as_string(
+      raw_row.get(
+        "scheduler_batch_fullscheduler_forward_batch_v1_listener_sparse_row_count"
+      )
+    ),
+    "listener_sparse_tokens": _scheduler_as_string(
+      raw_row.get("scheduler_batch_listener_sparse_logit_token_count")
+    )
+    or _scheduler_as_string(raw_row.get("sparse_topk_token_count")),
+    "kv_save_rows": _scheduler_as_string(
+      raw_row.get("scheduler_batch_kv_save_count")
+    )
+    or _scheduler_as_string(
+      raw_row.get("scheduler_batch_fullscheduler_forward_batch_v1_kv_save_row_count")
+    ),
+    "kv_context_rows": _scheduler_as_string(
+      raw_row.get("scheduler_batch_kv_context_row_count")
+    ),
+    "visible_token_slots": _scheduler_as_string(
+      raw_row.get("scheduler_batch_visible_token_slot_count")
+    ),
+    "kv_page_count": _scheduler_as_string(raw_row.get("scheduler_batch_kv_page_count")),
+    "hw_shard_allocation_requests": _scheduler_as_string(
+      raw_row.get("scheduler_batch_hw_shard_allocation_request_count")
+    ),
+    "hw_gof_page_infos": _scheduler_as_string(
+      raw_row.get("scheduler_batch_hw_gof_page_info_count")
+    ),
+    "minibatch_count": _scheduler_as_string(
+      raw_row.get("scheduler_batch_fullscheduler_forward_batch_v1_minibatch_count")
+    ),
+    "sparse_topk_rows": _scheduler_as_string(raw_row.get("sparse_topk_row_count")),
+    "sparse_topk_token_count": _scheduler_as_string(
+      raw_row.get("sparse_topk_token_count")
+    ),
+    "prior_hw_shard_allocation_requests": _scheduler_as_string(
+      raw_row.get("scheduler_prior_hw_shard_allocation_request_count")
+    ),
+    "prior_host_gof_ready_rows": _scheduler_as_string(
+      raw_row.get("scheduler_prior_host_gof_ready_row_count")
+    ),
+    "prior_host_gof_pending_dma_rows": _scheduler_as_string(
+      raw_row.get("scheduler_prior_host_gof_pending_dma_row_count")
+    ),
+    "prior_host_gof_cacheblock_dma_plans": _scheduler_as_string(
+      raw_row.get("scheduler_prior_host_gof_cacheblock_dma_plan_count")
+    ),
+    "prior_host_gof_materialized_cacheblocks": _scheduler_as_string(
+      raw_row.get("scheduler_prior_host_gof_materialized_cacheblock_count")
+    ),
+    "prior_host_gof_dma_completions": _scheduler_as_string(
+      raw_row.get("scheduler_prior_host_gof_dma_completion_count")
+    ),
+    "prior_host_gof_page_infos": _scheduler_as_string(
+      raw_row.get("scheduler_prior_host_gof_page_info_count")
+    ),
+    "prior_host_gof_staging_status": _scheduler_as_string(
+      raw_row.get("scheduler_prior_host_gof_staging_status")
+    ),
+    "failure_reason": failure_reason,
+  }
+
+
+def _scheduler_lane_projections(raw_row: Mapping[str, Any]) -> list[dict[str, Any]]:
+  lanes = raw_row.get("lanes")
+  if not isinstance(lanes, list) or not lanes:
+    raise ValueError("raw publication batch has no lanes")
+  projections: list[dict[str, Any]] = []
+  for publication_index, lane in enumerate(lanes):
+    if not isinstance(lane, dict):
+      raise ValueError(f"raw publication lane {publication_index} is not an object")
+    rows = lane.get("rows")
+    if not isinstance(rows, list) or not rows:
+      raise ValueError(f"raw publication lane {publication_index} has no rows")
+    try:
+      projection = {
+        "publication_index": publication_index,
+        **{
+          field: lane[field]
+          for field in SCHEDULER_PUBLICATION_LANE_PROJECTION_FIELDS
+          if field
+          not in {"publication_index", "qualified_row_count", "qualified_rows_sha256"}
+        },
+        "qualified_row_count": len(rows),
+        "qualified_rows_sha256": hashlib.sha256(
+          _scheduler_canonical_json(rows).encode("utf-8")
+        ).hexdigest(),
+      }
+    except KeyError as exc:
+      raise ValueError(
+        f"raw publication lane {publication_index} is missing {exc.args[0]}"
+      ) from exc
+    projections.append(projection)
+  return projections
+
+
+def _scheduler_project_raw_row(
+  raw_row: Any, artifact_index: int, row_index: int
+) -> dict[str, Any]:
+  if not isinstance(raw_row, dict):
+    raise ValueError("raw scheduler row is not an object")
+  if raw_row.get("schema_version") != 2:
+    raise ValueError("raw scheduler row schema_version is not 2")
+  projected = _scheduler_common_projection(raw_row, artifact_index, row_index)
+  row_kind = projected["row_kind"]
+  if row_kind == "scheduler_forward_batch":
+    return projected
+  if row_kind == "generated_state_transport":
+    rows = raw_row.get("rows")
+    if not isinstance(rows, list) or not rows:
+      raise ValueError("raw generated-state transport has no qualified rows")
+    source = raw_row.get("source_authority")
+    authority = raw_row.get("publication_authority")
+    projected.update(
+      {
+        "generated_state_transport_schema": _scheduler_as_string(
+          raw_row.get("generated_state_transport_schema")
+        ),
+        "generated_state_event": _scheduler_as_string(raw_row.get("event")),
+        "ares_plan_sha256": _scheduler_as_string(raw_row.get("ares_plan_sha256")),
+        "target_plan_sha256": _scheduler_as_string(
+          raw_row.get("target_plan_sha256")
+        ),
+        "targetplan_op_ids": raw_row.get("targetplan_op_ids", []),
+        "state_checkpoint_id": _scheduler_as_string(
+          raw_row.get("state_checkpoint_id")
+        ),
+        "state_branch_id": _scheduler_as_string(raw_row.get("state_branch_id")),
+        "state_parent_checkpoint_id": _scheduler_as_string(
+          raw_row.get("state_parent_checkpoint_id")
+        ),
+        "state_parent_branch_id": _scheduler_as_string(
+          raw_row.get("state_parent_branch_id")
+        ),
+        "qualified_row_count": str(len(rows)),
+        "qualified_rows_sha256": hashlib.sha256(
+          _scheduler_canonical_json(rows).encode("utf-8")
+        ).hexdigest(),
+        "source_authority_json": (
+          _scheduler_canonical_json(source) if isinstance(source, dict) else ""
+        ),
+        "publication_authority_json": (
+          _scheduler_canonical_json(authority)
+          if isinstance(authority, dict)
+          else ""
+        ),
+      }
+    )
+    return projected
+  if row_kind != "generated_state_publication_batch":
+    raise ValueError(f"raw scheduler row kind {row_kind!r} is unsupported")
+  lane_projections = _scheduler_lane_projections(raw_row)
+  raw_lanes = raw_row["lanes"]
+  first_lane = lane_projections[0]
+  publication_batch_id = raw_row.get("publication_batch_id")
+  distinct_lanes = {
+    _scheduler_canonical_json(lane["publication_lane_id"])
+    for lane in lane_projections
+  }
+  projected.update(
+    {
+      "model_id": first_lane["model_id"],
+      "backend_id": first_lane["backend_id"],
+      "generation_id": _scheduler_as_string(raw_lanes[0].get("generation_id")),
+      "generated_state_transport_schema": first_lane[
+        "generated_state_transport_schema"
+      ],
+      "generated_state_event": first_lane["event"],
+      "ares_plan_sha256": first_lane["ares_plan_sha256"],
+      "target_plan_sha256": first_lane["target_plan_sha256"],
+      "targetplan_op_ids": first_lane["targetplan_op_ids"],
+      "source_authority_json": _scheduler_canonical_json(
+        [lane["source_authority"] for lane in lane_projections]
+      ),
+      "publication_authority_json": _scheduler_canonical_json(
+        [lane["publication_authority"] for lane in lane_projections]
+      ),
+      "publication_lanes": lane_projections,
+      "publication_lanes_json": _scheduler_canonical_json(lane_projections),
+      "publication_batch_id_json": (
+        _scheduler_canonical_json(publication_batch_id)
+        if isinstance(publication_batch_id, dict)
+        else ""
+      ),
+      "publication_batch_generation": _scheduler_as_string(
+        raw_row.get("publication_batch_generation")
+      ),
+      "publication_lane_count": str(len(distinct_lanes)),
+      "publication_record_count": str(len(raw_lanes)),
+      "publication_route_owner_index": _scheduler_as_string(
+        raw_row.get("publication_route_owner_index")
+      ),
+    }
+  )
+  return projected
+
+
+def _scheduler_jsonl_rows(data: bytes) -> list[dict[str, Any]]:
+  if len(data) > MAX_SCHEDULER_LINEAGE_JSONL_BYTES:
+    raise ValueError(
+      "scheduler packet-lineage JSONL exceeds "
+      f"{MAX_SCHEDULER_LINEAGE_JSONL_BYTES} bytes"
+    )
+  rows: list[dict[str, Any]] = []
+  aggregate_items = 0
+  start = 0
+  physical_rows = 0
+  while start < len(data):
+    physical_rows += 1
+    if physical_rows > MAX_SCHEDULER_LINEAGE_JSONL_ROWS:
+      raise ValueError(
+        "scheduler packet-lineage JSONL exceeds "
+        f"{MAX_SCHEDULER_LINEAGE_JSONL_ROWS} physical rows"
+      )
+    newline = data.find(b"\n", start)
+    if newline < 0:
+      encoded_line = data[start:]
+      start = len(data)
+    else:
+      encoded_line = data[start:newline]
+      start = newline + 1
+    if not encoded_line.strip():
+      continue
+    if len(encoded_line) > MAX_SCHEDULER_LINEAGE_JSONL_LINE_BYTES:
+      raise ValueError(
+        f"scheduler packet-lineage JSONL line {physical_rows} exceeds "
+        f"{MAX_SCHEDULER_LINEAGE_JSONL_LINE_BYTES} bytes"
+      )
+    item_count = _json_structural_item_count(
+      encoded_line, MAX_SCHEDULER_LINEAGE_JSON_ITEMS_PER_ROW
+    )
+    if item_count > MAX_SCHEDULER_LINEAGE_JSON_ITEMS_PER_ROW:
+      raise ValueError(
+        f"scheduler packet-lineage JSONL line {physical_rows} exceeds "
+        f"{MAX_SCHEDULER_LINEAGE_JSON_ITEMS_PER_ROW} structural JSON items"
+      )
+    aggregate_items += item_count
+    if aggregate_items > MAX_SCHEDULER_LINEAGE_JSON_ITEMS:
+      raise ValueError(
+        "scheduler packet-lineage JSONL exceeds "
+        f"{MAX_SCHEDULER_LINEAGE_JSON_ITEMS} structural JSON items"
+      )
+    value = _strict_json_loads_bytes(
+      encoded_line,
+      label=f"scheduler packet-lineage JSONL line {physical_rows}",
+      maximum_items=MAX_SCHEDULER_LINEAGE_JSON_ITEMS_PER_ROW,
+    )
+    if not isinstance(value, dict):
+      raise ValueError(
+        f"scheduler packet-lineage JSONL line {physical_rows} is not an object"
+      )
+    rows.append(value)
+  return rows
+
+
+def _resolve_report_reference(path_value: str, owner_path: Path) -> Path:
+  path = Path(path_value)
+  return path if path.is_absolute() else owner_path.parent / path
+
+
+def _scheduler_lean_authority_bindings(
+  raw_rows: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+  bindings: list[dict[str, Any]] = []
+  for row in raw_rows:
+    row_kind = row.get("row_kind")
+    candidates: list[Mapping[str, Any]] = []
+    if row_kind == "generated_state_transport":
+      candidates = [row]
+    elif row_kind == "generated_state_publication_batch":
+      lanes = row.get("lanes")
+      if isinstance(lanes, list):
+        candidates = [lane for lane in lanes if isinstance(lane, Mapping)]
+    for candidate in candidates:
+      source_authority = candidate.get("source_authority")
+      if (
+        isinstance(source_authority, Mapping)
+        and source_authority.get("kind") == "lean_fixture_synthetic_typed"
+      ):
+        bindings.append(
+          {
+            "model_id": candidate.get("model_id"),
+            "backend_id": candidate.get("backend_id"),
+            "ares_plan_sha256": candidate.get("ares_plan_sha256"),
+            "target_plan_sha256": candidate.get("target_plan_sha256"),
+            "source_authority": dict(source_authority),
+          }
+        )
+  return bindings
+
+
+def _validate_scheduler_lean_authority(
+  errors: list[str],
+  raw_rows: list[dict[str, Any]],
+  authority_root: Path | None,
+) -> None:
+  bindings = _scheduler_lean_authority_bindings(raw_rows)
+  if not bindings:
+    return
+  if authority_root is None:
+    errors.append(
+      "scheduler lineage Lean fixture authority requires an independent Ares root"
+    )
+    return
+  manifest_path = authority_root / PROVIDER_ADMISSION_MANIFEST_RELATIVE
+  try:
+    manifest_data = _read_regular_file_bytes(
+      manifest_path,
+      maximum_bytes=MAX_TRACE_METADATA_BYTES,
+      label="provider admission manifest",
+    )
+    manifest = _strict_json_loads_bytes(
+      manifest_data,
+      label="provider admission manifest",
+      maximum_items=MAX_TRACE_METADATA_JSON_ITEMS,
+    )
+  except ValueError as exc:
+    errors.append(str(exc))
+    return
+  if not isinstance(manifest, dict) or manifest.get("schema_version") != 1:
+    errors.append("provider admission manifest is not schema version 1")
+    return
+  entries = manifest.get("entries")
+  if not isinstance(entries, list):
+    errors.append("provider admission manifest entries is not an array")
+    return
+
+  unique_bindings = {
+    _scheduler_canonical_json(binding): binding for binding in bindings
+  }
+  for binding in unique_bindings.values():
+    source = binding["source_authority"]
+    expected_source_sha = "sha256:" + str(binding["ares_plan_sha256"])
+    expected_target_sha = "sha256:" + str(binding["target_plan_sha256"])
+    expected_legacy_sha = "sha256:" + str(source.get("legacy_core_sha256"))
+    expected_typed_sha = "sha256:" + str(
+      source.get("typed_attention_view_sha256")
+    )
+    matches = []
+    for entry in entries:
+      if not isinstance(entry, dict):
+        continue
+      ares_plan = entry.get("ares_plan")
+      target_plan = entry.get("target_plan")
+      if not isinstance(ares_plan, dict) or not isinstance(target_plan, dict):
+        continue
+      if (
+        entry.get("source_sha256") == expected_source_sha
+        and entry.get("target_sha256") == expected_target_sha
+        and ares_plan.get("legacy_core_sha256") == expected_legacy_sha
+        and ares_plan.get("derived_typed_attention_view_sha256")
+        == expected_typed_sha
+        and target_plan.get("model_id") == binding["model_id"]
+        and target_plan.get("backend_id") == binding["backend_id"]
+        and target_plan.get("source_ares_plan_sha256") == expected_source_sha
+      ):
+        matches.append(entry)
+    if len(matches) != 1:
+      errors.append(
+        "scheduler lineage Lean fixture authority has "
+        f"{len(matches)} exact provider-manifest matches for "
+        f"{binding['model_id']!r}/{binding['backend_id']!r}"
+      )
+      continue
+    entry = matches[0]
+    for label, path_field, expected_sha in (
+      ("AresPlan", "source_path", str(binding["ares_plan_sha256"])),
+      ("TargetPlan", "target_path", str(binding["target_plan_sha256"])),
+    ):
+      relative_path = entry.get(path_field)
+      if not isinstance(relative_path, str) or not relative_path:
+        errors.append(
+          f"provider admission manifest {label} path is missing for "
+          f"{binding['model_id']!r}/{binding['backend_id']!r}"
+        )
+        continue
+      artifact_path = authority_root / relative_path
+      try:
+        artifact_data = _read_regular_file_bytes(
+          artifact_path,
+          maximum_bytes=MAX_TRACE_REPORT_BYTES,
+          label=f"provider admission {label}",
+        )
+      except ValueError as exc:
+        errors.append(str(exc))
+        continue
+      if hashlib.sha256(artifact_data).hexdigest() != expected_sha:
+        errors.append(
+          f"provider admission {label} bytes do not match scheduler lineage"
+        )
+
+
+def _validate_scheduler_packet_lineage_artifact_binding(
+  errors: list[str],
+  report: Mapping[str, Any],
+  report_rows: list[dict[str, Any]],
+  report_path: Path | None,
+  authority_root: Path | None,
+) -> None:
+  bound_rows = [row for row in report_rows if row.get("row_kind")]
+  sections = report.get("sections")
+  summary_rows = (
+    sections.get("introspection_artifacts") if isinstance(sections, Mapping) else None
+  )
+  scheduler_summary_present = isinstance(summary_rows, list) and any(
+    isinstance(summary, dict)
+    and summary.get("kind") == "scheduler_packet_lineage"
+    for summary in summary_rows
+  )
+  if not bound_rows and not scheduler_summary_present:
+    return
+  if report_path is None:
+    if bound_rows:
+      errors.append("scheduler lineage rows cannot be rebound without report path")
+    return
+  inputs = report.get("inputs")
+  metadata_value = inputs.get("metadata") if isinstance(inputs, Mapping) else None
+  if not isinstance(metadata_value, str) or not metadata_value:
+    errors.append("trace report inputs.metadata is required for scheduler lineage")
+    return
+  metadata_path = _resolve_report_reference(metadata_value, report_path)
+  try:
+    metadata_data = _read_regular_file_bytes(
+      metadata_path,
+      maximum_bytes=MAX_TRACE_METADATA_BYTES,
+      label="trace report metadata",
+    )
+    metadata = _strict_json_loads_bytes(
+      metadata_data,
+      label="trace report metadata",
+      maximum_items=MAX_TRACE_METADATA_JSON_ITEMS,
+    )
+  except ValueError as exc:
+    errors.append(str(exc))
+    return
+  if not isinstance(metadata, dict):
+    errors.append("trace report metadata is not an object")
+    return
+  metadata_artifacts = metadata.get("introspection_artifacts")
+  if not isinstance(metadata_artifacts, list):
+    errors.append("trace report metadata introspection_artifacts is not an array")
+    return
+  scheduler_artifact_indices = [
+    index
+    for index, artifact in enumerate(metadata_artifacts)
+    if isinstance(artifact, dict)
+    and artifact.get("kind") == "scheduler_packet_lineage"
+  ]
+  if not scheduler_artifact_indices:
+    if bound_rows:
+      errors.append("trace report has scheduler lineage rows without an artifact")
+    return
+  if not isinstance(summary_rows, list):
+    errors.append(
+      "trace report sections.introspection_artifacts is required for scheduler lineage"
+    )
+    return
+  rows_by_artifact: dict[int, list[dict[str, Any]]] = {}
+  seen_coordinates: set[tuple[int, int]] = set()
+  for row in bound_rows:
+    artifact_index = row.get("artifact_index")
+    row_index = row.get("row_index")
+    if not _scheduler_nonnegative_u64(artifact_index) or not _scheduler_nonnegative_u64(
+      row_index
+    ):
+      continue
+    coordinate = (artifact_index, row_index)
+    if coordinate in seen_coordinates:
+      errors.append(
+        "trace report scheduler lineage duplicates artifact/row coordinate "
+        f"{coordinate}"
+      )
+      continue
+    seen_coordinates.add(coordinate)
+    rows_by_artifact.setdefault(artifact_index, []).append(row)
+  for artifact_index in sorted(rows_by_artifact):
+    if artifact_index not in scheduler_artifact_indices:
+      errors.append(
+        f"scheduler lineage artifact_index {artifact_index} is not a scheduler artifact"
+      )
+  for artifact_index in scheduler_artifact_indices:
+    rows = rows_by_artifact.get(artifact_index, [])
+    artifact = metadata_artifacts[artifact_index]
+    assert isinstance(artifact, dict)
+    matching_summaries = [
+      summary
+      for summary in summary_rows
+      if isinstance(summary, dict)
+      and summary.get("index") == artifact_index
+      and summary.get("kind") == "scheduler_packet_lineage"
+    ]
+    if len(matching_summaries) != 1:
+      errors.append(
+        f"scheduler lineage artifact {artifact_index} has {len(matching_summaries)} "
+        "matching report metadata rows"
+      )
+      continue
+    summary = matching_summaries[0]
+    raw_path_value = artifact.get("path")
+    expected_sha = artifact.get("sha256")
+    expected_rows = artifact.get("row_count")
+    expected_bytes = artifact.get("byte_count")
+    if not isinstance(raw_path_value, str) or not raw_path_value:
+      errors.append(f"scheduler lineage artifact {artifact_index} path is invalid")
+      continue
+    if (
+      not isinstance(expected_sha, str)
+      or expected_sha != expected_sha.lower()
+      or SHA256_RE.fullmatch(expected_sha) is None
+    ):
+      errors.append(f"scheduler lineage artifact {artifact_index} sha256 is invalid")
+      continue
+    if not _scheduler_nonnegative_u64(expected_rows) or not _scheduler_nonnegative_u64(
+      expected_bytes
+    ):
+      errors.append(
+        f"scheduler lineage artifact {artifact_index} row/byte counts are invalid"
+      )
+      continue
+    raw_path = _resolve_report_reference(raw_path_value, metadata_path)
+    try:
+      raw_data = _read_regular_file_bytes(
+        raw_path,
+        maximum_bytes=MAX_SCHEDULER_LINEAGE_JSONL_BYTES,
+        label="scheduler packet-lineage JSONL",
+      )
+      raw_rows = _scheduler_jsonl_rows(raw_data)
+    except ValueError as exc:
+      errors.append(str(exc))
+      continue
+    actual_sha = hashlib.sha256(raw_data).hexdigest()
+    projected_indices = [row["row_index"] for row in rows]
+    expected_indices = list(range(len(raw_rows)))
+    if projected_indices != expected_indices:
+      errors.append(
+        f"scheduler lineage artifact {artifact_index} report projection is not "
+        "complete and contiguous"
+      )
+    _validate_scheduler_lean_authority(errors, raw_rows, authority_root)
+    binding_checks = {
+      "metadata sha256": (expected_sha, actual_sha),
+      "metadata row_count": (expected_rows, len(raw_rows)),
+      "metadata byte_count": (expected_bytes, len(raw_data)),
+      "report path": (summary.get("path"), raw_path_value),
+      "report sha256": (summary.get("sha256"), actual_sha),
+      "report row_count": (summary.get("row_count"), str(len(raw_rows))),
+      "report byte_count": (summary.get("byte_count"), str(len(raw_data))),
+    }
+    for label, (reported, expected) in binding_checks.items():
+      if reported != expected:
+        errors.append(
+          f"scheduler lineage artifact {artifact_index} {label} does not match raw sidecar"
+        )
+    for report_row in rows:
+      row_index = report_row["row_index"]
+      if row_index >= len(raw_rows):
+        errors.append(
+          f"scheduler lineage artifact {artifact_index} row_index {row_index} "
+          "is outside the raw sidecar"
+        )
+        continue
+      try:
+        expected_row = _scheduler_project_raw_row(
+          raw_rows[row_index], artifact_index, row_index
+        )
+      except ValueError as exc:
+        errors.append(
+          f"scheduler lineage raw row {artifact_index}:{row_index}: {exc}"
+        )
+        continue
+      if report_row != expected_row:
+        differing = sorted(
+          field
+          for field in set(report_row) | set(expected_row)
+          if report_row.get(field) != expected_row.get(field)
+        )
+        errors.append(
+          f"scheduler lineage report row {artifact_index}:{row_index} does not "
+          f"match the raw projection at fields {differing!r}"
+        )
 
 
 def _trace_report_section_rows(
