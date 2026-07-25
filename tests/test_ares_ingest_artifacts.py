@@ -4106,11 +4106,11 @@ class AresIngestArtifactTest(unittest.TestCase):
       )
       self.assertEqual(
           gate["detail"]["introspection_artifact_row_count_total"],
-          12,
+          15,
       )
       self.assertEqual(
           gate["detail"]["introspection_artifact_byte_count_total"],
-          12301,
+          60321,
       )
       self.assertEqual(
           gate["detail"]["introspection_artifact_samples"][0]["kind"],
