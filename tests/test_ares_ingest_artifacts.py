@@ -17,6 +17,7 @@ from ares_ingest_autoagent.artifacts import (
     introspection_ladder_gate,
     mmlu_pro_gate,
     one_token_logits_gate,
+    parse_mmlu_pro_systems_test_command,
     trace_report_gate,
     token_agreement_gate,
     validate_cpp_tvd_evidence,
@@ -1358,6 +1359,44 @@ class AresIngestArtifactTest(unittest.TestCase):
       gate = mmlu_pro_gate(path)
 
       self.assertTrue(gate["passed"], gate.get("errors"))
+
+  def test_mmlu_pro_command_parser_preserves_canonical_uv_invocation(self) -> None:
+    detail = parse_mmlu_pro_systems_test_command(
+      "env OPENAI_HOST=http://127.0.0.1:50183/v1 SKIP_PROVISION=1 "
+      "MMLU_ARTIFACT_MODE=local MMLU_MODEL=synthetic/model "
+      "uv run --project /repo/third_party/systems_test --locked mmlu_pro"
+    )
+
+    self.assertIsNone(detail["parse_error"])
+    self.assertTrue(detail["runs_mmlu_pro"])
+    self.assertTrue(detail["skips_provision"])
+    self.assertTrue(detail["uses_local_artifacts"])
+    self.assertEqual(
+      detail["command_args"],
+      [
+        "uv",
+        "run",
+        "--project",
+        "/repo/third_party/systems_test",
+        "--locked",
+        "mmlu_pro",
+      ],
+    )
+    self.assertEqual(detail["environment"]["MMLU_MODEL"], "synthetic/model")
+
+  def test_mmlu_pro_command_parser_rejects_shell_controls(self) -> None:
+    for command in (
+      "SKIP_PROVISION=1 uv run mmlu_pro\nprintf unexpected",
+      "SKIP_PROVISION=1 uv run mmlu_pro `printf unexpected`",
+      "SKIP_PROVISION=1 uv run mmlu_pro &&printf unexpected",
+      "SKIP_PROVISION=1 uv run mmlu_pro; printf unexpected",
+      "SKIP_PROVISION=1 uv run mmlu_pro | printf unexpected",
+      "SKIP_PROVISION=1 uv run mmlu_pro $(printf unexpected)",
+    ):
+      with self.subTest(command=command):
+        detail = parse_mmlu_pro_systems_test_command(command)
+        self.assertIsNotNone(detail["parse_error"])
+        self.assertFalse(detail["runs_mmlu_pro"])
 
   def test_mmlu_pro_gate_rejects_uv_command_for_other_program(self) -> None:
     with TemporaryDirectory() as tmp:

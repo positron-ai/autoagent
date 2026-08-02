@@ -6185,13 +6185,16 @@ def _require_non_empty_string(errors: list[str], value: Any, context: str) -> No
     errors.append(f"{context} must be a non-empty string")
 
 
-def _command_runs_uv_mmlu_pro(command: Any) -> bool:
-  if not isinstance(command, str):
+def _is_shell_env_assignment(token: str) -> bool:
+  name, separator, _value = token.partition("=")
+  if not separator or not name:
     return False
-  try:
-    tokens = shlex.split(command)
-  except ValueError:
-    tokens = command.split()
+  if not (name[0].isalpha() or name[0] == "_"):
+    return False
+  return all(character.isalnum() or character == "_" for character in name)
+
+
+def _uv_run_mmlu_pro(command_args: list[str]) -> bool:
   options_with_values = {
     "--cache-dir",
     "--config-file",
@@ -6221,24 +6224,84 @@ def _command_runs_uv_mmlu_pro(command: Any) -> bool:
     "--with-editable",
     "--with-requirements",
   }
-  for index, token in enumerate(tokens[:-1]):
-    if token == "uv" and tokens[index + 1] == "run":
-      arg_index = index + 2
-      while arg_index < len(tokens):
-        arg = tokens[arg_index]
-        if arg == "--":
-          arg_index += 1
-          break
-        if not arg.startswith("-"):
-          break
-        if "=" in arg:
-          arg_index += 1
-          continue
-        arg_index += 1
-        if arg in options_with_values and arg_index < len(tokens):
-          arg_index += 1
-      return arg_index < len(tokens) and tokens[arg_index] == "mmlu_pro"
-  return False
+  if command_args[:2] != ["uv", "run"]:
+    return False
+  arg_index = 2
+  while arg_index < len(command_args):
+    arg = command_args[arg_index]
+    if arg == "--":
+      arg_index += 1
+      break
+    if not arg.startswith("-"):
+      break
+    if "=" in arg:
+      arg_index += 1
+      continue
+    arg_index += 1
+    if arg in options_with_values and arg_index < len(command_args):
+      arg_index += 1
+  return arg_index < len(command_args) and command_args[arg_index] == "mmlu_pro"
+
+
+def parse_mmlu_pro_systems_test_command(command: Any) -> dict[str, Any]:
+  detail: dict[str, Any] = {
+    "tokens": None,
+    "environment": None,
+    "command_args": None,
+    "parse_error": None,
+    "runs_mmlu_pro": False,
+    "skips_provision": False,
+    "uses_local_artifacts": False,
+  }
+  if not isinstance(command, str) or not command.strip():
+    detail["parse_error"] = "command must be a non-empty string"
+    return detail
+  if any(
+    control in command
+    for control in ("\n", "\r", ";", "&", "|", "`", "$", "<", ">")
+  ):
+    detail["parse_error"] = "command contains shell control syntax"
+    return detail
+  try:
+    tokens = shlex.split(command)
+  except ValueError as exc:
+    detail["parse_error"] = str(exc)
+    return detail
+  if not tokens:
+    detail["parse_error"] = "command must contain an invocation"
+    return detail
+
+  command_index = 1 if tokens[0] == "env" else 0
+  environment: dict[str, str] = {}
+  while command_index < len(tokens) and _is_shell_env_assignment(
+    tokens[command_index]
+  ):
+    name, value = tokens[command_index].split("=", 1)
+    if name in environment:
+      detail["parse_error"] = f"command repeats environment assignment {name}"
+      return detail
+    environment[name] = value
+    command_index += 1
+  command_args = tokens[command_index:]
+  if not command_args:
+    detail["parse_error"] = "command must contain an invocation after assignments"
+    return detail
+
+  detail.update(
+    {
+      "tokens": tokens,
+      "environment": environment,
+      "command_args": command_args,
+      "runs_mmlu_pro": _uv_run_mmlu_pro(command_args),
+      "skips_provision": environment.get("SKIP_PROVISION") == "1",
+      "uses_local_artifacts": environment.get("MMLU_ARTIFACT_MODE") == "local",
+    }
+  )
+  return detail
+
+
+def _command_runs_uv_mmlu_pro(command: Any) -> bool:
+  return parse_mmlu_pro_systems_test_command(command)["runs_mmlu_pro"] is True
 
 
 def _command_env_non_negative_int(
