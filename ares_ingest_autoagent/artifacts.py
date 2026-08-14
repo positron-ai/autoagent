@@ -139,8 +139,15 @@ MAX_SCHEDULER_STRING_CHARS = 4096
 PROVIDER_ADMISSION_MANIFEST_RELATIVE = Path(
   "runtime/core/crates/ares-plan-exec/fixtures/provider-admission-manifest.v1.json"
 )
+# V3 already defines the closed tagged source-authority union. Selecting exactly
+# one legacy or successor core key extends that union without changing legacy
+# bytes, so every live reader moves atomically while the envelope version stays.
 SCHEDULER_GENERATED_STATE_TRANSPORT_SCHEMA = (
     "ares.scheduler.generated_state_transport.v3"
+)
+SCHEDULER_LEAN_FIXTURE_CORE_AUTHORITY_KEYS = (
+    "legacy_core_sha256",
+    "successor_core_sha256",
 )
 SCHEDULER_I64_MAX = (1 << 63) - 1
 SCHEDULER_U64_MAX = (1 << 64) - 1
@@ -4561,12 +4568,21 @@ def _scheduler_source_authority_error(value: Any) -> str | None:
     },
     "lean_fixture_synthetic_typed": {
       "kind",
-      "legacy_core_sha256",
       "typed_attention_view_sha256",
     },
   }.get(kind)
   if expected_keys is None:
     return f"unsupported source authority kind {kind!r}"
+  if kind == "lean_fixture_synthetic_typed":
+    selected_core_keys = [
+      key for key in SCHEDULER_LEAN_FIXTURE_CORE_AUTHORITY_KEYS if key in value
+    ]
+    if len(selected_core_keys) != 1:
+      return (
+        "source authority 'lean_fixture_synthetic_typed' must carry exactly "
+        "one of legacy_core_sha256 or successor_core_sha256"
+      )
+    expected_keys = expected_keys | {selected_core_keys[0]}
   if set(value) != expected_keys:
     return f"source authority keys do not match {kind!r}"
   if any(
@@ -5488,7 +5504,11 @@ def _validate_scheduler_lean_authority(
   except ValueError as exc:
     errors.append(str(exc))
     return
-  if not isinstance(manifest, dict) or manifest.get("schema_version") != 1:
+  if (
+    not isinstance(manifest, dict)
+    or manifest.get("schema") != "ares.provider_fixture_admission_manifest.v1"
+    or manifest.get("schema_version") != 1
+  ):
     errors.append("provider admission manifest is not schema version 1")
     return
   entries = manifest.get("entries")
@@ -5503,7 +5523,17 @@ def _validate_scheduler_lean_authority(
     source = binding["source_authority"]
     expected_source_sha = "sha256:" + str(binding["ares_plan_sha256"])
     expected_target_sha = "sha256:" + str(binding["target_plan_sha256"])
-    expected_legacy_sha = "sha256:" + str(source.get("legacy_core_sha256"))
+    selected_core_keys = [
+      key for key in SCHEDULER_LEAN_FIXTURE_CORE_AUTHORITY_KEYS if key in source
+    ]
+    if len(selected_core_keys) != 1:
+      errors.append(
+        "scheduler lineage Lean fixture authority does not select exactly one "
+        "core authority"
+      )
+      continue
+    core_key = selected_core_keys[0]
+    expected_core_sha = "sha256:" + str(source.get(core_key))
     expected_typed_sha = "sha256:" + str(
       source.get("typed_attention_view_sha256")
     )
@@ -5518,7 +5548,13 @@ def _validate_scheduler_lean_authority(
       if (
         entry.get("source_sha256") == expected_source_sha
         and entry.get("target_sha256") == expected_target_sha
-        and ares_plan.get("legacy_core_sha256") == expected_legacy_sha
+        and [
+          key
+          for key in SCHEDULER_LEAN_FIXTURE_CORE_AUTHORITY_KEYS
+          if key in ares_plan
+        ]
+        == [core_key]
+        and ares_plan.get(core_key) == expected_core_sha
         and ares_plan.get("derived_typed_attention_view_sha256")
         == expected_typed_sha
         and target_plan.get("model_id") == binding["model_id"]

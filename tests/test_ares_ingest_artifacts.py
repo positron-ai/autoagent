@@ -9,6 +9,7 @@ from tempfile import TemporaryDirectory
 
 from ares_ingest_autoagent.artifacts import (
     SCHEDULER_REPORT_COMMON_FIELDS,
+    _scheduler_source_authority_error,
     artifact_consistency_gate,
     backend_open_gate,
     build_greedy_token_evidence,
@@ -3934,6 +3935,39 @@ class AresIngestArtifactTest(unittest.TestCase):
               "available",
           )
           self.assertEqual(len(gate["detail"]["sha256"]), 64)
+
+  def test_scheduler_source_authority_selects_legacy_or_successor_core_exactly(
+      self,
+  ) -> None:
+      legacy = {
+          "kind": "lean_fixture_synthetic_typed",
+          "legacy_core_sha256": "1" * 64,
+          "typed_attention_view_sha256": "2" * 64,
+      }
+      successor = {
+          "kind": "lean_fixture_synthetic_typed",
+          "successor_core_sha256": "3" * 64,
+          "typed_attention_view_sha256": "2" * 64,
+      }
+      self.assertIsNone(_scheduler_source_authority_error(legacy))
+      self.assertIsNone(_scheduler_source_authority_error(successor))
+
+      both = dict(legacy, successor_core_sha256="3" * 64)
+      neither = {
+          "kind": "lean_fixture_synthetic_typed",
+          "typed_attention_view_sha256": "2" * 64,
+      }
+      for candidate in [both, neither]:
+          self.assertIn(
+              "must carry exactly one",
+              _scheduler_source_authority_error(candidate) or "",
+          )
+
+      malformed_successor = dict(successor, successor_core_sha256="3" * 63)
+      self.assertIn(
+          "malformed digest",
+          _scheduler_source_authority_error(malformed_successor) or "",
+      )
 
   def test_trace_report_gate_accepts_real_ares_trace_report_fixture(self) -> None:
       path = FIXTURE_DIR / "ares_trace_report_introspection_real.json"
