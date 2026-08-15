@@ -18,6 +18,7 @@
     "lean_ingest": true
   },
   "oracle_records": null,
+  "oracle_dense_logits": null,
   "policy": {
     "no_hand_authored_rust_model_plugins": true,
     "no_runtime_generated_execution_sidecars": true,

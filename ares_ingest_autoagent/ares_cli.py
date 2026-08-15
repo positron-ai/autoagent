@@ -17,6 +17,7 @@ from pathlib import Path
 from typing import Any, Mapping
 
 from ares_ingest_autoagent.artifacts import (
+    HfCpuOracleAuthority,
     ares_plan_gate,
     artifact_consistency_gate,
     backend_open_gate,
@@ -24,6 +25,8 @@ from ares_ingest_autoagent.artifacts import (
     cpp_tvd_gate,
     depth_performance_gate,
     introspection_ladder_gate,
+    load_hf_cpu_oracle_evidence_files,
+    load_hf_cpu_oracle_authority_file,
     mmlu_pro_gate,
     one_token_logits_gate,
     target_plan_gate,
@@ -72,6 +75,7 @@ class AresIngestConfig:
   setup_only: bool
   cockpit: bool
   stream_refiner_output: bool
+  oracle_authority: HfCpuOracleAuthority | None
 
 
 class AresIngestError(RuntimeError):
@@ -144,6 +148,10 @@ def reward_fingerprint(reward: dict[str, Any]) -> dict[str, Any]:
     "delta_inference": reward.get("delta_inference"),
     "stage_cap": reward.get("stage_cap"),
     "first_failed_gate": reward.get("first_failed_gate"),
+    "gate_profile": reward.get("gate_profile"),
+    "required_gates_authority": reward.get("required_gates_authority"),
+    "promotion_eligible": reward.get("promotion_eligible"),
+    "claim_ceiling": reward.get("claim_ceiling"),
     "gates": {
       name: {
         "passed": detail.get("passed"),
@@ -3751,14 +3759,18 @@ def selected_workflow_skills(
       "hf_cpu_oracle": {
         "name": "ares-python",
         "gate": "hf_cpu_oracle",
-        "why": "Capture or validate HF Transformers + PyTorch CPU oracle records.",
+        "why": (
+          "Capture or validate a committed HF Transformers + PyTorch CPU "
+          "raw/dense transaction."
+        ),
         "allowed_scope": [
           "tools/oracles/hf-cpu/",
           str(cfg.run_dir / "artifacts"),
           str(cfg.model_spec_path),
         ],
         "verification_commands": [
-          "tools/oracles/hf-cpu/capture_hf_cpu_oracle.py validate-jsonl <oracle.jsonl>",
+          "tools/oracles/hf-cpu/capture_hf_cpu_oracle.py validate-jsonl "
+          "<oracle.jsonl> --dense-logits-jsonl <dense.jsonl>",
           verify,
         ],
       },
@@ -4372,6 +4384,14 @@ def config_from_args(args: argparse.Namespace) -> AresIngestConfig:
     if args.run_dir
     else default_run_dir(ares_repo, safe_model)
   )
+  try:
+    oracle_authority = (
+      load_hf_cpu_oracle_authority_file(Path(args.oracle_authority_file))
+      if args.oracle_authority_file
+      else None
+    )
+  except ValueError as exc:
+    raise AresIngestError(f"invalid operator HF CPU oracle authority: {exc}") from exc
   return AresIngestConfig(
     model_slug=args.model,
     safe_model=safe_model,
@@ -4393,6 +4413,7 @@ def config_from_args(args: argparse.Namespace) -> AresIngestConfig:
     setup_only=args.setup_only,
     cockpit=args.cockpit,
     stream_refiner_output=args.stream_refiner_output or args.cockpit,
+    oracle_authority=oracle_authority,
   )
 
 
@@ -4405,17 +4426,21 @@ def evaluate_run(cfg: AresIngestConfig) -> tuple[dict[str, Any], dict[str, Any]]
     if cfg.model_spec_path.exists()
     else build_model_spec(cfg)
   )
-  spec.setdefault("model", cfg.model_slug)
-  spec.setdefault("safe_model", cfg.safe_model)
+  # Model identity is operator-selected authority, just like the gate profile.
+  # The refiner owns artifact paths, but cannot replace the requested model or
+  # expand its accepted identity through writable alias fields.
+  spec["model"] = cfg.model_slug
+  spec["expected_model_ids"] = [cfg.model_slug]
+  spec["safe_model"] = cfg.safe_model
+  for alias_field in ("artifact_model_ids", "model_aliases", "model_id"):
+    spec.pop(alias_field, None)
   spec.setdefault("ares_repo", str(cfg.ares_repo))
   spec.setdefault("frontend", "hf-export")
   spec.setdefault("backend", "fpga")
-  spec.setdefault("gate_profile", cfg.gate_profile)
-  spec.setdefault("required_gates", list(required_gates_for_profile(cfg.gate_profile)))
-  if not isinstance(spec["required_gates"], list) or not all(
-    isinstance(gate, str) for gate in spec["required_gates"]
-  ):
-    raise AresIngestError("model_spec required_gates must be a list of strings")
+  # The operator-selected profile is the live authority. A refiner may improve
+  # evidence paths and artifacts, but cannot silently downgrade required gates.
+  spec["gate_profile"] = cfg.gate_profile
+  spec["required_gates"] = list(required_gates_for_profile(cfg.gate_profile))
   explicit_gates = spec.setdefault("explicit_gates", {})
   if not isinstance(explicit_gates, dict):
     raise AresIngestError("model_spec explicit_gates must be a JSON object")
@@ -4430,21 +4455,43 @@ def evaluate_run(cfg: AresIngestConfig) -> tuple[dict[str, Any], dict[str, Any]]
   validated_gates: dict[str, Any] = {}
   validated_gates["shortcut_scan"] = shortcut_scan_gate(cfg.ares_repo)
 
-  oracle_payload = None
+  oracle_path = None
   if oracle_spec := spec.get("oracle_records"):
-    oracle_payload = read_json_or_jsonl(resolve_run_path(str(oracle_spec), cfg))
+    oracle_path = resolve_run_path(str(oracle_spec), cfg)
+  oracle_dense_path = None
+  if oracle_dense_spec := spec.get("oracle_dense_logits"):
+    oracle_dense_path = resolve_run_path(str(oracle_dense_spec), cfg)
+  for evidence_path in (oracle_path, oracle_dense_path):
+    if evidence_path is not None and not evidence_path.exists():
+      raise AresIngestError(f"missing JSON file: {evidence_path}")
+  oracle_evidence = (
+    load_hf_cpu_oracle_evidence_files(
+      oracle_path,
+      oracle_dense_path,
+      expected_authority=cfg.oracle_authority,
+    )
+    if oracle_path is not None and oracle_dense_path is not None
+    else None
+  )
+  ares_plan_path = None
   if ares_plan := spec.get("ares_plan"):
-    validated_gates["aresplan_valid"] = ares_plan_gate(
-      resolve_run_path(str(ares_plan), cfg)
-    )
+    ares_plan_path = resolve_run_path(str(ares_plan), cfg)
+    validated_gates["aresplan_valid"] = ares_plan_gate(ares_plan_path)
+  target_plan_path = None
   if target_plan := spec.get("target_plan"):
-    validated_gates["targetplan_valid"] = target_plan_gate(
-      resolve_run_path(str(target_plan), cfg)
-    )
+    target_plan_path = resolve_run_path(str(target_plan), cfg)
+    validated_gates["targetplan_valid"] = target_plan_gate(target_plan_path)
   if "artifact_consistency" in spec["required_gates"]:
     validated_gates["artifact_consistency"] = artifact_consistency_gate(
       spec,
-      oracle_payload=oracle_payload,
+      oracle_payload=(
+        oracle_evidence.oracle_records if oracle_evidence is not None else None
+      ),
+      oracle_transaction_digest=(
+        oracle_evidence.validation.detail.get("transaction_digest")
+        if oracle_evidence is not None and oracle_evidence.validation.passed
+        else None
+      ),
       validated_gates=validated_gates,
     )
   if backend_open := spec.get("backend_open_evidence"):
@@ -4528,9 +4575,16 @@ def evaluate_run(cfg: AresIngestConfig) -> tuple[dict[str, Any], dict[str, Any]]
   reward = compute_reward(
     gates_payload={"gates": spec["explicit_gates"]},
     validated_gates_payload={"gates": validated_gates},
-    oracle_payload=oracle_payload,
+    oracle_path=oracle_path,
+    oracle_dense_path=oracle_dense_path,
+    artifact_spec=spec,
+    ares_plan_path=ares_plan_path,
+    target_plan_path=target_plan_path,
+    authority_root=cfg.ares_repo,
+    expected_oracle_authority=cfg.oracle_authority,
     token_payload=token_payload,
     required_gates=tuple(spec["required_gates"]),
+    promotion_authority=True,
   )
   write_json(cfg.run_dir / "reward.json", reward)
   (cfg.run_dir / "reward.txt").write_text(f"{reward['score']:.12g}\n")
@@ -4589,7 +4643,13 @@ def gate_guidance(
     f"- Verifier/refiner logs: `{cfg.logs_dir}`",
     f"- This iteration's refiner log: `{cfg.logs_dir / f'{iteration:02d}-refiner.log'}`",
   ]
-  for field in ("oracle_records", "ares_plan", "target_plan", "introspection_ladder"):
+  for field in (
+    "oracle_records",
+    "oracle_dense_logits",
+    "ares_plan",
+    "target_plan",
+    "introspection_ladder",
+  ):
     if value := spec.get(field):
       common.append(f"- `{field}` artifact: `{resolve_run_path(str(value), cfg)}`")
   if value := spec.get("trace_report_json") or spec.get("trace_report"):
@@ -4604,9 +4664,14 @@ def gate_guidance(
     common.append(f"- Command wrapper plan: `{resolve_run_path(str(value), cfg)}`")
   common.extend(introspection_ladder_prompt_lines(spec))
   specific: dict[str, list[str]] = {
+    "diagnostic_complete": [
+      "- Select a checked-in gate profile before treating this run as a promotion candidate.",
+      "- Custom `required_gates` lists are diagnostic-only even when every listed gate passes.",
+    ],
     "hf_cpu_oracle": [
-      "- Capture or attach a real HF Transformers + PyTorch CPU oracle record.",
+      "- Capture or attach one canonically committed HF Transformers + PyTorch CPU raw/dense transaction.",
       "- Do not use Ares/Rust, C++ Tron, mocks, or generated fixtures as the oracle.",
+      "- Set both `oracle_records` and `oracle_dense_logits`; raw-only or uncommitted files are diagnostic-only.",
       "- Record model/tokenizer revisions, prompt tokens, generated ids, and logit slices.",
       "- Treat the captured token/logit rows as reusable goldens for this exact model/checkpoint, tokenizer, prompt-token context, decode depth, dtype/quantization policy, deterministic settings, and oracle/exporter code tuple.",
     ],
@@ -4628,7 +4693,7 @@ def gate_guidance(
     ],
     "artifact_consistency": [
       "- Make the HF CPU oracle and TargetPlan identify the same model row.",
-      "- Set `expected_model_ids` in `model_spec.json` when a registry row, local checkpoint path, and HF model id are legitimate aliases.",
+      "- Match the operator-selected model id exactly; writable model aliases do not carry promotion authority.",
       "- Do not pass this gate by mixing a real oracle with unrelated fixture plans.",
     ],
     "shortcut_scan": [
@@ -5122,13 +5187,22 @@ def write_failure_state(cfg: AresIngestConfig, error: BaseException) -> None:
 
 
 def run_loop(cfg: AresIngestConfig) -> int:
+  cfg.run_dir.mkdir(parents=True, exist_ok=True)
+  cfg.logs_dir.mkdir(parents=True, exist_ok=True)
+  state_existed = cfg.state_path.exists()
+  state = load_state_or_recover(cfg.state_path)
+  if state_existed and "previous_state_error" not in state:
+    state_model = state.get("model")
+    if state_model is not None and state_model != cfg.model_slug:
+      raise AresIngestError(
+        f"existing run state model {state_model!r} does not match requested "
+        f"model {cfg.model_slug!r}; use a distinct --run-dir"
+      )
+
   if cfg.setup_only:
     initialize_run(cfg)
     return 0
 
-  cfg.run_dir.mkdir(parents=True, exist_ok=True)
-  cfg.logs_dir.mkdir(parents=True, exist_ok=True)
-  state = load_state_or_recover(cfg.state_path)
   best_score = max(
     [float(item.get("score", 0.0) or 0.0) for item in state.get("history", [])] or [0.0]
   )
@@ -5142,12 +5216,17 @@ def run_loop(cfg: AresIngestConfig) -> int:
     fingerprint = reward_fingerprint(reward)
 
     if score >= cfg.target_score:
+      completion_status = (
+        "complete"
+        if reward.get("promotion_eligible") is True
+        else "diagnostic_target_reached_nonpromotion"
+      )
       if cfg.cockpit:
         write_cockpit_event(
           cfg,
           iteration=iteration,
           reward=reward,
-          status="complete",
+          status=completion_status,
         )
         print_cockpit_dashboard(
           cfg,
@@ -5162,9 +5241,9 @@ def run_loop(cfg: AresIngestConfig) -> int:
         cfg=cfg,
         iteration=iteration,
         reward=reward,
-        status="complete",
+        status=completion_status,
       )
-      print_summary(cfg, reward, status="complete")
+      print_summary(cfg, reward, status=completion_status)
       return 0
 
     if score > best_score + cfg.min_improvement:
@@ -5289,6 +5368,13 @@ def build_parser() -> argparse.ArgumentParser:
   parser.add_argument("model", help="HuggingFace model id or local model label")
   parser.add_argument("--ares-repo", default=".", help="Ares repository root")
   parser.add_argument("--run-dir", help="Explicit run directory")
+  parser.add_argument(
+    "--oracle-authority-file",
+    help=(
+      "Operator-controlled canonical HF CPU transaction authority JSON; "
+      "required for promotion and loaded once before any refiner runs"
+    ),
+  )
   parser.add_argument("--target-score", type=float, default=1.0)
   parser.add_argument(
     "--max-iterations",

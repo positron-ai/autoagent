@@ -33,6 +33,7 @@ from ares_ingest_autoagent.ares_cli import (
     write_refinement_prompt,
 )
 from ares_ingest_autoagent.artifacts import trace_report_gate
+from ares_ingest_autoagent.score import FULL_GATES
 
 
 SHA_A = "a" * 64
@@ -40,6 +41,22 @@ SHA_B = "b" * 64
 SHA_C = "c" * 64
 FIXTURE_DIR = Path(__file__).resolve().parent / "fixtures"
 ARES_REPO_ROOT = Path(__file__).resolve().parents[3]
+
+
+def oracle_authority(*, transaction_digest: str = SHA_A) -> dict[str, object]:
+  return {
+    "schema": "ares.autoagent.hf_cpu_oracle_authority.v1",
+    "transaction_schema": "ares.oracles.hf_cpu.capture_transaction.v2",
+    "transaction_digest": transaction_digest,
+    "canonical_validator_sha256": SHA_B,
+    "canonical_schema_sha256": SHA_C,
+    "oracle_sha256": SHA_A,
+    "oracle_size_bytes": 101,
+    "oracle_record_count": 1,
+    "dense_sha256": SHA_C,
+    "dense_size_bytes": 202,
+    "dense_row_count": 2,
+  }
 
 
 def copy_scheduler_authority(root: Path) -> None:
@@ -1434,6 +1451,61 @@ class AresIngestCliTest(unittest.TestCase):
     self.assertEqual(cfg.refinement_command, DEFAULT_REFINER_COMMAND)
     self.assertEqual(cfg.driver, "codex")
 
+  def test_operator_oracle_authority_is_loaded_once_before_evaluation(self) -> None:
+    with TemporaryDirectory() as tmp:
+      root = Path(tmp)
+      run_dir = root / "run"
+      run_dir.mkdir()
+      authority_path = root / "oracle-authority.json"
+      authority_a = oracle_authority()
+      authority_b = oracle_authority(transaction_digest=SHA_C)
+      authority_a_bytes = (json.dumps(authority_a) + "\n").encode()
+      authority_path.write_bytes(authority_a_bytes)
+      cfg = config_from_args(
+        build_parser().parse_args(
+          [
+            "--ares-repo",
+            str(root),
+            "--run-dir",
+            str(run_dir),
+            "--oracle-authority-file",
+            str(authority_path),
+            "Provider/Model",
+          ]
+        )
+      )
+      self.assertIsNotNone(cfg.oracle_authority)
+      self.assertEqual(cfg.oracle_authority.value, authority_a)
+
+      # This swap happens after config construction, at the same point where a
+      # refiner could alter candidate-writable files. Evaluation must retain A.
+      authority_path.write_text(json.dumps(authority_b) + "\n")
+      cfg.model_spec_path.write_text(
+        json.dumps(
+          {
+            "model": "Provider/Model",
+            "explicit_gates": {"model_spec": True},
+          }
+        )
+      )
+      reward = {"score": 0.0, "first_failed_gate": "hf_cpu_oracle"}
+      try:
+        with patch(
+          "ares_ingest_autoagent.ares_cli.compute_reward",
+          return_value=reward,
+        ) as scorer:
+          evaluate_run(cfg)
+      finally:
+        authority_path.write_bytes(authority_a_bytes)
+
+      retained_authority = scorer.call_args.kwargs["expected_oracle_authority"]
+      self.assertIs(retained_authority, cfg.oracle_authority)
+      self.assertEqual(retained_authority.value, authority_a)
+      self.assertEqual(authority_path.read_bytes(), authority_a_bytes)
+      saved_spec = json.loads(cfg.model_spec_path.read_text())
+      self.assertNotIn("oracle_authority", saved_spec)
+      self.assertNotIn("oracle_authority_file", saved_spec)
+
   def test_driver_selection_supports_claude_and_custom_commands(self) -> None:
     claude_cfg = config_from_args(
       build_parser().parse_args(["--driver", "claude", "Provider/Model"])
@@ -1533,6 +1605,7 @@ class AresIngestCliTest(unittest.TestCase):
       )
       self.assertEqual(spec["policy"]["fastest_verifier_first"], True)
       self.assertEqual(spec["policy"]["avoid_recapturing_unchanged_hf_logits"], True)
+
       self.assertEqual(
         spec["policy"]["defer_cpp_comparison_until_milestone_candidate"],
         True,
@@ -1555,6 +1628,68 @@ class AresIngestCliTest(unittest.TestCase):
       self.assertIn("## Workflow Skills", handoff)
       self.assertIn("`ares-python`", handoff)
       self.assertIn("validate-jsonl", handoff)
+      self.assertIn("--dense-logits-jsonl", handoff)
+
+  def test_refiner_cannot_change_operator_identity_or_gate_profile(self) -> None:
+    with TemporaryDirectory() as tmp:
+      root = Path(tmp)
+      run_dir = root / "run"
+      run_dir.mkdir()
+      cfg = config_from_args(
+        build_parser().parse_args(
+          [
+            "--ares-repo",
+            str(root),
+            "--run-dir",
+            str(run_dir),
+            "--gate-profile",
+            "full",
+            "Provider/Model",
+          ]
+        )
+      )
+      cfg.model_spec_path.write_text(
+        json.dumps(
+          {
+            "model": "Other/Model",
+            "expected_model_ids": ["Other/Model"],
+            "artifact_model_ids": ["Other/Model"],
+            "model_aliases": ["Other/Model"],
+            "model_id": "Other/Model",
+            "safe_model": "other-model",
+            "gate_profile": "cpu-only",
+            "required_gates": [
+              "model_spec",
+              "hf_cpu_oracle",
+              "frontend_export",
+              "lean_ingest",
+              "aresplan_valid",
+              "targetplan_valid",
+              "artifact_consistency",
+              "shortcut_scan",
+            ],
+            "explicit_gates": {"model_spec": True},
+          }
+        )
+      )
+
+      with patch(
+        "ares_ingest_autoagent.ares_cli.compute_reward",
+        return_value={"score": 0.0, "first_failed_gate": "hf_cpu_oracle"},
+      ) as scorer:
+        spec, _reward = evaluate_run(cfg)
+
+      self.assertEqual(spec["model"], "Provider/Model")
+      self.assertEqual(spec["expected_model_ids"], ["Provider/Model"])
+      self.assertEqual(spec["safe_model"], "provider-model")
+      self.assertNotIn("artifact_model_ids", spec)
+      self.assertNotIn("model_aliases", spec)
+      self.assertNotIn("model_id", spec)
+      self.assertEqual(spec["gate_profile"], "full")
+      self.assertEqual(spec["required_gates"], list(FULL_GATES))
+      self.assertIs(scorer.call_args.kwargs["artifact_spec"], spec)
+      self.assertEqual(scorer.call_args.kwargs["required_gates"], FULL_GATES)
+      self.assertTrue(scorer.call_args.kwargs["promotion_authority"])
 
   def test_trace_report_json_is_recorded_in_state_handoff_and_prompt(self) -> None:
       with TemporaryDirectory() as tmp:
@@ -2806,6 +2941,52 @@ class AresIngestCliTest(unittest.TestCase):
           self.assertIn("backend-events.jsonl", prompt)
           self.assertIn("run.trace-meta.json", prompt)
 
+  def test_evaluate_run_forwards_both_oracle_transaction_paths(self) -> None:
+    with TemporaryDirectory() as tmp:
+      root = Path(tmp)
+      run_dir = root / "run"
+      run_dir.mkdir()
+      cfg = config_from_args(
+        build_parser().parse_args(
+          [
+            "--ares-repo",
+            str(root),
+            "--run-dir",
+            str(run_dir),
+            "Provider/Model",
+          ]
+        )
+      )
+      (run_dir / "oracle.jsonl").write_text("{}\n")
+      (run_dir / "oracle-dense.jsonl").write_text("{}\n")
+      cfg.model_spec_path.write_text(
+        json.dumps(
+          {
+            "model": "Provider/Model",
+            "required_gates": ["model_spec"],
+            "explicit_gates": {"model_spec": True},
+            "oracle_records": "oracle.jsonl",
+            "oracle_dense_logits": "oracle-dense.jsonl",
+          }
+        )
+      )
+      reward = {"score": 0.0, "first_failed_gate": "complete"}
+
+      with patch(
+        "ares_ingest_autoagent.ares_cli.compute_reward",
+        return_value=reward,
+      ) as scorer:
+        evaluate_run(cfg)
+
+      self.assertEqual(
+        scorer.call_args.kwargs["oracle_path"],
+        (run_dir / "oracle.jsonl").resolve(),
+      )
+      self.assertEqual(
+        scorer.call_args.kwargs["oracle_dense_path"],
+        (run_dir / "oracle-dense.jsonl").resolve(),
+      )
+
   def test_introspection_ladder_is_recorded_in_state_handoff_and_history(
       self,
   ) -> None:
@@ -3092,7 +3273,9 @@ class AresIngestCliTest(unittest.TestCase):
       self.assertIn("runtime handoff", prompt)
       self.assertIn(str(cfg.model_spec_path), prompt)
 
-  def test_target_score_completion_does_not_invoke_refiner(self) -> None:
+  def test_diagnostic_target_score_does_not_claim_promotion_or_invoke_refiner(
+    self,
+  ) -> None:
     with TemporaryDirectory() as tmp:
       root = Path(tmp)
       run_dir = root / "run"
@@ -3113,8 +3296,50 @@ class AresIngestCliTest(unittest.TestCase):
 
       self.assertEqual(rc, 0)
       state = json.loads((run_dir / "state.json").read_text())
-      self.assertEqual(state["status"], "complete")
+      self.assertEqual(
+        state["status"],
+        "diagnostic_target_reached_nonpromotion",
+      )
       self.assertFalse((run_dir / "logs/01-refiner.log").exists())
+
+  def test_explicit_run_dir_rejects_existing_state_for_another_model(self) -> None:
+    with TemporaryDirectory() as tmp:
+      root = Path(tmp)
+      run_dir = root / "run"
+      run_dir.mkdir()
+      original_history = [{"iteration": 1, "status": "complete", "score": 1.0}]
+      (run_dir / "state.json").write_text(
+        json.dumps(
+          {
+            "model": "Provider/Model-A",
+            "safe_model": "provider-model-a",
+            "status": "complete",
+            "history": original_history,
+          }
+        )
+      )
+
+      with (
+        patch("ares_ingest_autoagent.ares_cli.evaluate_run") as evaluator,
+        self.assertRaises(SystemExit) as raised,
+      ):
+        main(
+          [
+            "--ares-repo",
+            str(root),
+            "--run-dir",
+            str(run_dir),
+            "--no-refiner",
+            "Provider/Model-B",
+          ]
+        )
+
+      self.assertEqual(raised.exception.code, 1)
+      evaluator.assert_not_called()
+      state = json.loads((run_dir / "state.json").read_text())
+      self.assertEqual(state["model"], "Provider/Model-A")
+      self.assertEqual(state["history"], original_history)
+      self.assertIn("does not match requested model", state["error"])
 
   def test_refiner_loop_writes_prompt_log_and_history(self) -> None:
     with TemporaryDirectory() as tmp:

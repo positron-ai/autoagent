@@ -42,6 +42,30 @@ C++ comparison milestones.
 The verifier expects the Ares repository at `ARES_REPO` inside the task
 container. The default is `/ares`.
 
+Harbor executes the promotion evaluator from the verifier-owned
+`/tests/evaluate_ares_ingest.py`. A same-named file in candidate-writable
+`/task/files` has no authority. Promotion instances must also place their
+operator-approved `oracle-authority.json` in the verifier-owned `/tests` tree
+and configure it through trusted verifier environment, for example:
+
+```toml
+[verifier.env]
+ORACLE_AUTHORITY_FILE = "/tests/oracle-authority.json"
+```
+
+The authority file is loaded once before `model_spec.json`, command gates, or
+refiner output are read. It exactly binds the canonical transaction schema and
+digest, frozen producer and record-schema SHA-256 values, raw and dense SHA-256
+values and byte sizes, and record and row counts. The consumer verifies both
+frozen source files before executing the producer validator. Duplicate keys,
+non-finite values, extra fields, missing authority, and any mismatch are
+fail-closed for promotion. Only the opaque value returned by the strict trusted
+file loader is accepted; a validation receipt or in-memory digest mapping cannot
+self-authorize. The generic template intentionally ships without a model-
+specific authority file, so it is diagnostic-only until an operator supplies
+one; never source this file from `/task/files`, `model_spec.json`, the work
+directory, or candidate output.
+
 For local development, mount or copy:
 
 ```text
@@ -60,8 +84,12 @@ For local development, mount or copy:
   `https://github.com/vllm-project/vllm.git`,
   `https://github.com/ggml-org/llama.cpp.git`, and
   `https://github.com/ml-explore/mlx.git`.
-- `oracle_records`: HF CPU oracle JSONL file, relative to `work_dir`,
-  `files/`, or `ARES_REPO`.
+- `oracle_records`: canonical HF CPU raw-oracle JSONL file, relative to
+  `work_dir`, `files/`, or `ARES_REPO`. Promotion requires it to be one half of
+  a canonically committed raw/dense capture transaction.
+- `oracle_dense_logits`: canonical dense-logits JSONL sidecar from the same
+  capture transaction as `oracle_records`. Raw-only, dense-only, or uncommitted
+  pairs remain diagnostic-only and cannot satisfy the oracle gate.
 - `ares_plan`: generated AresPlan JSON artifact.
 - `target_plan`: Lean-emitted backend TargetPlan JSON artifact.
 - `backend_open_evidence`: backend open JSON or JSONL event evidence that
@@ -117,7 +145,10 @@ The default setup profile should require only CPU-side gates through
 `targetplan_valid`, `artifact_consistency`, and `shortcut_scan`. Enable backend
 and performance gates when the task environment supplies the generated
 artifacts, runtime backend, model checkpoint, and cached HF goldens needed for
-a fast backend loop. Enable C++ comparison only as an explicit late milestone
+a fast backend loop. Only a checked-in gate profile can produce a promotion-
+candidate reward; a custom `required_gates` list is explicitly diagnostic-only
+and cannot report global completion. Enable C++ comparison only as an explicit
+late milestone
 when the selected backend is already HF-correct and plausibly competitive.
 Enable MMLU Pro only when an OpenAI-compatible endpoint and systems_test outputs
 are available. Wrapper command output still must be transformed into

@@ -383,10 +383,23 @@ class AresIngestArtifactTest(unittest.TestCase):
   def test_artifact_consistency_accepts_matching_model_ids(self) -> None:
     gate = artifact_consistency_gate(
       {"model": "synthetic/model"},
-      oracle_payload=[{"model": {"model_id": "synthetic/model"}}],
+      oracle_payload=[
+        {
+          "model": {
+            "model_id": "synthetic/model",
+            "config": {"model_type": "synthetic"},
+          }
+        }
+      ],
       validated_gates={
+        "aresplan_valid": {
+          "detail": {"model_type": "synthetic"},
+        },
         "targetplan_valid": {
-          "detail": {"model_id": "synthetic/model"},
+          "detail": {
+            "model_id": "synthetic/model",
+            "model_type": "synthetic",
+          },
         }
       },
     )
@@ -397,10 +410,23 @@ class AresIngestArtifactTest(unittest.TestCase):
   def test_artifact_consistency_rejects_target_plan_model_mismatch(self) -> None:
     gate = artifact_consistency_gate(
       {"model": "hf/model"},
-      oracle_payload=[{"model": {"model_id": "hf/model"}}],
+      oracle_payload=[
+        {
+          "model": {
+            "model_id": "hf/model",
+            "config": {"model_type": "synthetic"},
+          }
+        }
+      ],
       validated_gates={
+        "aresplan_valid": {
+          "detail": {"model_type": "synthetic"},
+        },
         "targetplan_valid": {
-          "detail": {"model_id": "fixture/model"},
+          "detail": {
+            "model_id": "fixture/model",
+            "model_type": "synthetic",
+          },
         }
       },
     )
@@ -414,10 +440,23 @@ class AresIngestArtifactTest(unittest.TestCase):
         "model": "registry/model",
         "expected_model_ids": ["registry/model", "hf/model"],
       },
-      oracle_payload=[{"model": {"model_id": "hf/model"}}],
+      oracle_payload=[
+        {
+          "model": {
+            "model_id": "hf/model",
+            "config": {"model_type": "synthetic"},
+          }
+        }
+      ],
       validated_gates={
+        "aresplan_valid": {
+          "detail": {"model_type": "synthetic"},
+        },
         "targetplan_valid": {
-          "detail": {"model_id": "registry/model"},
+          "detail": {
+            "model_id": "registry/model",
+            "model_type": "synthetic",
+          },
         }
       },
     )
@@ -558,6 +597,54 @@ class AresIngestArtifactTest(unittest.TestCase):
 
       self.assertTrue(gate["passed"])
       self.assertEqual(gate["artifact_validator"], "one_token_logits")
+
+  def test_promotion_model_provenance_requires_concrete_checkpoint_class(
+    self,
+  ) -> None:
+    with TemporaryDirectory() as tmp:
+      root = Path(tmp)
+      path = root / "one-token.json"
+
+      def gate_for(checkpoint_class: object, *, missing: bool = False) -> dict:
+        provenance = model_provenance()
+        if missing:
+          del provenance["checkpoint"]["checkpoint_class"]
+        else:
+          provenance["checkpoint"]["checkpoint_class"] = checkpoint_class
+        path.write_text(
+          json.dumps(
+            {
+              "schema": "ares.runtime.one_token_logits.v1",
+              "evidence_class": "system_under_test",
+              "oracle": "huggingface_transformers_pytorch_cpu",
+              "candidate": "ares",
+              "tvd": 0.001,
+              "tvd_threshold": 0.01,
+              "top1_agreement": 1.0,
+              "same_argmax": True,
+              "replay_context": replay_context(),
+              "model_provenance": provenance,
+              "artifacts": one_token_artifacts(root),
+            }
+          )
+        )
+        return one_token_logits_gate(path)
+
+      for checkpoint_class in ("Unknown", " unknown "):
+        with self.subTest(valid=checkpoint_class):
+          self.assertTrue(gate_for(checkpoint_class)["passed"])
+
+      for label, checkpoint_class, missing in (
+        ("missing", None, True),
+        ("null", None, False),
+        ("non-string", 7, False),
+        ("empty", "", False),
+        ("unknown", "unknown", False),
+      ):
+        with self.subTest(invalid=label):
+          gate = gate_for(checkpoint_class, missing=missing)
+          self.assertFalse(gate["passed"])
+          self.assertIn("checkpoint_class", " ".join(gate["errors"]))
 
   def test_one_token_logits_gate_rejects_missing_artifacts(self) -> None:
     with TemporaryDirectory() as tmp:

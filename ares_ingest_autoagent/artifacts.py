@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import importlib.util
 import json
 import math
 import os
@@ -11,12 +12,31 @@ import shlex
 import stat
 import unicodedata
 from dataclasses import dataclass
+from functools import cache
 from pathlib import Path
 from typing import Any, Iterable, Mapping
 
 
-HF_CPU_SCHEMA_ID = "ares.oracles.hf_cpu.record.v1"
 HF_CPU_ORACLE_KIND = "huggingface_transformers_pytorch_cpu"
+HF_CPU_ORACLE_VALIDATOR = (
+  Path(__file__).resolve().parents[3]
+  / "tools/oracles/hf-cpu/capture_hf_cpu_oracle.py"
+)
+HF_CPU_ORACLE_SCHEMA = (
+  Path(__file__).resolve().parents[3]
+  / "tools/oracles/hf-cpu/hf_cpu_oracle_record.schema.json"
+)
+HF_CPU_ORACLE_VALIDATOR_MAX_BYTES = 1024 * 1024
+HF_CPU_ORACLE_VALIDATOR_SHA256 = (
+  "820afd2a42bf6bcaf87f7a0be9a97c9cda28f3611a414f481a4968e667df2331"
+)
+HF_CPU_ORACLE_SCHEMA_SHA256 = (
+  "0ff9238de88d9017742ed956d0036cf4919241140efa5fff84792bdedc04cae7"
+)
+HF_CPU_ORACLE_AUTHORITY_MAX_BYTES = 64 * 1024
+HF_CPU_ORACLE_AUTHORITY_SCHEMA = "ares.autoagent.hf_cpu_oracle_authority.v1"
+HF_CPU_TRANSACTION_SCHEMA = "ares.oracles.hf_cpu.capture_transaction.v2"
+MAX_PLAN_ARTIFACT_BYTES = 64 * 1024 * 1024
 INTROSPECTION_LADDER_SCHEMA = "ares.introspection.ladder.v1"
 LEAN_TARGET_PLAN_PRODUCER = {"language": "lean", "tool": "ingest-lean"}
 ONE_TOKEN_LOGITS_SCHEMA = "ares.runtime.one_token_logits.v1"
@@ -354,6 +374,30 @@ class ArtifactValidation:
     return gate
 
 
+@dataclass(frozen=True)
+class HfCpuOracleEvidence:
+  validation: ArtifactValidation
+  oracle_records: tuple[dict[str, Any], ...]
+
+
+_HF_CPU_ORACLE_AUTHORITY_TOKEN = object()
+
+
+class HfCpuOracleAuthority:
+  """Opaque operator authority loaded from an independently supplied file."""
+
+  __slots__ = ("_value",)
+
+  def __init__(self, value: dict[str, Any], *, _token: object) -> None:
+    if _token is not _HF_CPU_ORACLE_AUTHORITY_TOKEN:
+      raise TypeError("HF CPU oracle authority must be loaded from a trusted file")
+    self._value = dict(value)
+
+  @property
+  def value(self) -> dict[str, Any]:
+    return dict(self._value)
+
+
 def artifact_gate(
   path: Path,
   *,
@@ -371,9 +415,17 @@ def artifact_gate(
       "score": 0.0,
       "errors": ["artifact file is missing"],
     }
+  retained = None
   try:
-    payload = json.loads(path.read_text())
+    retained = _RetainedEvidenceFile.open(
+      path,
+      label,
+      max_bytes=MAX_PLAN_ARTIFACT_BYTES,
+    )
+    payload = json.loads(retained.payload)
   except json.JSONDecodeError as exc:
+    if retained is not None:
+      retained.close()
     return {
       "label": label,
       "artifact_validator": validator_name,
@@ -383,11 +435,47 @@ def artifact_gate(
       "score": 0.0,
       "errors": [f"invalid JSON: {exc}"],
     }
-  return validator(payload).as_gate(
-    label=label,
-    validator_name=validator_name,
-    path=path,
-  )
+  except (OSError, ValueError) as exc:
+    if retained is not None:
+      retained.close()
+    return {
+      "label": label,
+      "artifact_validator": validator_name,
+      "path": str(path),
+      "exists": path.exists(),
+      "passed": False,
+      "score": 0.0,
+      "errors": [str(exc)],
+    }
+  try:
+    gate = validator(payload).as_gate(
+      label=label,
+      validator_name=validator_name,
+      path=path,
+    )
+    detail = gate.setdefault("detail", {})
+    if isinstance(detail, dict):
+      detail.update(
+        {
+          "sha256": retained.sha256,
+          "size_bytes": retained.size_bytes,
+          "snapshot_validation": "retained_descriptor_rejoin",
+        }
+      )
+    retained.reverify()
+    return gate
+  except (OSError, ValueError) as exc:
+    return {
+      "label": label,
+      "artifact_validator": validator_name,
+      "path": str(path),
+      "exists": path.exists(),
+      "passed": False,
+      "score": 0.0,
+      "errors": [str(exc)],
+    }
+  finally:
+    retained.close()
 
 
 def evidence_gate(
@@ -448,12 +536,14 @@ def artifact_consistency_gate(
   spec: Mapping[str, Any],
   *,
   oracle_payload: Any,
+  oracle_transaction_digest: str | None = None,
   validated_gates: Mapping[str, Any],
   label: str = "artifact model consistency",
 ) -> dict[str, Any]:
   return validate_artifact_consistency(
     spec,
     oracle_payload=oracle_payload,
+    oracle_transaction_digest=oracle_transaction_digest,
     validated_gates=validated_gates,
   ).as_gate(
     label=label,
@@ -752,103 +842,335 @@ def is_floating_revision(revision: str) -> bool:
   )
 
 
+@cache
+def _canonical_hf_cpu_oracle_module() -> Any:
+  try:
+    source = _RetainedEvidenceFile.open(
+      HF_CPU_ORACLE_VALIDATOR,
+      "canonical HF CPU oracle validator",
+      max_bytes=HF_CPU_ORACLE_VALIDATOR_MAX_BYTES,
+    )
+  except ValueError as exc:
+    raise ValueError(
+      f"canonical HF CPU oracle validator is unavailable: {exc}"
+    ) from exc
+  schema = None
+  try:
+    if source.sha256 != HF_CPU_ORACLE_VALIDATOR_SHA256:
+      raise ValueError(
+        "canonical HF CPU oracle validator does not match the frozen source SHA-256"
+      )
+    schema = _RetainedEvidenceFile.open(
+      HF_CPU_ORACLE_SCHEMA,
+      "canonical HF CPU oracle schema",
+      max_bytes=HF_CPU_ORACLE_VALIDATOR_MAX_BYTES,
+    )
+    if schema.sha256 != HF_CPU_ORACLE_SCHEMA_SHA256:
+      raise ValueError(
+        "canonical HF CPU oracle schema does not match the frozen schema SHA-256"
+      )
+    schema.reverify()
+    spec = importlib.util.spec_from_file_location(
+      "ares_autoagent_capture_hf_cpu_oracle",
+      source.path,
+    )
+    if spec is None or spec.loader is None:
+      raise ValueError("could not construct the canonical validator module")
+    module = importlib.util.module_from_spec(spec)
+    module.__dict__["__ares_retained_source_payload__"] = source.payload
+    module.__dict__["__ares_retained_source_sha256__"] = source.sha256
+    exec(compile(source.payload, str(source.path), "exec"), module.__dict__)
+    for validator_name in ("validate_record_shape", "validate_capture_transaction"):
+      validator = getattr(module, validator_name, None)
+      if not callable(validator):
+        raise ValueError(
+          f"canonical validator does not export {validator_name}"
+        )
+    source.reverify()
+    return module
+  finally:
+    if schema is not None:
+      schema.close()
+    source.close()
+
+
+def _hf_cpu_capture_script_errors(record: Mapping[str, Any]) -> list[str]:
+  source = record.get("source")
+  capture_script = source.get("capture_script") if isinstance(source, dict) else None
+  if not isinstance(capture_script, str) or not capture_script:
+    return ["source.capture_script must name the canonical producer"]
+
+  capture_script_path = Path(capture_script)
+  if not capture_script_path.is_absolute():
+    capture_script_path = HF_CPU_ORACLE_VALIDATOR.parents[3] / capture_script_path
+  try:
+    resolved_capture_script = capture_script_path.resolve(strict=True)
+    resolved_validator = HF_CPU_ORACLE_VALIDATOR.resolve(strict=True)
+  except OSError as exc:
+    return [f"source.capture_script is unavailable: {exc}"]
+  if resolved_capture_script != resolved_validator:
+    return ["source.capture_script must resolve to the canonical producer"]
+  return []
+
+
 def validate_hf_cpu_oracle_record(record: Any) -> ArtifactValidation:
-  errors: list[str] = []
   if not isinstance(record, dict):
     return _validation(False, ["record must be a JSON object"], {})
 
-  _require_fields(
-    errors,
-    record,
-    (
-      "schema",
-      "record_kind",
-      "capture_id",
-      "created_utc",
-      "source",
-      "model",
-      "tokenizer",
-      "run",
-      "prompt",
-      "generation",
-      "logit_slices",
-      "environment",
-    ),
-    "record",
-  )
-  if errors:
-    return _validation(False, errors, {"record_kind": record.get("record_kind")})
+  errors: list[str] = []
+  validator_sha256 = None
+  try:
+    oracle_module = _canonical_hf_cpu_oracle_module()
+    validator_sha256 = oracle_module.capture_source_sha256()
+    oracle_module.validate_record_shape(record)
+  except (OSError, RuntimeError, ValueError) as exc:
+    errors.append(f"canonical HF CPU oracle validation failed: {exc}")
 
-  if record.get("schema") != HF_CPU_SCHEMA_ID:
-    errors.append("record.schema must be ares.oracles.hf_cpu.record.v1")
   if record.get("record_kind") != "hf_cpu_oracle_capture":
-    errors.append("record_kind must be hf_cpu_oracle_capture")
+    errors.append("record_kind must be the real hf_cpu_oracle_capture kind")
 
-  source = _expect_object(errors, record.get("source"), "source")
-  model = _expect_object(errors, record.get("model"), "model")
-  tokenizer = _expect_object(errors, record.get("tokenizer"), "tokenizer")
-  run = _expect_object(errors, record.get("run"), "run")
-  prompt = _expect_object(errors, record.get("prompt"), "prompt")
-  generation = _expect_object(errors, record.get("generation"), "generation")
-  environment = _expect_object(errors, record.get("environment"), "environment")
-  logit_slices = record.get("logit_slices")
+  errors.extend(_hf_cpu_capture_script_errors(record))
 
-  if source is not None:
-    _require_fields(errors, source, ("oracle", "capture_script"), "source")
-    if source.get("oracle") != HF_CPU_ORACLE_KIND:
-      errors.append(f"source.oracle must be {HF_CPU_ORACLE_KIND}")
-    _require_non_empty_string(
-      errors, source.get("capture_script"), "source.capture_script"
-    )
-
-  if model is not None:
-    _validate_revision_metadata(
-      errors,
-      model,
-      "model",
-      ("model_id", "requested_revision", "resolved_revision", "dtype"),
-    )
-  if tokenizer is not None:
-    _validate_revision_metadata(
-      errors,
-      tokenizer,
-      "tokenizer",
-      ("tokenizer_id", "requested_revision", "resolved_revision"),
-    )
-  if run is not None:
-    _validate_run(errors, run)
-  if prompt is not None:
-    _validate_prompt(errors, prompt)
-  if generation is not None:
-    _validate_generation(errors, generation)
-  if environment is not None:
-    _require_fields(
-      errors,
-      environment,
-      ("python_version", "platform", "torch_version", "transformers_version"),
-      "environment",
-    )
-
+  source = record.get("source")
+  model = record.get("model")
+  config = model.get("config") if isinstance(model, dict) else None
+  generation = record.get("generation")
   generated_ids = (
     generation.get("generated_token_ids") if isinstance(generation, dict) else None
   )
-  selected_ids = _validate_logit_slices(errors, logit_slices)
-  if isinstance(generated_ids, list) and selected_ids is not None:
-    if selected_ids != generated_ids:
-      errors.append(
-        "generation.generated_token_ids must match logit_slices selected_token_id values"
-      )
+  logit_slices = record.get("logit_slices")
 
   detail = {
     "schema": record.get("schema"),
     "record_kind": record.get("record_kind"),
     "source_oracle": source.get("oracle") if isinstance(source, dict) else None,
+    "capture_id": record.get("capture_id"),
+    "model_type": config.get("model_type") if isinstance(config, dict) else None,
     "generated_token_count": len(generated_ids)
     if isinstance(generated_ids, list)
     else None,
     "logit_slice_count": len(logit_slices) if isinstance(logit_slices, list) else None,
+    "canonical_validator": str(HF_CPU_ORACLE_VALIDATOR),
+    "canonical_validator_sha256": validator_sha256,
+    "canonical_schema": str(HF_CPU_ORACLE_SCHEMA),
+    "canonical_schema_sha256": HF_CPU_ORACLE_SCHEMA_SHA256,
+    "validation_scope": "raw_record_shape_only",
+    "promotion_eligible": False,
+    "claim_ceiling": "diagnostic_only_nonpromotion",
   }
   return _validation(not errors, errors, detail)
+
+
+def validate_hf_cpu_oracle_authority(value: Any) -> dict[str, Any]:
+  fields = {
+    "schema",
+    "transaction_schema",
+    "transaction_digest",
+    "canonical_validator_sha256",
+    "canonical_schema_sha256",
+    "oracle_sha256",
+    "oracle_size_bytes",
+    "oracle_record_count",
+    "dense_sha256",
+    "dense_size_bytes",
+    "dense_row_count",
+  }
+  if not isinstance(value, dict) or set(value) != fields:
+    raise ValueError("HF CPU oracle authority fields do not match the schema")
+  if value["schema"] != HF_CPU_ORACLE_AUTHORITY_SCHEMA:
+    raise ValueError("HF CPU oracle authority schema is invalid")
+  if value["transaction_schema"] != HF_CPU_TRANSACTION_SCHEMA:
+    raise ValueError("HF CPU oracle transaction schema is invalid")
+  for field in (
+    "transaction_digest",
+    "canonical_validator_sha256",
+    "canonical_schema_sha256",
+    "oracle_sha256",
+    "dense_sha256",
+  ):
+    digest = value[field]
+    if (
+      not isinstance(digest, str)
+      or SHA256_RE.fullmatch(digest) is None
+      or digest != digest.lower()
+    ):
+      raise ValueError(f"HF CPU oracle authority {field} must be lowercase SHA-256")
+  for field in (
+    "oracle_size_bytes",
+    "oracle_record_count",
+    "dense_size_bytes",
+    "dense_row_count",
+  ):
+    if type(value[field]) is not int or value[field] <= 0:
+      raise ValueError(f"HF CPU oracle authority {field} must be a positive integer")
+  return dict(value)
+
+
+def load_hf_cpu_oracle_authority_file(path: Path) -> HfCpuOracleAuthority:
+  source = _RetainedEvidenceFile.open(
+    path,
+    "operator HF CPU oracle authority",
+    max_bytes=HF_CPU_ORACLE_AUTHORITY_MAX_BYTES,
+  )
+  try:
+    payload = _strict_json_loads_bytes(
+      source.payload,
+      label="operator HF CPU oracle authority",
+      maximum_items=64,
+    )
+    authority = validate_hf_cpu_oracle_authority(payload)
+    source.reverify()
+    return HfCpuOracleAuthority(
+      authority,
+      _token=_HF_CPU_ORACLE_AUTHORITY_TOKEN,
+    )
+  finally:
+    source.close()
+
+
+def _hf_cpu_oracle_authority_from_transaction(
+  transaction: Any,
+  *,
+  canonical_validator_sha256: str,
+  canonical_schema_sha256: str,
+) -> dict[str, Any]:
+  return {
+    "schema": HF_CPU_ORACLE_AUTHORITY_SCHEMA,
+    "transaction_schema": transaction.schema,
+    "transaction_digest": transaction.digest,
+    "canonical_validator_sha256": canonical_validator_sha256,
+    "canonical_schema_sha256": canonical_schema_sha256,
+    "oracle_sha256": transaction.oracle_sha256,
+    "oracle_size_bytes": transaction.oracle_size_bytes,
+    "oracle_record_count": len(transaction.oracle_records),
+    "dense_sha256": transaction.dense_sha256,
+    "dense_size_bytes": transaction.dense_size_bytes,
+    "dense_row_count": len(transaction.dense_rows),
+  }
+
+
+def load_hf_cpu_oracle_evidence_files(
+  oracle_path: Path,
+  dense_path: Path,
+  *,
+  expected_authority: HfCpuOracleAuthority | None = None,
+  require_authority: bool = False,
+) -> HfCpuOracleEvidence:
+  base_detail = {
+    "artifact_validator": "hf_cpu_oracle",
+    "transaction_validator": (
+      "tools/oracles/hf-cpu/capture_hf_cpu_oracle.py:"
+      "validate_capture_transaction"
+    ),
+    "canonical_validator": str(HF_CPU_ORACLE_VALIDATOR),
+    "canonical_schema": str(HF_CPU_ORACLE_SCHEMA),
+  }
+  try:
+    oracle_module = _canonical_hf_cpu_oracle_module()
+    base_detail["canonical_validator_sha256"] = (
+      oracle_module.capture_source_sha256()
+    )
+    base_detail["canonical_schema_sha256"] = HF_CPU_ORACLE_SCHEMA_SHA256
+    transaction = oracle_module.validate_capture_transaction(
+      oracle_path,
+      dense_path,
+    )
+    actual_authority = _hf_cpu_oracle_authority_from_transaction(
+      transaction,
+      canonical_validator_sha256=base_detail["canonical_validator_sha256"],
+      canonical_schema_sha256=base_detail["canonical_schema_sha256"],
+    )
+    errors = [
+      f"oracle[{index}]: {error}"
+      for index, record in enumerate(transaction.oracle_records)
+      for error in _hf_cpu_capture_script_errors(record)
+    ]
+    validated_authority = None
+    if expected_authority is not None:
+      if not isinstance(expected_authority, HfCpuOracleAuthority):
+        errors.append(
+          "operator HF CPU oracle authority must come from the trusted file loader"
+        )
+      else:
+        validated_authority = expected_authority.value
+        if validated_authority != actual_authority:
+          errors.append(
+            "canonical HF CPU transaction does not match the operator authority"
+          )
+    elif require_authority:
+      errors.append("operator HF CPU oracle authority is required for promotion")
+    authority_matched = validated_authority == actual_authority
+    passed = not errors
+    detail = {
+      **base_detail,
+      "transaction_schema": transaction.schema,
+      "transaction_digest": transaction.digest,
+      "transaction_commit_path": str(transaction.commit_path),
+      "oracle_authority": actual_authority,
+      "expected_oracle_authority": validated_authority,
+      "oracle_authority_required": require_authority,
+      "oracle_authority_matched": authority_matched,
+      "snapshot_validation": "canonical_retained_descriptor_rejoin",
+      "records": len(transaction.oracle_records),
+      "dense_rows": len(transaction.dense_rows),
+      "capture_ids": list(transaction.capture_ids),
+      "dense_capture_ids": list(transaction.dense_capture_ids),
+      "retained_inputs": {
+        "oracle": {
+          "path": str(transaction.oracle_snapshot.path),
+          "sha256": transaction.oracle_snapshot.sha256,
+          "size_bytes": transaction.oracle_snapshot.size_bytes,
+          "mode": transaction.oracle_snapshot.mode,
+        },
+        "dense_logits": {
+          "path": str(transaction.dense_snapshot.path),
+          "sha256": transaction.dense_snapshot.sha256,
+          "size_bytes": transaction.dense_snapshot.size_bytes,
+          "mode": transaction.dense_snapshot.mode,
+        },
+      },
+      "promotion_eligible": passed and authority_matched,
+      "claim_ceiling": (
+        "semantic_oracle"
+        if passed and authority_matched
+        else "diagnostic_only_nonpromotion"
+      ),
+    }
+    validation = _validation(passed, errors, detail)
+    return HfCpuOracleEvidence(
+      validation,
+      transaction.oracle_records if passed else (),
+    )
+  except (OSError, RuntimeError, ValueError) as exc:
+    return HfCpuOracleEvidence(
+      _validation(
+        False,
+        [f"canonical HF CPU transaction validation failed: {exc}"],
+        {
+          **base_detail,
+          "oracle_authority_required": require_authority,
+          "oracle_authority_matched": False,
+          "promotion_eligible": False,
+          "claim_ceiling": "diagnostic_only_nonpromotion",
+        },
+      ),
+      (),
+    )
+
+
+def validate_hf_cpu_oracle_evidence_files(
+  oracle_path: Path,
+  dense_path: Path,
+  *,
+  expected_authority: HfCpuOracleAuthority | None = None,
+  require_authority: bool = False,
+) -> ArtifactValidation:
+  return load_hf_cpu_oracle_evidence_files(
+    oracle_path,
+    dense_path,
+    expected_authority=expected_authority,
+    require_authority=require_authority,
+  ).validation
 
 
 def validate_ares_plan(plan: Any) -> ArtifactValidation:
@@ -875,7 +1197,12 @@ def validate_ares_plan(plan: Any) -> ArtifactValidation:
     _require_fields(
       errors,
       provenance,
-      ("fx_hash", "rule_corpus_hash", "emitter_version"),
+      (
+        "fx_hash",
+        "rule_corpus_hash",
+        "emitter_version",
+        "hf_export_model_type",
+      ),
       "AresPlan.provenance",
     )
     _require_non_empty_string(
@@ -886,6 +1213,11 @@ def validate_ares_plan(plan: Any) -> ArtifactValidation:
     emitter = provenance.get("emitter_version")
     if isinstance(emitter, str) and "ingest-lean" not in emitter:
       errors.append("AresPlan.provenance.emitter_version must name ingest-lean")
+    _require_concrete_model_identity(
+      errors,
+      provenance.get("hf_export_model_type"),
+      "AresPlan.provenance.hf_export_model_type",
+    )
 
   body = None
   if version == 1:
@@ -907,6 +1239,9 @@ def validate_ares_plan(plan: Any) -> ArtifactValidation:
     else None,
     "statement_count": len(body) if isinstance(body, list) else None,
     "emitter_version": provenance.get("emitter_version")
+    if isinstance(provenance, dict)
+    else None,
+    "model_type": provenance.get("hf_export_model_type")
     if isinstance(provenance, dict)
     else None,
   }
@@ -1856,6 +2191,7 @@ def validate_target_plan(plan: Any) -> ArtifactValidation:
 
   source = _expect_object(errors, plan.get("source"), "TargetPlan.source")
   source_statement_count = None
+  source_provenance = None
   if source is not None:
     _require_fields(
       errors,
@@ -1878,7 +2214,12 @@ def validate_target_plan(plan: Any) -> ArtifactValidation:
       _require_fields(
         errors,
         source_provenance,
-        ("fx_hash", "rule_corpus_hash", "emitter_version"),
+        (
+          "fx_hash",
+          "rule_corpus_hash",
+          "emitter_version",
+          "hf_export_model_type",
+        ),
         "TargetPlan.source.provenance",
       )
       _require_non_empty_string(
@@ -1891,6 +2232,11 @@ def validate_target_plan(plan: Any) -> ArtifactValidation:
         errors.append(
           "TargetPlan.source.provenance.emitter_version must name ingest-lean"
         )
+      _require_concrete_model_identity(
+        errors,
+        source_provenance.get("hf_export_model_type"),
+        "TargetPlan.source.provenance.hf_export_model_type",
+      )
 
   declared_bindings = _expect_string_list(
     errors,
@@ -1931,6 +2277,9 @@ def validate_target_plan(plan: Any) -> ArtifactValidation:
     "operation_count": len(operations) if isinstance(operations, list) else None,
     "semantic_operation_count": semantic_count,
     "runtime_binding_count": len(runtime_binding_names),
+    "model_type": source_provenance.get("hf_export_model_type")
+    if isinstance(source_provenance, dict)
+    else None,
   }
   return _validation(not errors, errors, detail)
 
@@ -1939,13 +2288,21 @@ def validate_artifact_consistency(
   spec: Mapping[str, Any],
   *,
   oracle_payload: Any,
+  oracle_transaction_digest: str | None = None,
   validated_gates: Mapping[str, Any],
 ) -> ArtifactValidation:
   errors: list[str] = []
   expected_ids = _expected_model_ids(spec)
   oracle_ids = _oracle_model_ids(oracle_payload)
+  oracle_model_types = _oracle_model_types(oracle_payload)
   target_model_id = _gate_detail_string(
     validated_gates.get("targetplan_valid"), "model_id"
+  )
+  ares_plan_model_type = _gate_detail_string(
+    validated_gates.get("aresplan_valid"), "model_type"
+  )
+  target_plan_model_type = _gate_detail_string(
+    validated_gates.get("targetplan_valid"), "model_type"
   )
 
   if not expected_ids:
@@ -1954,6 +2311,20 @@ def validate_artifact_consistency(
     errors.append("HF CPU oracle model_id is missing")
   if target_model_id is None:
     errors.append("TargetPlan model_id is missing")
+  if not oracle_model_types:
+    errors.append("HF CPU oracle model.config.model_type is missing")
+  elif len(oracle_model_types) != 1:
+    errors.append("HF CPU oracle records must share one exact model.config.model_type")
+  elif "unknown" in oracle_model_types:
+    errors.append("HF CPU oracle model.config.model_type must be concrete")
+  if ares_plan_model_type is None:
+    errors.append("AresPlan hf_export_model_type is missing")
+  elif ares_plan_model_type == "unknown":
+    errors.append("AresPlan hf_export_model_type must be concrete")
+  if target_plan_model_type is None:
+    errors.append("TargetPlan hf_export_model_type is missing")
+  elif target_plan_model_type == "unknown":
+    errors.append("TargetPlan hf_export_model_type must be concrete")
 
   unexpected_oracle_ids = sorted(oracle_ids.difference(expected_ids))
   if unexpected_oracle_ids:
@@ -1964,10 +2335,44 @@ def validate_artifact_consistency(
   if target_model_id is not None and target_model_id not in expected_ids:
     errors.append("TargetPlan model_id not allowed by model_spec: " + target_model_id)
 
+  oracle_model_type = next(iter(oracle_model_types), None)
+  if (
+    oracle_model_type is not None
+    and ares_plan_model_type is not None
+    and ares_plan_model_type != oracle_model_type
+  ):
+    errors.append(
+      "AresPlan hf_export_model_type must match HF CPU oracle model.config.model_type"
+    )
+  if (
+    oracle_model_type is not None
+    and target_plan_model_type is not None
+    and target_plan_model_type != oracle_model_type
+  ):
+    errors.append(
+      "TargetPlan hf_export_model_type must match HF CPU oracle model.config.model_type"
+    )
+  if (
+    ares_plan_model_type is not None
+    and target_plan_model_type is not None
+    and target_plan_model_type != ares_plan_model_type
+  ):
+    errors.append("AresPlan and TargetPlan hf_export_model_type values must match")
+
+  if oracle_transaction_digest is not None and (
+    not SHA256_RE.fullmatch(oracle_transaction_digest)
+    or oracle_transaction_digest != oracle_transaction_digest.lower()
+  ):
+    errors.append("HF CPU oracle transaction digest must be lowercase SHA-256")
+
   detail = {
     "expected_model_ids": sorted(expected_ids),
     "oracle_model_ids": sorted(oracle_ids),
     "target_plan_model_id": target_model_id,
+    "oracle_model_types": sorted(oracle_model_types),
+    "ares_plan_model_type": ares_plan_model_type,
+    "target_plan_model_type": target_plan_model_type,
+    "oracle_transaction_digest": oracle_transaction_digest,
   }
   return _validation(not errors, errors, detail)
 
@@ -4045,6 +4450,11 @@ def _validate_model_provenance(
       checkpoint.get("resolved_revision"),
       f"{label}.checkpoint.resolved_revision",
     )
+    _require_concrete_model_identity(
+      errors,
+      checkpoint.get("checkpoint_class"),
+      f"{label}.checkpoint.checkpoint_class",
+    )
     checkpoint_path = checkpoint.get("checkpoint_path")
     if checkpoint_path is not None:
       _require_non_empty_string(
@@ -4373,6 +4783,152 @@ def _validation(
   detail: dict[str, Any],
 ) -> ArtifactValidation:
   return ArtifactValidation(passed=passed, errors=tuple(errors), detail=detail)
+
+
+@dataclass
+class _RetainedEvidenceFile:
+  path: Path
+  label: str
+  descriptor: int
+  device: int
+  inode: int
+  size_bytes: int
+  mtime_ns: int
+  ctime_ns: int
+  payload: bytes
+  sha256: str
+
+  @classmethod
+  def open(
+    cls,
+    path: Path,
+    label: str,
+    *,
+    max_bytes: int,
+  ) -> _RetainedEvidenceFile:
+    if max_bytes <= 0:
+      raise ValueError(f"{label} byte bound must be positive")
+    absolute = Path(os.path.abspath(path))
+    flags = os.O_RDONLY | os.O_NONBLOCK | getattr(os, "O_CLOEXEC", 0)
+    flags |= getattr(os, "O_NOFOLLOW", 0)
+    try:
+      descriptor = os.open(absolute, flags)
+    except OSError as exc:
+      raise ValueError(f"could not open {label}: {exc}") from exc
+    try:
+      before = os.fstat(descriptor)
+      if not stat.S_ISREG(before.st_mode):
+        raise ValueError(f"{label} is not a regular file")
+      if before.st_size > max_bytes:
+        raise ValueError(f"{label} exceeds the {max_bytes}-byte source bound")
+      chunks: list[bytes] = []
+      digest = hashlib.sha256()
+      size = 0
+      while True:
+        chunk = os.read(descriptor, min(1024 * 1024, max_bytes + 1 - size))
+        if not chunk:
+          break
+        size += len(chunk)
+        if size > max_bytes:
+          raise ValueError(f"{label} exceeds the {max_bytes}-byte source bound")
+        chunks.append(chunk)
+        digest.update(chunk)
+      payload = b"".join(chunks)
+      after = os.fstat(descriptor)
+      visible = os.stat(absolute, follow_symlinks=False)
+      identity = (
+        before.st_dev,
+        before.st_ino,
+        before.st_size,
+        before.st_mtime_ns,
+        before.st_ctime_ns,
+      )
+      if (
+        identity
+        != (
+          after.st_dev,
+          after.st_ino,
+          after.st_size,
+          after.st_mtime_ns,
+          after.st_ctime_ns,
+        )
+        or identity
+        != (
+          visible.st_dev,
+          visible.st_ino,
+          visible.st_size,
+          visible.st_mtime_ns,
+          visible.st_ctime_ns,
+        )
+        or len(payload) != before.st_size
+      ):
+        raise ValueError(f"{label} changed while its exact bytes were retained")
+      return cls(
+        path=absolute,
+        label=label,
+        descriptor=descriptor,
+        device=before.st_dev,
+        inode=before.st_ino,
+        size_bytes=before.st_size,
+        mtime_ns=before.st_mtime_ns,
+        ctime_ns=before.st_ctime_ns,
+        payload=payload,
+        sha256=digest.hexdigest(),
+      )
+    except BaseException:
+      os.close(descriptor)
+      raise
+
+  def reverify(self) -> None:
+    if self.descriptor < 0:
+      raise ValueError(f"{self.label} retained descriptor is closed")
+    metadata = os.fstat(self.descriptor)
+    expected_identity = (
+      self.device,
+      self.inode,
+      self.size_bytes,
+      self.mtime_ns,
+      self.ctime_ns,
+    )
+    actual_identity = (
+      metadata.st_dev,
+      metadata.st_ino,
+      metadata.st_size,
+      metadata.st_mtime_ns,
+      metadata.st_ctime_ns,
+    )
+    if actual_identity != expected_identity or not stat.S_ISREG(metadata.st_mode):
+      raise ValueError(f"{self.label} retained file identity changed")
+    digest = hashlib.sha256()
+    size = 0
+    os.lseek(self.descriptor, 0, os.SEEK_SET)
+    while True:
+      chunk = os.read(self.descriptor, 1024 * 1024)
+      if not chunk:
+        break
+      digest.update(chunk)
+      size += len(chunk)
+    os.lseek(self.descriptor, 0, os.SEEK_SET)
+    if size != self.size_bytes or digest.hexdigest() != self.sha256:
+      raise ValueError(f"{self.label} retained bytes changed")
+    try:
+      visible = os.stat(self.path, follow_symlinks=False)
+    except OSError as exc:
+      raise ValueError(f"{self.label} visible path disappeared: {exc}") from exc
+    visible_identity = (
+      visible.st_dev,
+      visible.st_ino,
+      visible.st_size,
+      visible.st_mtime_ns,
+      visible.st_ctime_ns,
+    )
+    if visible_identity != expected_identity or not stat.S_ISREG(visible.st_mode):
+      raise ValueError(f"{self.label} visible path changed during validation")
+
+  def close(self) -> None:
+    if self.descriptor >= 0:
+      os.close(self.descriptor)
+      self.descriptor = -1
 
 
 def _read_regular_file_bytes(
@@ -6221,6 +6777,17 @@ def _require_non_empty_string(errors: list[str], value: Any, context: str) -> No
     errors.append(f"{context} must be a non-empty string")
 
 
+def _require_concrete_model_identity(
+  errors: list[str],
+  value: Any,
+  context: str,
+) -> None:
+  if not isinstance(value, str) or value == "" or value == "unknown":
+    errors.append(
+      f"{context} must be a non-empty string other than exact lowercase 'unknown'"
+    )
+
+
 def _command_runs_uv_mmlu_pro(command: Any) -> bool:
   if not isinstance(command, str):
     return False
@@ -6340,7 +6907,7 @@ def _expected_model_ids(spec: Mapping[str, Any]) -> set[str]:
 
 
 def _oracle_model_ids(payload: Any) -> set[str]:
-  records = payload if isinstance(payload, list) else [payload]
+  records = payload if isinstance(payload, list | tuple) else [payload]
   model_ids: set[str] = set()
   for record in records:
     if not isinstance(record, dict):
@@ -6350,6 +6917,20 @@ def _oracle_model_ids(payload: Any) -> set[str]:
       continue
     model_ids.update(_string_values(model.get("model_id")))
   return model_ids
+
+
+def _oracle_model_types(payload: Any) -> set[str]:
+  records = payload if isinstance(payload, list | tuple) else [payload]
+  model_types: set[str] = set()
+  for record in records:
+    if not isinstance(record, dict):
+      continue
+    model = record.get("model")
+    config = model.get("config") if isinstance(model, dict) else None
+    if not isinstance(config, dict):
+      continue
+    model_types.update(_string_values(config.get("model_type")))
+  return model_types
 
 
 def _gate_detail_string(gate: Any, field: str) -> str | None:
@@ -6368,167 +6949,6 @@ def _string_values(value: Any) -> set[str]:
   if isinstance(value, list):
     return {item for item in value if isinstance(item, str) and item}
   return set()
-
-
-def _validate_run(errors: list[str], run: dict[str, Any]) -> None:
-  _require_fields(
-    errors,
-    run,
-    (
-      "seed",
-      "decode_strategy",
-      "max_new_tokens",
-      "top_k",
-      "torch_deterministic_algorithms",
-      "local_files_only",
-      "trust_remote_code",
-    ),
-    "run",
-  )
-  if run.get("decode_strategy") != "greedy":
-    errors.append("run.decode_strategy must be greedy")
-  if not isinstance(run.get("max_new_tokens"), int) or run.get("max_new_tokens") < 0:
-    errors.append("run.max_new_tokens must be a non-negative integer")
-  if not isinstance(run.get("top_k"), int) or run.get("top_k") < 1:
-    errors.append("run.top_k must be a positive integer")
-  for field in (
-    "torch_deterministic_algorithms",
-    "local_files_only",
-    "trust_remote_code",
-  ):
-    if not isinstance(run.get(field), bool):
-      errors.append(f"run.{field} must be a boolean")
-
-
-def _validate_prompt(errors: list[str], prompt: dict[str, Any]) -> None:
-  _require_fields(
-    errors,
-    prompt,
-    ("kind", "text", "token_ids", "token_count", "add_special_tokens"),
-    "prompt",
-  )
-  if prompt.get("kind") not in {"raw", "chat"}:
-    errors.append("prompt.kind must be raw or chat")
-  token_ids = prompt.get("token_ids")
-  if not isinstance(token_ids, list) or not all(
-    isinstance(token_id, int) for token_id in token_ids
-  ):
-    errors.append("prompt.token_ids must be a list of integers")
-    return
-  if prompt.get("token_count") != len(token_ids):
-    errors.append("prompt.token_count must match prompt.token_ids length")
-  if not isinstance(prompt.get("add_special_tokens"), bool):
-    errors.append("prompt.add_special_tokens must be a boolean")
-
-
-def _validate_generation(errors: list[str], generation: dict[str, Any]) -> None:
-  _require_fields(
-    errors,
-    generation,
-    (
-      "generated_token_ids",
-      "generated_token_count",
-      "generated_text",
-      "finish_reason",
-      "eos_token_id",
-      "eos_token_ids",
-      "stop_token_id",
-    ),
-    "generation",
-  )
-  generated_ids = generation.get("generated_token_ids")
-  if not isinstance(generated_ids, list) or not all(
-    isinstance(token_id, int) for token_id in generated_ids
-  ):
-    errors.append("generation.generated_token_ids must be a list of integers")
-    return
-  if generation.get("generated_token_count") != len(generated_ids):
-    errors.append(
-      "generation.generated_token_count must match generated_token_ids length"
-    )
-  if not isinstance(generation.get("generated_text"), str):
-    errors.append("generation.generated_text must be a string")
-  if generation.get("finish_reason") not in {"max_new_tokens", "eos_token"}:
-    errors.append("generation.finish_reason must be max_new_tokens or eos_token")
-  eos_ids = generation.get("eos_token_ids")
-  if not isinstance(eos_ids, list) or not all(
-    isinstance(token_id, int) for token_id in eos_ids
-  ):
-    errors.append("generation.eos_token_ids must be a list of integers")
-  stop_token_id = generation.get("stop_token_id")
-  if generation.get("finish_reason") == "eos_token":
-    if not isinstance(stop_token_id, int):
-      errors.append("generation.stop_token_id must be an integer on eos stop")
-    elif isinstance(eos_ids, list) and stop_token_id not in eos_ids:
-      errors.append("generation.stop_token_id must appear in eos_token_ids")
-    elif generated_ids and generated_ids[-1] != stop_token_id:
-      errors.append("generation.stop_token_id must match final generated token")
-  elif stop_token_id is not None:
-    errors.append("generation.stop_token_id must be null unless finish is eos_token")
-
-
-def _validate_logit_slices(errors: list[str], value: Any) -> list[int] | None:
-  if not isinstance(value, list):
-    errors.append("logit_slices must be a list")
-    return None
-  selected: list[int] = []
-  for expected_step, entry in enumerate(value):
-    if not isinstance(entry, dict):
-      errors.append("logit_slices entries must be objects")
-      return None
-    if entry.get("step") != expected_step:
-      errors.append("logit_slices step values must be contiguous from zero")
-    position = entry.get("position")
-    context_token_count = entry.get("context_token_count")
-    if not isinstance(position, int) or position < 0:
-      errors.append("logit_slices[].position must be a non-negative integer")
-    if not isinstance(context_token_count, int) or context_token_count < 0:
-      errors.append("logit_slices[].context_token_count must be a non-negative integer")
-    elif isinstance(position, int) and context_token_count != position + 1:
-      errors.append("logit_slices[].context_token_count must equal position + 1")
-    token_id = entry.get("selected_token_id")
-    if not isinstance(token_id, int):
-      errors.append("logit_slices[].selected_token_id must be an integer")
-    else:
-      selected.append(token_id)
-    if not isinstance(entry.get("selected_token_text"), str):
-      errors.append("logit_slices[].selected_token_text must be a string")
-    selected_logit = entry.get("selected_token_logit")
-    if not isinstance(selected_logit, int | float):
-      errors.append("logit_slices[].selected_token_logit must be numeric")
-    _validate_top_k(errors, entry.get("top_k"), entry)
-  return selected
-
-
-def _validate_top_k(
-  errors: list[str],
-  value: Any,
-  logit_slice: dict[str, Any],
-) -> None:
-  if not isinstance(value, list) or not value:
-    errors.append("logit_slices[].top_k must be a non-empty list")
-    return
-  previous_rank = 0
-  for item in value:
-    if not isinstance(item, dict):
-      errors.append("top_k entries must be objects")
-      return
-    rank = item.get("rank")
-    if not isinstance(rank, int) or rank != previous_rank + 1:
-      errors.append("top_k ranks must be contiguous from one")
-    if not isinstance(item.get("token_id"), int):
-      errors.append("top_k token_id must be an integer")
-    if not isinstance(item.get("token_text"), str):
-      errors.append("top_k token_text must be a string")
-    if not isinstance(item.get("logit"), int | float):
-      errors.append("top_k logit must be numeric")
-    previous_rank = rank if isinstance(rank, int) else previous_rank
-  first = value[0]
-  if isinstance(first, dict):
-    if logit_slice.get("selected_token_logit") != first.get("logit"):
-      errors.append("selected_token_logit must match top top_k logit")
-    if logit_slice.get("selected_token_id") != first.get("token_id"):
-      errors.append("selected_token_id must match top top_k token_id")
 
 
 def _validate_target_operation(

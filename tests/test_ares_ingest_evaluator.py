@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import hashlib
+import importlib.util
 import os
 import shutil
 import subprocess
@@ -9,35 +10,77 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
+from unittest import mock
 
-
-REPO_ROOT = Path(__file__).resolve().parent.parent
-EVALUATOR = (
-  REPO_ROOT / "templates/ares-ingest-harbor-task/files/evaluate_ares_ingest.py"
+from ares_ingest_autoagent.artifacts import (
+  HfCpuOracleAuthority,
+  load_hf_cpu_oracle_authority_file,
+  validate_hf_cpu_oracle_evidence_files,
 )
 
 
+REPO_ROOT = Path(__file__).resolve().parent.parent
+ARES_ROOT = REPO_ROOT.parents[1]
+EVALUATOR = (
+  REPO_ROOT / "templates/ares-ingest-harbor-task/tests/evaluate_ares_ingest.py"
+)
+HARBOR_TEST_SCRIPT = REPO_ROOT / "templates/ares-ingest-harbor-task/tests/test.sh"
+ORACLE_SCRIPT = ARES_ROOT / "tools/oracles/hf-cpu/capture_hf_cpu_oracle.py"
+ORACLE_SPEC = importlib.util.spec_from_file_location(
+  "test_ares_ingest_evaluator_hf_cpu_oracle",
+  ORACLE_SCRIPT,
+)
+assert ORACLE_SPEC is not None and ORACLE_SPEC.loader is not None
+ORACLE_MODULE = importlib.util.module_from_spec(ORACLE_SPEC)
+ORACLE_SPEC.loader.exec_module(ORACLE_MODULE)
+EVALUATOR_SPEC = importlib.util.spec_from_file_location(
+  "test_ares_ingest_evaluator_module",
+  EVALUATOR,
+)
+assert EVALUATOR_SPEC is not None and EVALUATOR_SPEC.loader is not None
+EVALUATOR_MODULE = importlib.util.module_from_spec(EVALUATOR_SPEC)
+EVALUATOR_SPEC.loader.exec_module(EVALUATOR_MODULE)
+
+
 def oracle_record() -> dict[str, Any]:
-  return {
-    "schema": "ares.oracles.hf_cpu.record.v1",
+  record = {
+    "schema": ORACLE_MODULE.SCHEMA_ID,
     "record_kind": "hf_cpu_oracle_capture",
-    "capture_id": "test-capture",
+    "invocation_id": ORACLE_MODULE.new_capture_invocation_id(),
+    "invocation_record_count": 1,
+    "capture_id": "",
     "created_utc": "2026-06-26T00:00:00Z",
     "source": {
       "oracle": "huggingface_transformers_pytorch_cpu",
       "capture_script": "tools/oracles/hf-cpu/capture_hf_cpu_oracle.py",
+      "capture_script_sha256": ORACLE_MODULE.capture_source_sha256(),
     },
     "model": {
       "model_id": "synthetic/model",
       "requested_revision": "0123456789abcdef0123456789abcdef01234567",
       "resolved_revision": "0123456789abcdef0123456789abcdef01234567",
+      "name_or_path": "synthetic/model",
       "dtype": "float32",
+      "config": {
+        "architectures": ["SyntheticForCausalLM"],
+        "model_type": "synthetic",
+        "torch_dtype": "float32",
+        "vocab_size": 8,
+      },
     },
     "tokenizer": {
       "tokenizer_id": "synthetic/model",
       "requested_revision": "0123456789abcdef0123456789abcdef01234567",
       "resolved_revision": "0123456789abcdef0123456789abcdef01234567",
+      "name_or_path": "synthetic/model",
+      "vocab_size": 8,
+      "model_max_length": 1024,
+      "padding_side": "right",
+      "truncation_side": "right",
+      "eos_token_id": 2,
+      "bos_token_id": 1,
+      "chat_template_sha256": None,
     },
     "run": {
       "seed": 0,
@@ -47,6 +90,9 @@ def oracle_record() -> dict[str, Any]:
       "torch_deterministic_algorithms": True,
       "local_files_only": True,
       "trust_remote_code": False,
+      "stop_on_eos": True,
+      "ignore_eos": False,
+      "effective_eos_token_ids": [2],
     },
     "prompt": {
       "kind": "raw",
@@ -54,6 +100,11 @@ def oracle_record() -> dict[str, Any]:
       "token_ids": [1, 7],
       "token_count": 2,
       "add_special_tokens": True,
+      "capture_index": 0,
+    },
+    "artifacts": {
+      "dense_logits_mode": "paired_promotion",
+      "expected_dense_row_count": 2,
     },
     "generation": {
       "generated_token_ids": [3, 2],
@@ -72,7 +123,11 @@ def oracle_record() -> dict[str, Any]:
         "selected_token_id": 3,
         "selected_token_text": " world",
         "selected_token_logit": 12.5,
-        "top_k": [{"rank": 1, "token_id": 3, "token_text": " world", "logit": 12.5}],
+        "dense_logits_sha256": "",
+        "top_k": [
+          {"rank": 1, "token_id": 3, "token_text": " world", "logit": 12.5},
+          {"rank": 2, "token_id": 4, "token_text": " there", "logit": 8.0},
+        ],
       },
       {
         "step": 1,
@@ -81,7 +136,11 @@ def oracle_record() -> dict[str, Any]:
         "selected_token_id": 2,
         "selected_token_text": "</s>",
         "selected_token_logit": 9.25,
-        "top_k": [{"rank": 1, "token_id": 2, "token_text": "</s>", "logit": 9.25}],
+        "dense_logits_sha256": "",
+        "top_k": [
+          {"rank": 1, "token_id": 2, "token_text": "</s>", "logit": 9.25},
+          {"rank": 2, "token_id": 5, "token_text": "!", "logit": 4.0},
+        ],
       },
     ],
     "environment": {
@@ -89,8 +148,115 @@ def oracle_record() -> dict[str, Any]:
       "platform": "test-platform",
       "torch_version": "test-torch",
       "transformers_version": "test-transformers",
+      "torch_device": "cpu",
+      "torch_num_threads": 1,
+      "torch_num_interop_threads": 1,
+      "git_commit": "a" * 40,
+      "git_dirty": False,
     },
   }
+  record["capture_id"] = ORACLE_MODULE.semantic_capture_id_for_record(record)
+  for logit_slice, dense_row in zip(record["logit_slices"], oracle_dense_rows(record)):
+    logit_slice["dense_logits_sha256"] = ORACLE_MODULE.sha256_json(dense_row)
+  return record
+
+
+def oracle_dense_rows(record: dict[str, Any]) -> list[dict[str, Any]]:
+  capture_id = record["capture_id"]
+  return [
+    {
+      "capture_id": capture_id,
+      "invocation_id": record["invocation_id"],
+      "step_index": 0,
+      "context_tokens": [1, 7],
+      "context_tokens_role": "hf_oracle_replay_context",
+      "context_count": 2,
+      "new_count": 2,
+      "runtime_request_token_count": 2,
+      "context_prefix_token_count": 0,
+      "last_token": 7,
+      "logits": [0.0, -1.0, -2.0, 12.5, 8.0, -3.0, -4.0, -5.0],
+    },
+    {
+      "capture_id": capture_id,
+      "invocation_id": record["invocation_id"],
+      "step_index": 1,
+      "context_tokens": [1, 7, 3],
+      "context_tokens_role": "hf_oracle_replay_context",
+      "context_count": 3,
+      "new_count": 1,
+      "runtime_request_token_count": 1,
+      "context_prefix_token_count": 2,
+      "last_token": 3,
+      "logits": [0.0, -1.0, 9.25, 1.0, 0.0, 4.0, -4.0, -5.0],
+    },
+  ]
+
+
+def oracle_transaction_files() -> dict[str, str]:
+  record = oracle_record()
+  return {
+    "oracle.jsonl": ORACLE_MODULE.canonical_json_line(record).decode(),
+    "oracle-dense.jsonl": b"".join(
+      ORACLE_MODULE.canonical_json_line(row) for row in oracle_dense_rows(record)
+    ).decode(),
+  }
+
+
+def publish_oracle_transaction(
+  root: Path,
+  *,
+  oracle_name: str,
+  dense_name: str,
+  oracle_text: str,
+  dense_text: str,
+) -> Any:
+  oracle_payload = oracle_text.encode()
+  dense_payload = dense_text.encode()
+  oracle_stage_path = root / "oracle-stage.jsonl"
+  dense_stage_path = root / "dense-stage.jsonl"
+  oracle_stage_path.write_bytes(oracle_payload)
+  dense_stage_path.write_bytes(dense_payload)
+  oracle_stage = ORACLE_MODULE.verify_staged_artifact(
+    oracle_stage_path,
+    expected_size=len(oracle_payload),
+    expected_sha256=hashlib.sha256(oracle_payload).hexdigest(),
+  )
+  dense_stage = ORACLE_MODULE.verify_staged_artifact(
+    dense_stage_path,
+    expected_size=len(dense_payload),
+    expected_sha256=hashlib.sha256(dense_payload).hexdigest(),
+  )
+  transaction = ORACLE_MODULE.publish_capture_transaction(
+    oracle_stage=oracle_stage,
+    oracle_output=root / oracle_name,
+    dense_stage=dense_stage,
+    dense_output=root / dense_name,
+  )
+  assert transaction is not None
+  return transaction
+
+
+def operator_authority_document(transaction: Any) -> dict[str, Any]:
+  return {
+    "schema": "ares.autoagent.hf_cpu_oracle_authority.v1",
+    "transaction_schema": transaction.schema,
+    "transaction_digest": transaction.digest,
+    "canonical_validator_sha256": ORACLE_MODULE.capture_source_sha256(),
+    "canonical_schema_sha256": (
+      "0ff9238de88d9017742ed956d0036cf4919241140efa5fff84792bdedc04cae7"
+    ),
+    "oracle_sha256": transaction.oracle_sha256,
+    "oracle_size_bytes": transaction.oracle_size_bytes,
+    "oracle_record_count": len(transaction.oracle_records),
+    "dense_sha256": transaction.dense_sha256,
+    "dense_size_bytes": transaction.dense_size_bytes,
+    "dense_row_count": len(transaction.dense_rows),
+  }
+
+
+def remove_fixture_tree(root: Path) -> None:
+  shutil.rmtree(root)
 
 
 def valid_ares_plan() -> dict[str, Any]:
@@ -143,6 +309,7 @@ def valid_ares_plan() -> dict[str, Any]:
       "fx_hash": "test-fx",
       "rule_corpus_hash": "test-rules",
       "emitter_version": "ingest-lean test",
+      "hf_export_model_type": "synthetic",
       "target_executor": "tron",
       "hardware_policy": "tron",
       "lowering_path": "Ingest.Plan.ToJson",
@@ -463,11 +630,56 @@ def mmlu_pro_evidence(
 
 
 class AresIngestEvaluatorTest(unittest.TestCase):
+  def test_harbor_invokes_verifier_owned_evaluator(self) -> None:
+    script = HARBOR_TEST_SCRIPT.read_text()
+
+    self.assertIn("python3 /tests/evaluate_ares_ingest.py", script)
+    self.assertNotIn("/task/files/evaluate_ares_ingest.py", script)
+
+  def cpu_only_spec(self) -> dict[str, Any]:
+    return {
+      "required_gates": [
+        "model_spec",
+        "hf_cpu_oracle",
+        "frontend_export",
+        "lean_ingest",
+        "aresplan_valid",
+        "targetplan_valid",
+        "artifact_consistency",
+        "shortcut_scan",
+      ],
+      "explicit_gates": {
+        "model_spec": True,
+        "frontend_export": True,
+        "lean_ingest": True,
+      },
+      "oracle_records": "oracle.jsonl",
+      "oracle_dense_logits": "oracle-dense.jsonl",
+      "ares_plan": "ares-plan.json",
+      "target_plan": "tron.target-plan.json",
+    }
+
+  def cpu_only_task_files(self) -> dict[str, str]:
+    return {
+      **oracle_transaction_files(),
+      "ares-plan.json": json.dumps(valid_ares_plan()) + "\n",
+      "tron.target-plan.json": json.dumps(valid_target_plan()) + "\n",
+    }
+
   def run_evaluator(
-    self, spec: dict[str, Any], task_file_texts: dict[str, str]
+    self,
+    spec: dict[str, Any],
+    task_file_texts: dict[str, str],
+    *,
+    commit_oracle: bool = True,
+    supply_oracle_authority: bool = True,
+    authority_mutator: Callable[[dict[str, Any]], dict[str, Any]] | None = None,
+    receipt_replacer: (
+      Callable[[Path, dict[str, Any]], Callable[[], None] | None] | None
+    ) = None,
   ) -> dict[str, Any]:
     root = Path(tempfile.mkdtemp())
-    self.addCleanup(shutil.rmtree, root)
+    self.addCleanup(remove_fixture_tree, root)
 
     ares_repo = root / "ares"
     task_files = root / "task-files"
@@ -478,8 +690,43 @@ class AresIngestEvaluatorTest(unittest.TestCase):
     ares_repo.mkdir()
     task_files.mkdir()
 
+    oracle_name = spec.get("oracle_records")
+    dense_name = spec.get("oracle_dense_logits")
+    publish_oracle = (
+      commit_oracle
+      and isinstance(oracle_name, str)
+      and isinstance(dense_name, str)
+      and oracle_name in task_file_texts
+      and dense_name in task_file_texts
+    )
     for name, text in task_file_texts.items():
+      if publish_oracle and name in {oracle_name, dense_name}:
+        continue
       (task_files / name).write_text(text)
+    authority_path = None
+    oracle_authority = None
+    if publish_oracle:
+      assert isinstance(oracle_name, str) and isinstance(dense_name, str)
+      transaction = publish_oracle_transaction(
+        task_files,
+        oracle_name=oracle_name,
+        dense_name=dense_name,
+        oracle_text=task_file_texts[oracle_name],
+        dense_text=task_file_texts[dense_name],
+      )
+      validation = validate_hf_cpu_oracle_evidence_files(
+        task_files / oracle_name,
+        task_files / dense_name,
+      )
+      self.assertTrue(validation.passed, validation.errors)
+      oracle_authority = operator_authority_document(transaction)
+      if authority_mutator is not None:
+        oracle_authority = authority_mutator(dict(oracle_authority))
+      if supply_oracle_authority:
+        verifier_tests = root / "verifier-tests"
+        verifier_tests.mkdir()
+        authority_path = verifier_tests / "oracle-authority.json"
+        authority_path.write_text(json.dumps(oracle_authority) + "\n")
 
     full_spec = {
       "model": "synthetic/model",
@@ -496,20 +743,361 @@ class AresIngestEvaluatorTest(unittest.TestCase):
       {
         "ARES_REPO": str(ares_repo),
         "TASK_FILES_DIR": str(task_files),
+        "MODEL_SPEC": str(task_files / "model_spec.json"),
         "VERIFIER_LOG_DIR": str(logs_dir),
         "REWARD_JSON": str(reward_json),
         "REWARD_TXT": str(reward_txt),
         "PYTHONPATH": ":".join(pythonpath),
       }
     )
-    subprocess.run([sys.executable, str(EVALUATOR)], env=env, check=True)
+    if authority_path is not None:
+      env["ORACLE_AUTHORITY_FILE"] = str(authority_path)
+    else:
+      env.pop("ORACLE_AUTHORITY_FILE", None)
+    if receipt_replacer is None:
+      subprocess.run([sys.executable, str(EVALUATOR)], env=env, check=True)
+    else:
+      compute_reward = EVALUATOR_MODULE.compute_reward
+
+      def replace_receipt_then_score(**kwargs: Any) -> dict[str, Any]:
+        restore = receipt_replacer(work_dir / "validated_gates.json", kwargs)
+        try:
+          return compute_reward(**kwargs)
+        finally:
+          if restore is not None:
+            restore()
+
+      with (
+        mock.patch.dict(os.environ, env, clear=False),
+        mock.patch.object(
+          EVALUATOR_MODULE,
+          "compute_reward",
+          side_effect=replace_receipt_then_score,
+        ),
+      ):
+        self.assertEqual(EVALUATOR_MODULE.main(), 0)
     return {
       "work_dir": work_dir,
+      "task_files": task_files,
       "logs_dir": logs_dir,
+      "authority_path": authority_path,
+      "oracle_authority": oracle_authority,
       "reward_json": reward_json,
       "reward_txt": reward_txt,
       "reward": json.loads(reward_json.read_text()),
     }
+
+  def test_promotion_rejects_missing_operator_oracle_authority(self) -> None:
+    result = self.run_evaluator(
+      self.cpu_only_spec(),
+      self.cpu_only_task_files(),
+      supply_oracle_authority=False,
+    )
+
+    reward = result["reward"]
+    validation = validate_hf_cpu_oracle_evidence_files(
+      result["task_files"] / "oracle.jsonl",
+      result["task_files"] / "oracle-dense.jsonl",
+      require_authority=True,
+    )
+    self.assertFalse(validation.passed)
+    self.assertIn("authority is required", " ".join(validation.errors))
+    self.assertEqual(reward["first_failed_gate"], "hf_cpu_oracle")
+    self.assertFalse(reward["gates"]["hf_cpu_oracle"]["passed"])
+    self.assertFalse(reward["promotion_eligible"])
+
+  def test_promotion_rejects_mismatched_operator_oracle_authority(self) -> None:
+    result = self.run_evaluator(
+      self.cpu_only_spec(),
+      self.cpu_only_task_files(),
+      authority_mutator=lambda authority: {
+        **authority,
+        "transaction_digest": "0" * 64,
+      },
+    )
+
+    reward = result["reward"]
+    mismatched_authority = load_hf_cpu_oracle_authority_file(
+      result["authority_path"]
+    )
+    validation = validate_hf_cpu_oracle_evidence_files(
+      result["task_files"] / "oracle.jsonl",
+      result["task_files"] / "oracle-dense.jsonl",
+      expected_authority=mismatched_authority,
+      require_authority=True,
+    )
+    self.assertFalse(validation.passed)
+    self.assertIn("does not match", " ".join(validation.errors))
+    self.assertEqual(reward["first_failed_gate"], "hf_cpu_oracle")
+    self.assertFalse(reward["gates"]["hf_cpu_oracle"]["passed"])
+    self.assertFalse(reward["promotion_eligible"])
+
+  def test_candidate_task_file_evaluator_cannot_influence_promotion(self) -> None:
+    task_files = self.cpu_only_task_files()
+    task_files["evaluate_ares_ingest.py"] = (
+      'raise RuntimeError("candidate-writable evaluator executed")\n'
+    )
+
+    result = self.run_evaluator(self.cpu_only_spec(), task_files)
+
+    self.assertTrue(
+      (result["task_files"] / "evaluate_ares_ingest.py").exists()
+    )
+    self.assertEqual(result["reward"]["first_failed_gate"], "complete")
+    self.assertTrue(result["reward"]["promotion_eligible"])
+
+  def test_coherent_oracle_replacement_and_authority_swap_fails_closed(
+    self,
+  ) -> None:
+    observed: dict[str, Any] = {}
+
+    def replace_transaction_and_authority(
+      _path: Path,
+      kwargs: dict[str, Any],
+    ) -> Callable[[], None]:
+      authority_path = Path(os.environ["ORACLE_AUTHORITY_FILE"])
+      original_authority_bytes = authority_path.read_bytes()
+      original_authority = json.loads(original_authority_bytes)
+      expected_authority = kwargs["expected_oracle_authority"]
+      self.assertIsInstance(expected_authority, HfCpuOracleAuthority)
+      self.assertEqual(
+        expected_authority.value,
+        original_authority,
+      )
+
+      replacement_root = authority_path.parent / "replacement"
+      replacement_root.mkdir()
+      replacement_files = oracle_transaction_files()
+      replacement_oracle = replacement_root / "oracle.jsonl"
+      replacement_dense = replacement_root / "oracle-dense.jsonl"
+      replacement_transaction = publish_oracle_transaction(
+        replacement_root,
+        oracle_name=replacement_oracle.name,
+        dense_name=replacement_dense.name,
+        oracle_text=replacement_files[replacement_oracle.name],
+        dense_text=replacement_files[replacement_dense.name],
+      )
+      replacement_validation = validate_hf_cpu_oracle_evidence_files(
+        replacement_oracle,
+        replacement_dense,
+      )
+      self.assertTrue(
+        replacement_validation.passed,
+        replacement_validation.errors,
+      )
+      replacement_authority = operator_authority_document(
+        replacement_transaction
+      )
+
+      current_oracle = kwargs["oracle_path"]
+      current_dense = kwargs["oracle_dense_path"]
+      current_oracle.chmod(0o600)
+      current_dense.chmod(0o600)
+      current_oracle.write_bytes(replacement_oracle.read_bytes())
+      current_dense.write_bytes(replacement_dense.read_bytes())
+      current_oracle.chmod(ORACLE_MODULE.CAPTURE_OUTPUT_MODE)
+      current_dense.chmod(ORACLE_MODULE.CAPTURE_OUTPUT_MODE)
+      authority_path.write_text(json.dumps(replacement_authority) + "\n")
+      observed["replacement_authority"] = replacement_authority
+      observed["original_authority_bytes"] = original_authority_bytes
+
+      def restore_authority() -> None:
+        authority_path.write_bytes(original_authority_bytes)
+
+      return restore_authority
+
+    result = self.run_evaluator(
+      self.cpu_only_spec(),
+      self.cpu_only_task_files(),
+      receipt_replacer=replace_transaction_and_authority,
+    )
+
+    reward = result["reward"]
+    self.assertEqual(reward["first_failed_gate"], "hf_cpu_oracle")
+    self.assertFalse(reward["gates"]["hf_cpu_oracle"]["passed"])
+    self.assertFalse(reward["promotion_eligible"])
+    authority_path = result["authority_path"]
+    self.assertIsNotNone(authority_path)
+    self.assertEqual(
+      authority_path.read_bytes(),
+      observed["original_authority_bytes"],
+    )
+    self.assertNotEqual(
+      result["oracle_authority"],
+      observed["replacement_authority"],
+    )
+    replacement_authority_path = (
+      result["authority_path"].parent / "replacement-authority-check.json"
+    )
+    replacement_authority_path.write_text(
+      json.dumps(observed["replacement_authority"]) + "\n"
+    )
+    replacement_authority = load_hf_cpu_oracle_authority_file(
+      replacement_authority_path
+    )
+    replacement_validation = validate_hf_cpu_oracle_evidence_files(
+      result["task_files"] / "oracle.jsonl",
+      result["task_files"] / "oracle-dense.jsonl",
+      expected_authority=replacement_authority,
+      require_authority=True,
+    )
+    self.assertTrue(replacement_validation.passed, replacement_validation.errors)
+    original_authority = load_hf_cpu_oracle_authority_file(
+      result["authority_path"]
+    )
+    original_validation = validate_hf_cpu_oracle_evidence_files(
+      result["task_files"] / "oracle.jsonl",
+      result["task_files"] / "oracle-dense.jsonl",
+      expected_authority=original_authority,
+      require_authority=True,
+    )
+    self.assertFalse(original_validation.passed)
+    self.assertIn("does not match", " ".join(original_validation.errors))
+
+  def test_replacing_post_validation_receipt_cannot_grant_promotion(self) -> None:
+    def replace_receipt(path: Path, kwargs: dict[str, Any]) -> None:
+      forged = json.loads(path.read_text())
+      transaction = ORACLE_MODULE.validate_capture_transaction(
+        kwargs["oracle_path"],
+        kwargs["oracle_dense_path"],
+      )
+      forged["gates"]["targetplan_valid"] = {
+        "passed": True,
+        "score": 1.0,
+        "artifact_validator": "target_plan",
+      }
+      forged["gates"]["artifact_consistency"] = {
+        "passed": True,
+        "score": 1.0,
+        "artifact_validator": "artifact_consistency",
+        "detail": {"oracle_transaction_digest": transaction.digest},
+      }
+      path.write_text(json.dumps(forged))
+
+    result = self.run_evaluator(
+      {
+        "required_gates": [
+          "model_spec",
+          "hf_cpu_oracle",
+          "frontend_export",
+          "lean_ingest",
+          "aresplan_valid",
+          "targetplan_valid",
+          "artifact_consistency",
+          "shortcut_scan",
+        ],
+        "explicit_gates": {
+          "model_spec": True,
+          "frontend_export": True,
+          "lean_ingest": True,
+        },
+        "oracle_records": "oracle.jsonl",
+        "oracle_dense_logits": "oracle-dense.jsonl",
+        "ares_plan": "ares-plan.json",
+      },
+      {
+        **oracle_transaction_files(),
+        "ares-plan.json": json.dumps(valid_ares_plan()) + "\n",
+      },
+      receipt_replacer=replace_receipt,
+    )
+
+    forged = json.loads(
+      (result["work_dir"] / "validated_gates.json").read_text()
+    )
+    self.assertTrue(forged["gates"]["targetplan_valid"]["passed"])
+    self.assertEqual(result["reward"]["first_failed_gate"], "targetplan_valid")
+    self.assertFalse(result["reward"]["promotion_eligible"])
+
+  def test_replacing_target_plan_after_validation_fails_final_join(self) -> None:
+    def replace_target_plan(_path: Path, kwargs: dict[str, Any]) -> None:
+      target_path = kwargs["target_plan_path"]
+      target = json.loads(target_path.read_text())
+      target["source"]["provenance"]["hf_export_model_type"] = "phi3"
+      target_path.write_text(json.dumps(target))
+
+    result = self.run_evaluator(
+      {
+        "required_gates": [
+          "model_spec",
+          "hf_cpu_oracle",
+          "frontend_export",
+          "lean_ingest",
+          "aresplan_valid",
+          "targetplan_valid",
+          "artifact_consistency",
+          "shortcut_scan",
+        ],
+        "explicit_gates": {
+          "model_spec": True,
+          "frontend_export": True,
+          "lean_ingest": True,
+        },
+        "oracle_records": "oracle.jsonl",
+        "oracle_dense_logits": "oracle-dense.jsonl",
+        "ares_plan": "ares-plan.json",
+        "target_plan": "tron.target-plan.json",
+      },
+      {
+        **oracle_transaction_files(),
+        "ares-plan.json": json.dumps(valid_ares_plan()) + "\n",
+        "tron.target-plan.json": json.dumps(valid_target_plan()) + "\n",
+      },
+      receipt_replacer=replace_target_plan,
+    )
+
+    receipt = json.loads(
+      (result["work_dir"] / "validated_gates.json").read_text()
+    )["gates"]
+    self.assertTrue(receipt["targetplan_valid"]["passed"])
+    self.assertTrue(receipt["artifact_consistency"]["passed"])
+    self.assertEqual(result["reward"]["first_failed_gate"], "artifact_consistency")
+    self.assertFalse(result["reward"]["gates"]["artifact_consistency"]["passed"])
+    self.assertFalse(result["reward"]["promotion_eligible"])
+
+  def test_post_validation_shortcut_is_caught_by_final_scan(self) -> None:
+    def add_shortcut(_path: Path, kwargs: dict[str, Any]) -> None:
+      shortcut = kwargs["authority_root"] / "runtime/model_plugins/fixture.rs"
+      shortcut.parent.mkdir(parents=True)
+      shortcut.write_text("// forbidden hand-authored model plugin\n")
+
+    result = self.run_evaluator(
+      {
+        "required_gates": [
+          "model_spec",
+          "hf_cpu_oracle",
+          "frontend_export",
+          "lean_ingest",
+          "aresplan_valid",
+          "targetplan_valid",
+          "artifact_consistency",
+          "shortcut_scan",
+        ],
+        "explicit_gates": {
+          "model_spec": True,
+          "frontend_export": True,
+          "lean_ingest": True,
+        },
+        "oracle_records": "oracle.jsonl",
+        "oracle_dense_logits": "oracle-dense.jsonl",
+        "ares_plan": "ares-plan.json",
+        "target_plan": "tron.target-plan.json",
+      },
+      {
+        **oracle_transaction_files(),
+        "ares-plan.json": json.dumps(valid_ares_plan()) + "\n",
+        "tron.target-plan.json": json.dumps(valid_target_plan()) + "\n",
+      },
+      receipt_replacer=add_shortcut,
+    )
+
+    receipt = json.loads(
+      (result["work_dir"] / "validated_gates.json").read_text()
+    )["gates"]
+    self.assertTrue(receipt["shortcut_scan"]["passed"])
+    self.assertEqual(result["reward"]["first_failed_gate"], "shortcut_scan")
+    self.assertFalse(result["reward"]["gates"]["shortcut_scan"]["passed"])
+    self.assertFalse(result["reward"]["promotion_eligible"])
 
   def test_evaluator_scores_full_artifact_backed_profile(self) -> None:
     mmlu_report = "Total, 72/100, 72.00%\n"
@@ -586,6 +1174,7 @@ class AresIngestEvaluatorTest(unittest.TestCase):
           "lean_ingest": True,
         },
         "oracle_records": "oracle.jsonl",
+        "oracle_dense_logits": "oracle-dense.jsonl",
         "ares_plan": "ares-plan.json",
         "target_plan": "tron.target-plan.json",
         "backend_open_evidence": "backend-open.json",
@@ -601,7 +1190,7 @@ class AresIngestEvaluatorTest(unittest.TestCase):
         },
       },
       {
-        "oracle.jsonl": json.dumps(oracle_record()) + "\n",
+        **oracle_transaction_files(),
         "ares-plan.json": ares_plan,
         "tron.target-plan.json": target_plan,
         "backend-open.json": json.dumps(backend_open_evidence()) + "\n",
@@ -649,6 +1238,10 @@ class AresIngestEvaluatorTest(unittest.TestCase):
 
     reward = result["reward"]
     self.assertEqual(reward["first_failed_gate"], "complete")
+    self.assertTrue(reward["gates"]["hf_cpu_oracle"]["passed"])
+    self.assertTrue(reward["promotion_eligible"])
+    self.assertEqual(reward["claim_ceiling"], "promotion_candidate")
+    self.assertEqual(reward["validation_authority"], "same_process")
     self.assertEqual(reward["stage_cap"], 1.0)
     self.assertEqual(reward["tau_tokens"], 1.0)
     self.assertEqual(reward["delta_inference"], 0.8)
@@ -656,6 +1249,12 @@ class AresIngestEvaluatorTest(unittest.TestCase):
     validated_gates = json.loads(
       (result["work_dir"] / "validated_gates.json").read_text()
     )["gates"]
+    for plan_gate in ("aresplan_valid", "targetplan_valid"):
+      self.assertEqual(
+        validated_gates[plan_gate]["detail"]["snapshot_validation"],
+        "retained_descriptor_rejoin",
+      )
+      self.assertEqual(len(validated_gates[plan_gate]["detail"]["sha256"]), 64)
     eight_token_detail = validated_gates["eight_token_greedy"]
     self.assertEqual(
       eight_token_detail["artifact_validator"],
@@ -732,11 +1331,12 @@ class AresIngestEvaluatorTest(unittest.TestCase):
           "lean_ingest": True,
         },
         "oracle_records": "oracle.jsonl",
+        "oracle_dense_logits": "oracle-dense.jsonl",
         "ares_plan": "ares-plan.json",
         "target_plan": "tron.target-plan.json",
       },
       {
-        "oracle.jsonl": json.dumps(oracle_record()) + "\n",
+        **oracle_transaction_files(),
         "ares-plan.json": json.dumps(valid_ares_plan()) + "\n",
         "tron.target-plan.json": json.dumps(target_plan) + "\n",
       },
@@ -745,6 +1345,98 @@ class AresIngestEvaluatorTest(unittest.TestCase):
     reward = result["reward"]
     self.assertEqual(reward["first_failed_gate"], "artifact_consistency")
     self.assertFalse(reward["gates"]["artifact_consistency"]["passed"])
+
+  def test_evaluator_rejects_plan_model_type_mismatch(self) -> None:
+    for plan_kind in ("ares", "target"):
+      with self.subTest(plan_kind=plan_kind):
+        ares_plan = valid_ares_plan()
+        target_plan = valid_target_plan()
+        provenance = (
+          ares_plan["provenance"]
+          if plan_kind == "ares"
+          else target_plan["source"]["provenance"]
+        )
+        provenance["hf_export_model_type"] = "phi3"
+        result = self.run_evaluator(
+          {
+            "required_gates": [
+              "model_spec",
+              "hf_cpu_oracle",
+              "frontend_export",
+              "lean_ingest",
+              "aresplan_valid",
+              "targetplan_valid",
+              "artifact_consistency",
+              "shortcut_scan",
+            ],
+            "explicit_gates": {
+              "model_spec": True,
+              "frontend_export": True,
+              "lean_ingest": True,
+            },
+            "oracle_records": "oracle.jsonl",
+            "oracle_dense_logits": "oracle-dense.jsonl",
+            "ares_plan": "ares-plan.json",
+            "target_plan": "tron.target-plan.json",
+          },
+          {
+            **oracle_transaction_files(),
+            "ares-plan.json": json.dumps(ares_plan) + "\n",
+            "tron.target-plan.json": json.dumps(target_plan) + "\n",
+          },
+        )
+
+        reward = result["reward"]
+        self.assertEqual(reward["first_failed_gate"], "artifact_consistency")
+        self.assertFalse(reward["gates"]["artifact_consistency"]["passed"])
+
+  def test_evaluator_rejects_non_concrete_plan_model_type(self) -> None:
+    cases = (("missing", None), ("empty", ""), ("unknown", "unknown"))
+    for plan_kind in ("ares", "target"):
+      for field, value in cases:
+        with self.subTest(plan_kind=plan_kind, field=field):
+          ares_plan = valid_ares_plan()
+          target_plan = valid_target_plan()
+          provenance = (
+            ares_plan["provenance"]
+            if plan_kind == "ares"
+            else target_plan["source"]["provenance"]
+          )
+          if value is None:
+            del provenance["hf_export_model_type"]
+          else:
+            provenance["hf_export_model_type"] = value
+          result = self.run_evaluator(
+            {
+              "required_gates": [
+                "model_spec",
+                "hf_cpu_oracle",
+                "frontend_export",
+                "lean_ingest",
+                "aresplan_valid",
+                "targetplan_valid",
+              ],
+              "explicit_gates": {
+                "model_spec": True,
+                "frontend_export": True,
+                "lean_ingest": True,
+              },
+              "oracle_records": "oracle.jsonl",
+              "oracle_dense_logits": "oracle-dense.jsonl",
+              "ares_plan": "ares-plan.json",
+              "target_plan": "tron.target-plan.json",
+            },
+            {
+              **oracle_transaction_files(),
+              "ares-plan.json": json.dumps(ares_plan) + "\n",
+              "tron.target-plan.json": json.dumps(target_plan) + "\n",
+            },
+          )
+
+          expected_gate = "aresplan_valid" if plan_kind == "ares" else "targetplan_valid"
+          reward = result["reward"]
+          self.assertEqual(reward["first_failed_gate"], expected_gate)
+          self.assertFalse(reward["gates"][expected_gate]["passed"])
 
   def test_evaluator_rejects_placeholder_plan_json(self) -> None:
     result = self.run_evaluator(
@@ -763,11 +1455,12 @@ class AresIngestEvaluatorTest(unittest.TestCase):
           "lean_ingest": True,
         },
         "oracle_records": "oracle.jsonl",
+        "oracle_dense_logits": "oracle-dense.jsonl",
         "ares_plan": "ares-plan.json",
         "target_plan": "tron.target-plan.json",
       },
       {
-        "oracle.jsonl": json.dumps(oracle_record()) + "\n",
+        **oracle_transaction_files(),
         "ares-plan.json": "{}\n",
         "tron.target-plan.json": "{}\n",
       },
@@ -804,6 +1497,37 @@ class AresIngestEvaluatorTest(unittest.TestCase):
     self.assertEqual(reward["first_failed_gate"], "hf_cpu_oracle")
     self.assertFalse(reward["gates"]["hf_cpu_oracle"]["passed"])
 
+  def test_evaluator_rejects_uncommitted_oracle_pair(self) -> None:
+    result = self.run_evaluator(
+      {
+        "required_gates": ["model_spec", "hf_cpu_oracle"],
+        "explicit_gates": {"model_spec": True},
+        "oracle_records": "oracle.jsonl",
+        "oracle_dense_logits": "oracle-dense.jsonl",
+      },
+      oracle_transaction_files(),
+      commit_oracle=False,
+    )
+
+    reward = result["reward"]
+    self.assertEqual(reward["first_failed_gate"], "hf_cpu_oracle")
+    self.assertFalse(reward["gates"]["hf_cpu_oracle"]["passed"])
+
+  def test_evaluator_rejects_raw_without_dense_spec_binding(self) -> None:
+    result = self.run_evaluator(
+      {
+        "required_gates": ["model_spec", "hf_cpu_oracle"],
+        "explicit_gates": {"model_spec": True},
+        "oracle_records": "oracle.jsonl",
+      },
+      oracle_transaction_files(),
+      commit_oracle=False,
+    )
+
+    reward = result["reward"]
+    self.assertEqual(reward["first_failed_gate"], "hf_cpu_oracle")
+    self.assertFalse(reward["gates"]["hf_cpu_oracle"]["passed"])
+
   def test_explicit_gates_cannot_replace_missing_plan_artifacts(self) -> None:
     result = self.run_evaluator(
       {
@@ -823,8 +1547,9 @@ class AresIngestEvaluatorTest(unittest.TestCase):
           "targetplan_valid": True,
         },
         "oracle_records": "oracle.jsonl",
+        "oracle_dense_logits": "oracle-dense.jsonl",
       },
-      {"oracle.jsonl": json.dumps(oracle_record()) + "\n"},
+      oracle_transaction_files(),
     )
 
     reward = result["reward"]
@@ -849,10 +1574,11 @@ class AresIngestEvaluatorTest(unittest.TestCase):
           "targetplan_valid": True,
         },
         "oracle_records": "oracle.jsonl",
+        "oracle_dense_logits": "oracle-dense.jsonl",
         "ares_plan": "ares-plan.json",
       },
       {
-        "oracle.jsonl": json.dumps(oracle_record()) + "\n",
+        **oracle_transaction_files(),
         "ares-plan.json": json.dumps(valid_ares_plan()) + "\n",
       },
     )

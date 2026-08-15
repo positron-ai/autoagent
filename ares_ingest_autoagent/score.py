@@ -12,7 +12,7 @@ import json
 import math
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, Mapping
 
 from tron_ingest_autoagent.performance import is_scoring_workload
 from tron_ingest_autoagent.score import (
@@ -22,9 +22,14 @@ from tron_ingest_autoagent.score import (
 )
 
 from ares_ingest_autoagent.artifacts import (
-    validate_hf_cpu_oracle_record,
+    HfCpuOracleAuthority,
+    ares_plan_gate,
+    artifact_consistency_gate,
+    load_hf_cpu_oracle_evidence_files,
+    target_plan_gate,
     validate_token_agreement_evidence,
 )
+from ares_ingest_autoagent.gates import shortcut_scan_gate
 
 
 STAGE_CAPS: dict[str, float] = {
@@ -44,6 +49,7 @@ STAGE_CAPS: dict[str, float] = {
     "depth_performance": 0.95,
     "mmlu_pro": 0.98,
     "cpp_tvd": 0.99,
+    "diagnostic_complete": 0.99,
     "complete": 1.00,
 }
 
@@ -208,6 +214,68 @@ def merge_validated_gates(
         gates[name] = gate
 
 
+def checked_in_gate_profile(required_gates: tuple[str, ...]) -> str | None:
+    required_set = frozenset(required_gates)
+    if len(required_set) != len(required_gates):
+        return None
+    return next(
+        (
+            name
+            for name, profile_gates in GATE_PROFILES.items()
+            if required_set == frozenset(profile_gates)
+        ),
+        None,
+    )
+
+
+def enforce_oracle_consistency_digest(
+    gates: dict[str, Gate],
+    required_gates: tuple[str, ...],
+) -> None:
+    if not {"hf_cpu_oracle", "artifact_consistency"}.issubset(required_gates):
+        return
+    oracle_gate = gates.get("hf_cpu_oracle")
+    consistency_gate = gates.get("artifact_consistency")
+    if (
+        oracle_gate is None
+        or not oracle_gate.passed
+        or consistency_gate is None
+        or not consistency_gate.passed
+    ):
+        return
+    actual = (
+        oracle_gate.detail.get("transaction_digest")
+        if isinstance(oracle_gate.detail, dict)
+        else None
+    )
+    consistency_validation = (
+        consistency_gate.detail.get("detail")
+        if isinstance(consistency_gate.detail, dict)
+        else None
+    )
+    expected = (
+        consistency_validation.get("oracle_transaction_digest")
+        if isinstance(consistency_validation, dict)
+        else None
+    )
+    if not isinstance(expected, str) or expected != actual:
+        gates["artifact_consistency"] = Gate(
+            False,
+            0.0,
+            {
+                "artifact_validator": "artifact_consistency",
+                "promotion_eligible": False,
+                "claim_ceiling": "diagnostic_only_nonpromotion",
+                "expected_oracle_transaction_digest": expected,
+                "actual_oracle_transaction_digest": actual,
+                "errors": [
+                    "artifact consistency must bind the exact canonical HF CPU "
+                    "oracle transaction used by reward scoring"
+                ],
+            },
+        )
+
+
 def first_failed_gate(gates: dict[str, Gate], required: tuple[str, ...]) -> str:
     if not gates:
         return "not_started"
@@ -274,31 +342,137 @@ def _score_logit_payload(payload: Any) -> Gate:
     return Gate(passed=passed or score >= 1.0, score=score, detail=payload)
 
 
-def _score_oracle_records(payload: Any) -> Gate:
-    if payload is None:
-        return Gate(False, 0.0, {"error": "missing oracle payload"})
-    records = payload if isinstance(payload, list) else [payload]
-    if not records or not all(isinstance(record, dict) for record in records):
-        return Gate(False, 0.0, {"error": "oracle payload must be object/list"})
-
-    validations = []
-    for record in records:
-        validations.append(validate_hf_cpu_oracle_record(record))
-    passed = all(validation.passed for validation in validations)
+def _oracle_validation_gate(validation: Any) -> Gate:
     return Gate(
-        passed=passed,
-        score=1.0 if passed else 0.0,
+        passed=validation.passed,
+        score=1.0 if validation.passed else 0.0,
         detail={
+            **validation.detail,
+            "errors": list(validation.errors),
+        },
+    )
+
+
+def _score_oracle_records(payload: Any, dense_payload: Any) -> Gate:
+    return Gate(
+        False,
+        0.0,
+        {
             "artifact_validator": "hf_cpu_oracle",
-            "records": len(records),
-            "valid_records": sum(1 for validation in validations if validation.passed),
+            "transaction_validator": (
+                "tools/oracles/hf-cpu/capture_hf_cpu_oracle.py:"
+                "validate_capture_transaction"
+            ),
+            "provided_raw_payload": payload is not None,
+            "provided_dense_payload": dense_payload is not None,
+            "promotion_eligible": False,
+            "claim_ceiling": "diagnostic_only_nonpromotion",
             "errors": [
-                {"index": index, "errors": list(validation.errors)}
-                for index, validation in enumerate(validations)
-                if validation.errors
+                "live reward requires a canonically committed raw/dense "
+                "transaction at retained file paths"
             ],
         },
     )
+
+
+def _score_oracle_files(
+    oracle_path: Path | None,
+    dense_path: Path | None,
+    *,
+    expected_authority: HfCpuOracleAuthority | None,
+    require_authority: bool,
+) -> tuple[Gate, Any | None]:
+    if oracle_path is None or dense_path is None:
+        missing = "raw" if oracle_path is None else "dense"
+        return (
+            Gate(
+                False,
+                0.0,
+                {
+                    "artifact_validator": "hf_cpu_oracle",
+                    "transaction_validator": (
+                        "tools/oracles/hf-cpu/capture_hf_cpu_oracle.py:"
+                        "validate_capture_transaction"
+                    ),
+                    "promotion_eligible": False,
+                    "claim_ceiling": "diagnostic_only_nonpromotion",
+                    "errors": [f"missing retained HF CPU oracle {missing} file"],
+                },
+            ),
+            None,
+        )
+    evidence = load_hf_cpu_oracle_evidence_files(
+        oracle_path,
+        dense_path,
+        expected_authority=expected_authority,
+        require_authority=require_authority,
+    )
+    return (
+        _oracle_validation_gate(evidence.validation),
+        evidence,
+    )
+
+
+def _missing_promotion_evidence_gate(
+    name: str,
+    validator_name: str,
+) -> dict[str, Any]:
+    return {
+        "artifact_validator": validator_name,
+        "passed": False,
+        "score": 0.0,
+        "promotion_eligible": False,
+        "claim_ceiling": "diagnostic_only_nonpromotion",
+        "errors": [f"same-process promotion requires retained {name} evidence"],
+    }
+
+
+def _final_plan_gates(
+    *,
+    artifact_spec: Mapping[str, Any] | None,
+    ares_plan_path: Path | None,
+    target_plan_path: Path | None,
+    oracle_evidence: Any | None,
+    required_gates: tuple[str, ...],
+) -> dict[str, dict[str, Any]]:
+    validated: dict[str, dict[str, Any]] = {}
+    if "aresplan_valid" in required_gates:
+        validated["aresplan_valid"] = (
+            ares_plan_gate(ares_plan_path)
+            if ares_plan_path is not None
+            else _missing_promotion_evidence_gate("AresPlan", "ares_plan")
+        )
+    if "targetplan_valid" in required_gates:
+        validated["targetplan_valid"] = (
+            target_plan_gate(target_plan_path)
+            if target_plan_path is not None
+            else _missing_promotion_evidence_gate("TargetPlan", "target_plan")
+        )
+    if "artifact_consistency" in required_gates:
+        if artifact_spec is None:
+            validated["artifact_consistency"] = _missing_promotion_evidence_gate(
+                "model specification",
+                "artifact_consistency",
+            )
+        else:
+            oracle_validation = (
+                oracle_evidence.validation if oracle_evidence is not None else None
+            )
+            validated["artifact_consistency"] = artifact_consistency_gate(
+                artifact_spec,
+                oracle_payload=(
+                    oracle_evidence.oracle_records
+                    if oracle_validation is not None and oracle_validation.passed
+                    else None
+                ),
+                oracle_transaction_digest=(
+                    oracle_validation.detail.get("transaction_digest")
+                    if oracle_validation is not None and oracle_validation.passed
+                    else None
+                ),
+                validated_gates=validated,
+            )
+    return validated
 
 
 def _score_token_agreement_payload(
@@ -322,19 +496,72 @@ def compute_reward(
     gates_payload: Any = None,
     validated_gates_payload: Any = None,
     oracle_payload: Any = None,
+    oracle_dense_payload: Any = None,
+    oracle_path: Path | None = None,
+    oracle_dense_path: Path | None = None,
+    artifact_spec: Mapping[str, Any] | None = None,
+    ares_plan_path: Path | None = None,
+    target_plan_path: Path | None = None,
+    authority_root: Path | None = None,
+    expected_oracle_authority: HfCpuOracleAuthority | None = None,
     token_payload: Any = None,
     token_payload_base_dir: Path | None = None,
     performance_payload: Any = None,
     one_token_payload: Any = None,
     required_gates: tuple[str, ...] = STANDARD_GATES,
+    promotion_authority: bool = False,
 ) -> dict[str, Any]:
     gates = extract_gates(gates_payload)
     reject_untrusted_artifact_gates(gates, required_gates)
     if validated_gates_payload is not None:
         merge_validated_gates(gates, validated_gates_payload)
 
-    if oracle_payload is not None:
-        gates["hf_cpu_oracle"] = _score_oracle_records(oracle_payload)
+    oracle_evidence = None
+    require_oracle_authority = (
+        promotion_authority
+        and checked_in_gate_profile(required_gates) is not None
+        and "hf_cpu_oracle" in required_gates
+    )
+    if oracle_path is not None or oracle_dense_path is not None:
+        gates["hf_cpu_oracle"], oracle_evidence = _score_oracle_files(
+            oracle_path,
+            oracle_dense_path,
+            expected_authority=expected_oracle_authority,
+            require_authority=require_oracle_authority,
+        )
+    elif oracle_payload is not None or oracle_dense_payload is not None:
+        gates["hf_cpu_oracle"] = _score_oracle_records(
+            oracle_payload,
+            oracle_dense_payload,
+        )
+    elif "hf_cpu_oracle" in required_gates:
+        gates["hf_cpu_oracle"], oracle_evidence = _score_oracle_files(
+            None,
+            None,
+            expected_authority=expected_oracle_authority,
+            require_authority=require_oracle_authority,
+        )
+
+    if promotion_authority:
+        for name, gate in _final_plan_gates(
+            artifact_spec=artifact_spec,
+            ares_plan_path=ares_plan_path,
+            target_plan_path=target_plan_path,
+            oracle_evidence=oracle_evidence,
+            required_gates=required_gates,
+        ).items():
+            gates[name] = as_gate(gate)
+        if "shortcut_scan" in required_gates:
+            gates["shortcut_scan"] = as_gate(
+                shortcut_scan_gate(authority_root)
+                if authority_root is not None
+                else _missing_promotion_evidence_gate(
+                    "shortcut scan",
+                    "shortcut_scan",
+                )
+            )
+
+    enforce_oracle_consistency_digest(gates, required_gates)
 
     if one_token_payload is not None:
         gates["one_token_logits"] = _score_logit_payload(one_token_payload)
@@ -351,7 +578,12 @@ def compute_reward(
 
     enforce_artifact_gate_evidence(gates, required_gates)
 
+    gate_profile = checked_in_gate_profile(required_gates)
     first_failed = first_failed_gate(gates, required_gates)
+    if first_failed == "complete" and (
+        gate_profile is None or not promotion_authority
+    ):
+        first_failed = "diagnostic_complete"
     stage_cap = STAGE_CAPS.get(first_failed, 0.0)
 
     alpha_execution, alpha_components = compute_alpha_execution(gates, required_gates)
@@ -374,6 +606,12 @@ def compute_reward(
     if math.isclose(score, 1.0, rel_tol=0.0, abs_tol=1e-12):
         score = 1.0
 
+    promotion_eligible = (
+        promotion_authority
+        and gate_profile is not None
+        and first_failed == "complete"
+    )
+
     return {
         "score": score,
         "raw_score": raw,
@@ -382,6 +620,19 @@ def compute_reward(
         "delta_inference": delta_inference,
         "stage_cap": stage_cap,
         "first_failed_gate": first_failed,
+        "gate_profile": gate_profile,
+        "required_gates_authority": (
+            "checked_in_profile" if gate_profile is not None else "custom_diagnostic"
+        ),
+        "validation_authority": (
+            "same_process" if promotion_authority else "diagnostic_receipt"
+        ),
+        "promotion_eligible": promotion_eligible,
+        "claim_ceiling": (
+            "promotion_candidate"
+            if promotion_eligible
+            else "diagnostic_only_nonpromotion"
+        ),
         "gates": {
             name: {"passed": gate.passed, "score": gate.score}
             for name, gate in sorted(gates.items())
@@ -419,7 +670,12 @@ def build_parser() -> argparse.ArgumentParser:
         type=Path,
         help="JSON file containing gates produced by artifact validators",
     )
-    parser.add_argument("--oracle", type=Path, help="HF CPU oracle JSON/JSONL summary")
+    parser.add_argument("--oracle", type=Path, help="Canonical HF CPU raw JSONL")
+    parser.add_argument(
+        "--oracle-dense",
+        type=Path,
+        help="Canonical dense-logits JSONL committed by --oracle",
+    )
     parser.add_argument("--tokens", type=Path, help="Token agreement JSON")
     parser.add_argument("--performance", type=Path, help="Performance JSON")
     parser.add_argument("--one-token", type=Path, help="One-token logits/TVD JSON")
@@ -453,15 +709,6 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def _read_json_or_jsonl(path: Path | None) -> Any:
-    if path is None:
-        return None
-    text = path.read_text()
-    if path.suffix == ".jsonl":
-        return [json.loads(line) for line in text.splitlines() if line.strip()]
-    return json.loads(text)
-
-
 def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
@@ -475,12 +722,14 @@ def main(argv: list[str] | None = None) -> int:
     reward = compute_reward(
         gates_payload=gates_payload,
         validated_gates_payload=read_json(args.validated_gates),
-        oracle_payload=_read_json_or_jsonl(args.oracle),
+        oracle_path=args.oracle,
+        oracle_dense_path=args.oracle_dense,
         token_payload=read_json(args.tokens),
         token_payload_base_dir=args.tokens.parent if args.tokens is not None else None,
         performance_payload=read_json(args.performance),
         one_token_payload=read_json(args.one_token),
         required_gates=tuple(args.required_gates),
+        promotion_authority=False,
     )
 
     args.output_json.parent.mkdir(parents=True, exist_ok=True)

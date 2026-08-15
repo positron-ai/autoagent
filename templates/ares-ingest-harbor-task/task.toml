@@ -1,2 +1,7 @@
 name = "ares-ingest-template"
 timeout = 3600
+
+# Promotion instances add a model-specific, verifier-owned authority file:
+# [verifier.env]
+# ORACLE_AUTHORITY_FILE = "/tests/oracle-authority.json"
+# The generic template remains diagnostic-only without it.
