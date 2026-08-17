@@ -46,7 +46,7 @@
       "kind": "scheduler_packet_lineage",
       "artifact_kind": "scheduler_packet_lineage_jsonl",
       "path": "introspection_scheduler_packet_lineage_sidecar.jsonl",
-      "sha256": "d86de725dbd9e208207716e5541abb6cf7973e0fa7e03cd1defe061d0a8bb3d5",
+      "sha256": "f59356fb13446c867f363706a4c9fc632a1035ad6cff23ffb9cc5bb419f19e19",
       "trace_run_id": "ares-fixture-introspection",
       "row_count": 4,
       "byte_count": 50586,

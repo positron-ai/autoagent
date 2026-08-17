@@ -1120,7 +1120,7 @@
         "row_count": "4",
         "sampling_policy": "complete retained scheduler-lineage v2 matrix fixture: scheduler_forward_batch request 7002; generated_state_transport requests 7014 and 7015; generated_state_publication_batch request 7015; no row sampling or tensor payloads",
         "sensitivity": "local-only",
-        "sha256": "d86de725dbd9e208207716e5541abb6cf7973e0fa7e03cd1defe061d0a8bb3d5",
+        "sha256": "f59356fb13446c867f363706a4c9fc632a1035ad6cff23ffb9cc5bb419f19e19",
         "status": "recorded",
         "token_window": ""
       },
@@ -3232,7 +3232,7 @@
         "visible_token_slots": ""
       },
       {
-        "ares_plan_sha256": "95ffe4750d7f8b269d4ba127d57db2904734577448a0930e64e48fc922bf2c26",
+        "ares_plan_sha256": "2a21c368632b63c23368841f8af11d6d3f4e287d598858a090bcacedcb6cedf9",
         "artifact_index": 1,
         "attention_mode": "",
         "backend_id": "metal",
@@ -3266,7 +3266,7 @@
         "process_kind": "rinzler",
         "publication_authority_json": "{\"batch_id\":{\"arena_id\":1,\"batch_id\":1},\"generation\":1,\"lane_id\":{\"arena_id\":1,\"lane_id\":1}}",
         "qualified_row_count": "6",
-        "qualified_rows_sha256": "4a3ce3374da8baca5250ff63f61c6fa86c0f65e9d077aa3f1ebb909f91d9692b",
+        "qualified_rows_sha256": "28870db7d943ec79eb4a5d27d853e20fd5bcd76fb2c59939353a6ac85ba327d5",
         "request_id": "7015",
         "row_index": 2,
         "row_kind": "generated_state_transport",
@@ -3279,7 +3279,7 @@
         "state_parent_branch_id": "",
         "state_parent_checkpoint_id": "",
         "status": "present",
-        "target_plan_sha256": "2f14b3791a2722b2bb894e88f0e463503c5049456ed4e1ec46a79ac300c1409f",
+        "target_plan_sha256": "18752d0d1d36b7b17107aa3d2f0ac2a2db0e387ba73ff564a6b4769e32294c75",
         "targetplan_op_ids": [
           "runtime.synthetic.gdn.hidden_states",
           "runtime.synthetic.gdn.attention_mask",
@@ -3453,7 +3453,7 @@
         "visible_token_slots": ""
       },
       {
-        "ares_plan_sha256": "95ffe4750d7f8b269d4ba127d57db2904734577448a0930e64e48fc922bf2c26",
+        "ares_plan_sha256": "2a21c368632b63c23368841f8af11d6d3f4e287d598858a090bcacedcb6cedf9",
         "artifact_index": 1,
         "attention_mode": "",
         "backend_id": "metal",
@@ -3491,7 +3491,7 @@
         "publication_lane_count": "1",
         "publication_lanes": [
           {
-            "ares_plan_sha256": "95ffe4750d7f8b269d4ba127d57db2904734577448a0930e64e48fc922bf2c26",
+            "ares_plan_sha256": "2a21c368632b63c23368841f8af11d6d3f4e287d598858a090bcacedcb6cedf9",
             "backend_id": "metal",
             "event": "publish",
             "generated_state_transport_schema": "ares.scheduler.generated_state_transport.v3",
@@ -3516,7 +3516,7 @@
               0
             ],
             "qualified_row_count": 6,
-            "qualified_rows_sha256": "4a3ce3374da8baca5250ff63f61c6fa86c0f65e9d077aa3f1ebb909f91d9692b",
+            "qualified_rows_sha256": "28870db7d943ec79eb4a5d27d853e20fd5bcd76fb2c59939353a6ac85ba327d5",
             "source_authority": {
               "kind": "lean_fixture_synthetic_typed",
               "legacy_core_sha256": "34be31523368fa19d68c6bbff17d94c493a1722a775797b7782c3a1381dee2b4",
@@ -3526,7 +3526,7 @@
             "state_checkpoint_id": 1,
             "state_parent_branch_id": null,
             "state_parent_checkpoint_id": null,
-            "target_plan_sha256": "2f14b3791a2722b2bb894e88f0e463503c5049456ed4e1ec46a79ac300c1409f",
+            "target_plan_sha256": "18752d0d1d36b7b17107aa3d2f0ac2a2db0e387ba73ff564a6b4769e32294c75",
             "targetplan_op_ids": [
               "runtime.synthetic.gdn.hidden_states",
               "runtime.synthetic.gdn.attention_mask",
@@ -3696,7 +3696,7 @@
             ]
           }
         ],
-        "publication_lanes_json": "[{\"ares_plan_sha256\":\"95ffe4750d7f8b269d4ba127d57db2904734577448a0930e64e48fc922bf2c26\",\"backend_id\":\"metal\",\"event\":\"publish\",\"generated_state_transport_schema\":\"ares.scheduler.generated_state_transport.v3\",\"model_id\":\"synthetic-gdn-three-chain\",\"publication_authority\":{\"batch_id\":{\"arena_id\":2,\"batch_id\":1},\"generation\":1,\"lane_id\":{\"arena_id\":2,\"lane_id\":1}},\"publication_index\":0,\"publication_lane_id\":{\"arena_id\":2,\"lane_id\":1},\"publication_owner_indices\":[0],\"qualified_row_count\":6,\"qualified_rows_sha256\":\"4a3ce3374da8baca5250ff63f61c6fa86c0f65e9d077aa3f1ebb909f91d9692b\",\"source_authority\":{\"kind\":\"lean_fixture_synthetic_typed\",\"legacy_core_sha256\":\"34be31523368fa19d68c6bbff17d94c493a1722a775797b7782c3a1381dee2b4\",\"typed_attention_view_sha256\":\"e96a9d8ed9157ae933da1652655e34c74462047f4927411158c7ed9e5b018c22\"},\"state_branch_id\":1,\"state_checkpoint_id\":1,\"state_parent_branch_id\":null,\"state_parent_checkpoint_id\":null,\"target_plan_sha256\":\"2f14b3791a2722b2bb894e88f0e463503c5049456ed4e1ec46a79ac300c1409f\",\"targetplan_op_ids\":[\"runtime.synthetic.gdn.hidden_states\",\"runtime.synthetic.gdn.attention_mask\",\"runtime.synthetic_gdn_position\",\"runtime.synthetic.gdn.layer0.output\",\"runtime.synthetic.gdn.layer1.output\",\"runtime.synthetic.gdn.layer2.output\",\"stmt.00000.span\",\"stmt.00001.gdn_state_read\",\"stmt.00002.matmul\",\"stmt.00003.matmul\",\"stmt.00004.matmul\",\"stmt.00005.matmul\",\"stmt.00006.span\",\"stmt.00007.span\",\"stmt.00008.gdn_state_update_conv\",\"stmt.00009.span\",\"stmt.00010.span\",\"stmt.00011.span\",\"stmt.00012.span\",\"stmt.00013.span\",\"stmt.00014.span\",\"stmt.00015.span\",\"stmt.00016.span\",\"stmt.00017.span\",\"stmt.00018.span\",\"stmt.00019.span\",\"stmt.00020.span\",\"stmt.00021.span\",\"stmt.00022.span\",\"stmt.00023.span\",\"stmt.00024.span\",\"stmt.00025.span\",\"stmt.00026.span\",\"stmt.00027.span\",\"stmt.00028.span\",\"stmt.00029.span\",\"stmt.00030.span\",\"stmt.00031.span\",\"stmt.00032.span\",\"stmt.00033.span\",\"stmt.00034.span\",\"stmt.00035.span\",\"stmt.00036.span\",\"stmt.00037.span\",\"stmt.00038.span\",\"stmt.00039.span\",\"stmt.00040.span\",\"stmt.00041.span\",\"stmt.00042.span\",\"stmt.00043.span\",\"stmt.00044.span\",\"stmt.00045.span\",\"stmt.00046.span\",\"stmt.00047.span\",\"stmt.00048.gdn_state_update_recurrent\",\"stmt.00049.span\",\"stmt.00050.span\",\"stmt.00051.span\",\"stmt.00052.matmul\",\"stmt.00053.span\",\"stmt.00054.gdn_state_read\",\"stmt.00055.matmul\",\"stmt.00056.matmul\",\"stmt.00057.matmul\",\"stmt.00058.matmul\",\"stmt.00059.span\",\"stmt.00060.span\",\"stmt.00061.gdn_state_update_conv\",\"stmt.00062.span\",\"stmt.00063.span\",\"stmt.00064.span\",\"stmt.00065.span\",\"stmt.00066.span\",\"stmt.00067.span\",\"stmt.00068.span\",\"stmt.00069.span\",\"stmt.00070.span\",\"stmt.00071.span\",\"stmt.00072.span\",\"stmt.00073.span\",\"stmt.00074.span\",\"stmt.00075.span\",\"stmt.00076.span\",\"stmt.00077.span\",\"stmt.00078.span\",\"stmt.00079.span\",\"stmt.00080.span\",\"stmt.00081.span\",\"stmt.00082.span\",\"stmt.00083.span\",\"stmt.00084.span\",\"stmt.00085.span\",\"stmt.00086.span\",\"stmt.00087.span\",\"stmt.00088.span\",\"stmt.00089.span\",\"stmt.00090.span\",\"stmt.00091.span\",\"stmt.00092.span\",\"stmt.00093.span\",\"stmt.00094.span\",\"stmt.00095.span\",\"stmt.00096.span\",\"stmt.00097.span\",\"stmt.00098.span\",\"stmt.00099.span\",\"stmt.00100.span\",\"stmt.00101.gdn_state_update_recurrent\",\"stmt.00102.span\",\"stmt.00103.span\",\"stmt.00104.span\",\"stmt.00105.matmul\",\"stmt.00106.span\",\"stmt.00107.gdn_state_read\",\"stmt.00108.matmul\",\"stmt.00109.matmul\",\"stmt.00110.matmul\",\"stmt.00111.matmul\",\"stmt.00112.span\",\"stmt.00113.span\",\"stmt.00114.gdn_state_update_conv\",\"stmt.00115.span\",\"stmt.00116.span\",\"stmt.00117.span\",\"stmt.00118.span\",\"stmt.00119.span\",\"stmt.00120.span\",\"stmt.00121.span\",\"stmt.00122.span\",\"stmt.00123.span\",\"stmt.00124.span\",\"stmt.00125.span\",\"stmt.00126.span\",\"stmt.00127.span\",\"stmt.00128.span\",\"stmt.00129.span\",\"stmt.00130.span\",\"stmt.00131.span\",\"stmt.00132.span\",\"stmt.00133.span\",\"stmt.00134.span\",\"stmt.00135.span\",\"stmt.00136.span\",\"stmt.00137.span\",\"stmt.00138.span\",\"stmt.00139.span\",\"stmt.00140.span\",\"stmt.00141.span\",\"stmt.00142.span\",\"stmt.00143.span\",\"stmt.00144.span\",\"stmt.00145.span\",\"stmt.00146.span\",\"stmt.00147.span\",\"stmt.00148.span\",\"stmt.00149.span\",\"stmt.00150.span\",\"stmt.00151.span\",\"stmt.00152.span\",\"stmt.00153.span\",\"stmt.00154.gdn_state_update_recurrent\",\"stmt.00155.span\",\"stmt.00156.span\",\"stmt.00157.span\",\"stmt.00158.matmul\"]}]",
+        "publication_lanes_json": "[{\"ares_plan_sha256\":\"2a21c368632b63c23368841f8af11d6d3f4e287d598858a090bcacedcb6cedf9\",\"backend_id\":\"metal\",\"event\":\"publish\",\"generated_state_transport_schema\":\"ares.scheduler.generated_state_transport.v3\",\"model_id\":\"synthetic-gdn-three-chain\",\"publication_authority\":{\"batch_id\":{\"arena_id\":2,\"batch_id\":1},\"generation\":1,\"lane_id\":{\"arena_id\":2,\"lane_id\":1}},\"publication_index\":0,\"publication_lane_id\":{\"arena_id\":2,\"lane_id\":1},\"publication_owner_indices\":[0],\"qualified_row_count\":6,\"qualified_rows_sha256\":\"28870db7d943ec79eb4a5d27d853e20fd5bcd76fb2c59939353a6ac85ba327d5\",\"source_authority\":{\"kind\":\"lean_fixture_synthetic_typed\",\"legacy_core_sha256\":\"34be31523368fa19d68c6bbff17d94c493a1722a775797b7782c3a1381dee2b4\",\"typed_attention_view_sha256\":\"e96a9d8ed9157ae933da1652655e34c74462047f4927411158c7ed9e5b018c22\"},\"state_branch_id\":1,\"state_checkpoint_id\":1,\"state_parent_branch_id\":null,\"state_parent_checkpoint_id\":null,\"target_plan_sha256\":\"18752d0d1d36b7b17107aa3d2f0ac2a2db0e387ba73ff564a6b4769e32294c75\",\"targetplan_op_ids\":[\"runtime.synthetic.gdn.hidden_states\",\"runtime.synthetic.gdn.attention_mask\",\"runtime.synthetic_gdn_position\",\"runtime.synthetic.gdn.layer0.output\",\"runtime.synthetic.gdn.layer1.output\",\"runtime.synthetic.gdn.layer2.output\",\"stmt.00000.span\",\"stmt.00001.gdn_state_read\",\"stmt.00002.matmul\",\"stmt.00003.matmul\",\"stmt.00004.matmul\",\"stmt.00005.matmul\",\"stmt.00006.span\",\"stmt.00007.span\",\"stmt.00008.gdn_state_update_conv\",\"stmt.00009.span\",\"stmt.00010.span\",\"stmt.00011.span\",\"stmt.00012.span\",\"stmt.00013.span\",\"stmt.00014.span\",\"stmt.00015.span\",\"stmt.00016.span\",\"stmt.00017.span\",\"stmt.00018.span\",\"stmt.00019.span\",\"stmt.00020.span\",\"stmt.00021.span\",\"stmt.00022.span\",\"stmt.00023.span\",\"stmt.00024.span\",\"stmt.00025.span\",\"stmt.00026.span\",\"stmt.00027.span\",\"stmt.00028.span\",\"stmt.00029.span\",\"stmt.00030.span\",\"stmt.00031.span\",\"stmt.00032.span\",\"stmt.00033.span\",\"stmt.00034.span\",\"stmt.00035.span\",\"stmt.00036.span\",\"stmt.00037.span\",\"stmt.00038.span\",\"stmt.00039.span\",\"stmt.00040.span\",\"stmt.00041.span\",\"stmt.00042.span\",\"stmt.00043.span\",\"stmt.00044.span\",\"stmt.00045.span\",\"stmt.00046.span\",\"stmt.00047.span\",\"stmt.00048.gdn_state_update_recurrent\",\"stmt.00049.span\",\"stmt.00050.span\",\"stmt.00051.span\",\"stmt.00052.matmul\",\"stmt.00053.span\",\"stmt.00054.gdn_state_read\",\"stmt.00055.matmul\",\"stmt.00056.matmul\",\"stmt.00057.matmul\",\"stmt.00058.matmul\",\"stmt.00059.span\",\"stmt.00060.span\",\"stmt.00061.gdn_state_update_conv\",\"stmt.00062.span\",\"stmt.00063.span\",\"stmt.00064.span\",\"stmt.00065.span\",\"stmt.00066.span\",\"stmt.00067.span\",\"stmt.00068.span\",\"stmt.00069.span\",\"stmt.00070.span\",\"stmt.00071.span\",\"stmt.00072.span\",\"stmt.00073.span\",\"stmt.00074.span\",\"stmt.00075.span\",\"stmt.00076.span\",\"stmt.00077.span\",\"stmt.00078.span\",\"stmt.00079.span\",\"stmt.00080.span\",\"stmt.00081.span\",\"stmt.00082.span\",\"stmt.00083.span\",\"stmt.00084.span\",\"stmt.00085.span\",\"stmt.00086.span\",\"stmt.00087.span\",\"stmt.00088.span\",\"stmt.00089.span\",\"stmt.00090.span\",\"stmt.00091.span\",\"stmt.00092.span\",\"stmt.00093.span\",\"stmt.00094.span\",\"stmt.00095.span\",\"stmt.00096.span\",\"stmt.00097.span\",\"stmt.00098.span\",\"stmt.00099.span\",\"stmt.00100.span\",\"stmt.00101.gdn_state_update_recurrent\",\"stmt.00102.span\",\"stmt.00103.span\",\"stmt.00104.span\",\"stmt.00105.matmul\",\"stmt.00106.span\",\"stmt.00107.gdn_state_read\",\"stmt.00108.matmul\",\"stmt.00109.matmul\",\"stmt.00110.matmul\",\"stmt.00111.matmul\",\"stmt.00112.span\",\"stmt.00113.span\",\"stmt.00114.gdn_state_update_conv\",\"stmt.00115.span\",\"stmt.00116.span\",\"stmt.00117.span\",\"stmt.00118.span\",\"stmt.00119.span\",\"stmt.00120.span\",\"stmt.00121.span\",\"stmt.00122.span\",\"stmt.00123.span\",\"stmt.00124.span\",\"stmt.00125.span\",\"stmt.00126.span\",\"stmt.00127.span\",\"stmt.00128.span\",\"stmt.00129.span\",\"stmt.00130.span\",\"stmt.00131.span\",\"stmt.00132.span\",\"stmt.00133.span\",\"stmt.00134.span\",\"stmt.00135.span\",\"stmt.00136.span\",\"stmt.00137.span\",\"stmt.00138.span\",\"stmt.00139.span\",\"stmt.00140.span\",\"stmt.00141.span\",\"stmt.00142.span\",\"stmt.00143.span\",\"stmt.00144.span\",\"stmt.00145.span\",\"stmt.00146.span\",\"stmt.00147.span\",\"stmt.00148.span\",\"stmt.00149.span\",\"stmt.00150.span\",\"stmt.00151.span\",\"stmt.00152.span\",\"stmt.00153.span\",\"stmt.00154.gdn_state_update_recurrent\",\"stmt.00155.span\",\"stmt.00156.span\",\"stmt.00157.span\",\"stmt.00158.matmul\"]}]",
         "publication_record_count": "1",
         "publication_route_owner_index": "",
         "request_id": "7015",
@@ -3707,7 +3707,7 @@
         "sparse_topk_rows": "",
         "sparse_topk_token_count": "",
         "status": "present",
-        "target_plan_sha256": "2f14b3791a2722b2bb894e88f0e463503c5049456ed4e1ec46a79ac300c1409f",
+        "target_plan_sha256": "18752d0d1d36b7b17107aa3d2f0ac2a2db0e387ba73ff564a6b4769e32294c75",
         "targetplan_op_ids": [
           "runtime.synthetic.gdn.hidden_states",
           "runtime.synthetic.gdn.attention_mask",

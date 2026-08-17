@@ -6,7 +6,7 @@
 bin/ares-trace-report \
   --metadata tools/ares-trace/fixtures/introspection_artifacts.trace-meta.json \
   --format json \
-  --limit 1
+  --limit 0
 ```
 
 Keep it as real Ares report JSON so AutoAgent trace-report intake tests cover
